@@ -1,0 +1,9 @@
+C:\Users\aaron\OneDrive\Documents\OtherProjects\portable-ipc\csharp\PortableIPC.Core\bin\Debug\netcoreapp3.1\PortableIPC.Core.deps.json
+C:\Users\aaron\OneDrive\Documents\OtherProjects\portable-ipc\csharp\PortableIPC.Core\bin\Debug\netcoreapp3.1\PortableIPC.Core.dll
+C:\Users\aaron\OneDrive\Documents\OtherProjects\portable-ipc\csharp\PortableIPC.Core\bin\Debug\netcoreapp3.1\PortableIPC.Core.pdb
+C:\Users\aaron\OneDrive\Documents\OtherProjects\portable-ipc\csharp\PortableIPC.Core\obj\Debug\netcoreapp3.1\PortableIPC.Core.csprojAssemblyReference.cache
+C:\Users\aaron\OneDrive\Documents\OtherProjects\portable-ipc\csharp\PortableIPC.Core\obj\Debug\netcoreapp3.1\PortableIPC.Core.AssemblyInfoInputs.cache
+C:\Users\aaron\OneDrive\Documents\OtherProjects\portable-ipc\csharp\PortableIPC.Core\obj\Debug\netcoreapp3.1\PortableIPC.Core.AssemblyInfo.cs
+C:\Users\aaron\OneDrive\Documents\OtherProjects\portable-ipc\csharp\PortableIPC.Core\obj\Debug\netcoreapp3.1\PortableIPC.Core.csproj.CoreCompileInputs.cache
+C:\Users\aaron\OneDrive\Documents\OtherProjects\portable-ipc\csharp\PortableIPC.Core\obj\Debug\netcoreapp3.1\PortableIPC.Core.dll
+C:\Users\aaron\OneDrive\Documents\OtherProjects\portable-ipc\csharp\PortableIPC.Core\obj\Debug\netcoreapp3.1\PortableIPC.Core.pdb
