@@ -6,7 +6,7 @@ using System.Text;
 
 namespace PortableIPC.Core
 {
-    public class ProtocolEndpointHandler
+    public class ProtocolEndpointHandler: IEndpointHandler
     {
         private readonly Dictionary<IPEndPoint, Dictionary<string, ISessionHandler>> _sessionHandlerMap;
         private readonly AbstractPromise<VoidType> _voidReturnPromise;
@@ -81,9 +81,10 @@ namespace PortableIPC.Core
             {
                 return PromiseApi.Reject(ex);
             }
-            if (message.OpCode == ProtocolDatagram.OpCodeCloseAll)
+            var returnPromise = HandleReceiveProtocolControlMessage(endpoint, message);
+            if (returnPromise != null)
             {
-                return HandleReceiveCloseAll(endpoint);
+                return returnPromise;
             }
             ISessionHandler sessionHandler = GetOrCreateSessionHandler(endpoint, message.SessionId);
             if (sessionHandler != null)
@@ -94,6 +95,15 @@ namespace PortableIPC.Core
             {
                 return PromiseApi.Reject(new Exception($"Could not allocate handler for session {message.SessionId} from {endpoint}"));
             }
+        }
+
+        public AbstractPromise<VoidType> HandleReceiveProtocolControlMessage(IPEndPoint endpoint, ProtocolDatagram message)
+        {
+            if (message.OpCode == ProtocolDatagram.OpCodeCloseAll)
+            {
+                return HandleReceiveCloseAll(endpoint);
+            }
+            return null;
         }
 
         public AbstractPromise<VoidType> HandleSend(IPEndPoint endpoint, ProtocolDatagram message)
@@ -119,7 +129,7 @@ namespace PortableIPC.Core
             return HandleException(NetworkSocket.HandleSend(endpoint, pdu, 0, pdu.Length));
         }
 
-        public AbstractPromise<VoidType> HandleSendCloseAll(IPEndPoint endpoint)
+        private AbstractPromise<VoidType> HandleSendCloseAll(IPEndPoint endpoint)
         {
             ProtocolDatagram pdu = new ProtocolDatagram
             {
@@ -198,7 +208,7 @@ namespace PortableIPC.Core
             return sessionHandler?.ProcessErrorReceive() ?? _voidReturnPromise;
         }
 
-        private AbstractPromise<VoidType> HandleException(AbstractPromise<VoidType> promise)
+        public AbstractPromise<VoidType> HandleException(AbstractPromise<VoidType> promise)
         {
             return promise.Then<VoidType>(null, err =>
             {
@@ -206,7 +216,7 @@ namespace PortableIPC.Core
             });
         }
 
-        private AbstractPromise<VoidType> SwallowException(AbstractPromise<VoidType> promise)
+        public AbstractPromise<VoidType> SwallowException(AbstractPromise<VoidType> promise)
         {
             return promise.ThenCompose(null, err =>
             {
@@ -215,7 +225,7 @@ namespace PortableIPC.Core
             });
         }
 
-        internal void RemoveSessionHandler(IPEndPoint endpoint, string sessionId)
+        public void RemoveSessionHandler(IPEndPoint endpoint, string sessionId)
         {
             lock (_sessionHandlerMap)
             {

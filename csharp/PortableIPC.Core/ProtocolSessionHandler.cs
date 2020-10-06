@@ -12,6 +12,11 @@ namespace PortableIPC.Core
         public string SessionId { get; set; }
 
         public bool IsClosed { get; private set; }
+        public int MaxPduSize { get; set; }
+        public int MaxRetryCount { get; set; }
+        public int WindowSize { get; set; }
+        public int IdleTimeoutSecs { get; set; }
+        public int AckTimeoutSecs { get; set; }
 
         public AbstractPromise<VoidType> Close(Exception error, bool timeout)
         {
@@ -58,12 +63,17 @@ namespace PortableIPC.Core
             });
         }
 
-        public void SetIdleTimeout(bool reset)
+        public void ResetAckTimeout<T>(int timeoutSecs, IStoredCallback<T> cb)
         {
             throw new NotImplementedException();
         }
 
-        public void ResetAckTimeout<T>(int timeoutSecs, IStoredCallback<T> cb)
+        public void ResetIdleTimeout()
+        {
+            throw new NotImplementedException();
+        }
+
+        public AbstractPromise<VoidType> HandleClosing(Exception error, bool timeout)
         {
             throw new NotImplementedException();
         }
