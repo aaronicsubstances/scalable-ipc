@@ -31,12 +31,12 @@ namespace PortableIPC.Core
         void ResetIdleTimeout();
 
         void ResetAckTimeout(int timeoutSecs, StoredCallback cb);
-        void DiscardReceivedMessage(ProtocolDatagram message, AbstractPromiseOnHold<VoidType> promiseOnHold);
-        void HandleClosing(Exception error, bool timeout, AbstractPromiseOnHold<VoidType> promiseOnHold);
+        void DiscardReceivedMessage(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb);
+        void HandleClosing(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb);
 
         // application layer interface
-        void OnOpenReceived(ProtocolDatagram message, AbstractPromiseOnHold<VoidType> promiseOnHold);
-        void OnDataReceived(byte[] data, int offset, int length, AbstractPromiseOnHold<VoidType> promiseOnHold);
-        void OnClose(Exception error, bool timeout, AbstractPromiseOnHold<VoidType> promiseOnHold);
+        void OnOpenReceived(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb);
+        void OnDataReceived(byte[] data, int offset, int length, AbstractPromiseCallback<VoidType> promiseCb);
+        void OnClose(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb);
     }
 }

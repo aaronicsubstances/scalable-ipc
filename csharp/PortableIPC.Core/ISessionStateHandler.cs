@@ -2,12 +2,12 @@
 
 namespace PortableIPC.Core
 {
-    internal interface ISessionStateHandler
+    public interface ISessionStateHandler
     {
         bool ProcessErrorReceive();
-        bool ProcessReceive(ProtocolDatagram message, AbstractPromiseOnHold<VoidType> promiseOnHold);
-        bool ProcessSend(ProtocolDatagram message, AbstractPromiseOnHold<VoidType> promiseOnHold);
-        bool ProcessSendData(byte[] rawData, AbstractPromiseOnHold<VoidType> promiseOnHold);
+        bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb);
+        bool ProcessSend(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb);
+        bool ProcessSendData(byte[] rawData, AbstractPromiseCallback<VoidType> promiseCb);
         void Close(Exception error, bool timeout);
     }
 }

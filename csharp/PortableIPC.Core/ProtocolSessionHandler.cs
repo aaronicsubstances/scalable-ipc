@@ -7,9 +7,10 @@ namespace PortableIPC.Core
 {
     public class ProtocolSessionHandler : ISessionHandler
     {
-        private readonly List<ISessionStateHandler> _stateHandlers = new List<ISessionStateHandler>();
+        protected internal readonly List<ISessionStateHandler> _stateHandlers = new List<ISessionStateHandler>();
         private readonly AbstractPromiseApi _promiseApi;
         private readonly AbstractEventLoopApi _eventLoop;
+
         private object _lastTimeoutId;
 
         public ProtocolEndpointHandler EndpointHandler { get; set; }
@@ -25,13 +26,25 @@ namespace PortableIPC.Core
 
         public AbstractPromise<VoidType> Close(Exception error, bool timeout)
         {
-            throw new NotImplementedException();
+            AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            AbstractPromise<VoidType> returnPromise = promiseCb.Extract(); PostSerially(() =>
+            {
+                if (!IsClosed)
+                {
+                    HandleClosing(error, timeout, promiseCb);
+                }
+                else
+                {
+                    promiseCb.CompleteSuccessfully(VoidType.Instance);
+                }
+            });
+            return returnPromise;
         }
 
         public AbstractPromise<VoidType> ProcessReceive(ProtocolDatagram message)
         {
-            AbstractPromiseOnHold<VoidType> promiseOnHold = _promiseApi.CreateOnHold<VoidType>();
-            AbstractPromise<VoidType> returnPromise = promiseOnHold.Extract();
+            AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
                 bool handled = false;
@@ -40,7 +53,7 @@ namespace PortableIPC.Core
                     EnsureIdleTimeout();
                     foreach (ISessionStateHandler stateHandler in _stateHandlers)
                     {
-                        handled = stateHandler.ProcessReceive(message, promiseOnHold);
+                        handled = stateHandler.ProcessReceive(message, promiseCb);
                         if (handled)
                         {
                             break;
@@ -49,22 +62,22 @@ namespace PortableIPC.Core
                 }
                 if (!handled)
                 {
-                    DiscardReceivedMessage(message, promiseOnHold);
+                    DiscardReceivedMessage(message, promiseCb);
                 }
             });
             return returnPromise;
         }
 
-        public void DiscardReceivedMessage(ProtocolDatagram message, AbstractPromiseOnHold<VoidType> promiseOnHold)
+        public void DiscardReceivedMessage(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
         {
             // subclasses can log.
-            promiseOnHold.CompleteSuccessfully(VoidType.Instance);
+            promiseCb.CompleteSuccessfully(VoidType.Instance);
         }
 
         public AbstractPromise<VoidType> ProcessErrorReceive()
         {
-            AbstractPromiseOnHold<VoidType> promiseOnHold = _promiseApi.CreateOnHold<VoidType>();
-            AbstractPromise<VoidType> returnPromise = promiseOnHold.Extract();
+            AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
                 // for receipt of error PDUs, ignore processing if session handler is closed or
@@ -83,19 +96,19 @@ namespace PortableIPC.Core
                 }
             });
             // always successful, since this method is intended to notify state handlers
-            promiseOnHold.CompleteSuccessfully(VoidType.Instance);
+            promiseCb.CompleteSuccessfully(VoidType.Instance);
             return returnPromise;
         }
 
         public AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message)
         {
-            AbstractPromiseOnHold<VoidType> promiseOnHold = _promiseApi.CreateOnHold<VoidType>();
-            AbstractPromise<VoidType> returnPromise = promiseOnHold.Extract();
+            AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
                 if (IsClosed)
                 {
-                    promiseOnHold.CompleteExceptionally(new ProtocolSessionException(SessionId,
+                    promiseCb.CompleteExceptionally(new ProtocolSessionException(SessionId,
                         "Session handler is closed"));
                 }
                 else
@@ -104,7 +117,7 @@ namespace PortableIPC.Core
                     bool handled = false;
                     foreach (ISessionStateHandler stateHandler in _stateHandlers)
                     {
-                        handled = stateHandler.ProcessSend(message, promiseOnHold);
+                        handled = stateHandler.ProcessSend(message, promiseCb);
                         if (!handled)
                         {
                             break;
@@ -112,7 +125,7 @@ namespace PortableIPC.Core
                     }
                     if (!handled)
                     {
-                        promiseOnHold.CompleteExceptionally(new ProtocolSessionException(SessionId,
+                        promiseCb.CompleteExceptionally(new ProtocolSessionException(SessionId,
                             "No state handler found to process send"));
                     }
                 }
@@ -122,13 +135,13 @@ namespace PortableIPC.Core
 
         public AbstractPromise<VoidType> ProcessSendData(byte[] rawData)
         {
-            AbstractPromiseOnHold<VoidType> promiseOnHold = _promiseApi.CreateOnHold<VoidType>();
-            AbstractPromise<VoidType> returnPromise = promiseOnHold.Extract();
+            AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
                 if (IsClosed)
                 {
-                    promiseOnHold.CompleteExceptionally(new ProtocolSessionException(SessionId,
+                    promiseCb.CompleteExceptionally(new ProtocolSessionException(SessionId,
                         "Session handler is closed"));
                 }
                 else
@@ -137,7 +150,7 @@ namespace PortableIPC.Core
                     bool handled = false;
                     foreach (ISessionStateHandler stateHandler in _stateHandlers)
                     {
-                        handled = stateHandler.ProcessSendData(rawData, promiseOnHold);
+                        handled = stateHandler.ProcessSendData(rawData, promiseCb);
                         if (!handled)
                         {
                             break;
@@ -145,7 +158,7 @@ namespace PortableIPC.Core
                     }
                     if (!handled)
                     {
-                        promiseOnHold.CompleteExceptionally(new ProtocolSessionException(SessionId,
+                        promiseCb.CompleteExceptionally(new ProtocolSessionException(SessionId,
                             "No state handler found to process send data"));
                     }
                 }
@@ -230,7 +243,7 @@ namespace PortableIPC.Core
             });
         }
 
-        public void HandleClosing(Exception error, bool timeout, AbstractPromiseOnHold<VoidType> promiseOnHold)
+        public void HandleClosing(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb)
         {
             CancelTimeout();
             IsClosed = true;
@@ -240,24 +253,24 @@ namespace PortableIPC.Core
                 stateHandler.Close(error, timeout);
             }
 
-            _eventLoop.PostCallback(new StoredCallback(_ => OnClose(error, timeout, promiseOnHold)));
+            _eventLoop.PostCallback(new StoredCallback(_ => OnClose(error, timeout, promiseCb)));
         }
 
         // calls to application layer
-        public void OnClose(Exception error, bool timeout, AbstractPromiseOnHold<VoidType> promiseOnHold)
+        public void OnClose(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb)
         {
-            // NB: promiseOnHold can be null if called from timeout and not from a state handler.
-            promiseOnHold?.CompleteSuccessfully(VoidType.Instance);
+            // NB: promiseCb can be null if called from timeout and not from a state handler.
+            promiseCb?.CompleteSuccessfully(VoidType.Instance);
         }
 
-        public void OnOpenReceived(ProtocolDatagram message, AbstractPromiseOnHold<VoidType> promiseOnHold)
+        public void OnOpenReceived(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
         {
-            promiseOnHold.CompleteSuccessfully(VoidType.Instance);
+            promiseCb.CompleteSuccessfully(VoidType.Instance);
         }
 
-        public void OnDataReceived(byte[] data, int offset, int length, AbstractPromiseOnHold<VoidType> promiseOnHold)
+        public void OnDataReceived(byte[] data, int offset, int length, AbstractPromiseCallback<VoidType> promiseCb)
         {
-            promiseOnHold.CompleteSuccessfully(VoidType.Instance);
+            promiseCb.CompleteSuccessfully(VoidType.Instance);
         }
     }
 }

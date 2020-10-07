@@ -59,10 +59,6 @@ namespace PortableIPC.Core
             {
                 throw new Exception("datagram too small to be valid");
             }
-            if (length > MaxDatagramSize)
-            {
-                throw new Exception("datagram too large to be valid");
-            }
 
             var parsedDatagram = new ProtocolDatagram();
 
@@ -119,59 +115,67 @@ namespace PortableIPC.Core
                 {
                     // Identify known options first. In case of repetition, first one wins.
                     bool knownOptionEncountered = true;
-                    switch (optionName)
+                    try
                     {
-                        case OptionNameRetryCount:
-                            if (parsedDatagram.RetryCount == null)
-                            {
-                                parsedDatagram.RetryCount = ParseOptionAsInt16(optionName, optionNameOrValue);
-                            }
-                            break;
-                        case OptionNameWindowSize:
-                            if (parsedDatagram.WindowSize == null)
-                            {
-                                parsedDatagram.WindowSize = ParseOptionAsInt16(optionName, optionNameOrValue);
-                            }
-                            break;
-                        case OptionNameMaxPduSize:
-                            if (parsedDatagram.MaxPduSize == null)
-                            {
-                                parsedDatagram.MaxPduSize = ParseOptionAsInt16(optionName, optionNameOrValue);
-                            }
-                            break;
-                        case OptionNameIsLastInWindow:
-                            if (parsedDatagram.IsLastInWindow == null)
-                            {
-                                parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionName, optionNameOrValue);
-                            }
-                            break;
-                        case OptionNameIdleTimeout:
-                            if (parsedDatagram.IdleTimeoutSecs == null)
-                            {
-                                parsedDatagram.IdleTimeoutSecs = ParseOptionAsInt32(optionName, optionNameOrValue);
-                            }
-                            break;
-                        case OptionNameAckTimeout:
-                            if (parsedDatagram.AckTimeoutSecs == null)
-                            {
-                                parsedDatagram.AckTimeoutSecs = ParseOptionAsInt32(optionName, optionNameOrValue);
-                            }
-                            break;
-                        case OptionNameErrorCode:
-                            if (parsedDatagram.ErrorCode == null)
-                            {
-                                parsedDatagram.ErrorCode = ParseOptionAsInt16(optionName, optionNameOrValue);
-                            }
-                            break;
-                        case OptionNameErrorMessage:
-                            if (parsedDatagram.ErrorMessage == null)
-                            {
-                                parsedDatagram.ErrorMessage = optionNameOrValue;
-                            }
-                            break;
-                        default:
-                            knownOptionEncountered = false;
-                            break;
+                        switch (optionName)
+                        {
+                            case OptionNameRetryCount:
+                                if (parsedDatagram.RetryCount == null)
+                                {
+                                    parsedDatagram.RetryCount = ParseOptionAsInt16(optionName, optionNameOrValue);
+                                }
+                                break;
+                            case OptionNameWindowSize:
+                                if (parsedDatagram.WindowSize == null)
+                                {
+                                    parsedDatagram.WindowSize = ParseOptionAsInt16(optionName, optionNameOrValue);
+                                }
+                                break;
+                            case OptionNameMaxPduSize:
+                                if (parsedDatagram.MaxPduSize == null)
+                                {
+                                    parsedDatagram.MaxPduSize = ParseOptionAsInt16(optionName, optionNameOrValue);
+                                }
+                                break;
+                            case OptionNameIsLastInWindow:
+                                if (parsedDatagram.IsLastInWindow == null)
+                                {
+                                    parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionName, optionNameOrValue);
+                                }
+                                break;
+                            case OptionNameIdleTimeout:
+                                if (parsedDatagram.IdleTimeoutSecs == null)
+                                {
+                                    parsedDatagram.IdleTimeoutSecs = ParseOptionAsInt32(optionName, optionNameOrValue);
+                                }
+                                break;
+                            case OptionNameAckTimeout:
+                                if (parsedDatagram.AckTimeoutSecs == null)
+                                {
+                                    parsedDatagram.AckTimeoutSecs = ParseOptionAsInt32(optionName, optionNameOrValue);
+                                }
+                                break;
+                            case OptionNameErrorCode:
+                                if (parsedDatagram.ErrorCode == null)
+                                {
+                                    parsedDatagram.ErrorCode = ParseOptionAsInt16(optionName, optionNameOrValue);
+                                }
+                                break;
+                            case OptionNameErrorMessage:
+                                if (parsedDatagram.ErrorMessage == null)
+                                {
+                                    parsedDatagram.ErrorMessage = optionNameOrValue;
+                                }
+                                break;
+                            default:
+                                knownOptionEncountered = false;
+                                break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new ProtocolSessionException(parsedDatagram.SessionId,
+                            $"Received invalid value for option {optionName}: {optionNameOrValue} ({ex})");
                     }
                     if (!knownOptionEncountered)
                     {
@@ -337,20 +341,12 @@ namespace PortableIPC.Core
 
         internal static short ParseOptionAsInt16(string optionName, string optionValue)
         {
-            if (short.TryParse(optionValue, out short val))
-            {
-                return val;
-            }
-            throw new Exception($"Received invalid value for option {optionName}: {optionValue}");
+            return short.Parse(optionValue);
         }
 
         internal static int ParseOptionAsInt32(string optionName, string optionValue)
         {
-            if (int.TryParse(optionValue, out int val))
-            {
-                return val;
-            }
-            throw new Exception($"Received invalid value for option {optionName}: {optionValue}");
+            return int.Parse(optionValue);
         }
 
         internal static bool ParseOptionAsBoolean(string optionName, string optionValue)
@@ -362,7 +358,7 @@ namespace PortableIPC.Core
                 case "false":
                     return false;
             }
-            throw new Exception($"Received invalid value for option {optionName}: {optionValue}");
+            throw new Exception($"expected {true} or {false}");
         }
 
         internal static byte[] ConvertStringToBytes(string s)

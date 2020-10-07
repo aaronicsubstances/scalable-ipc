@@ -21,8 +21,8 @@ namespace PortableIPC.Core
     /// </summary>
     public interface AbstractPromiseApi
     {
-        AbstractPromise<T> Create<T>(PromiseExecutorCallback<T> code);
-        AbstractPromiseOnHold<T> CreateOnHold<T>();
+        AbstractPromise<T> Create<T>(PromiseExecutorCode<T> code);
+        AbstractPromiseCallback<T> CreateCallback<T>();
         AbstractPromise<T> Resolve<T>(T value);
         AbstractPromise<VoidType> Reject(Exception reason);
 
@@ -35,12 +35,12 @@ namespace PortableIPC.Core
         AbstractPromise<U> Then<U>(Func<T, U> onFulfilled, Action<Exception> onRejected = null);
         AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
             Func<Exception, AbstractPromise<U>> onRejected = null);
-        T Sync();
+        T Sync(); // not required to be implemented
     }
 
-    public delegate void PromiseExecutorCallback<out T>(Action<T> resolve, Action<Exception> reject);
+    public delegate void PromiseExecutorCode<out T>(Action<T> resolve, Action<Exception> reject);
 
-    public interface AbstractPromiseOnHold<T>
+    public interface AbstractPromiseCallback<T>
     {
         AbstractPromise<T> Extract();
         void CompleteSuccessfully(T value);
