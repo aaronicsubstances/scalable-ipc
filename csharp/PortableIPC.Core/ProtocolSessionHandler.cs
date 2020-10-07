@@ -1,4 +1,5 @@
-﻿using System;
+﻿using PortableIPC.Core.SessionStateHandlers;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text;
@@ -7,22 +8,48 @@ namespace PortableIPC.Core
 {
     public class ProtocolSessionHandler : ISessionHandler
     {
-        protected internal readonly List<ISessionStateHandler> _stateHandlers = new List<ISessionStateHandler>();
         private readonly AbstractPromiseApi _promiseApi;
         private readonly AbstractEventLoopApi _eventLoop;
 
         private object _lastTimeoutId;
 
+        public ProtocolSessionHandler() :
+            this(null, null, null)
+        { }
+
+        public ProtocolSessionHandler(ProtocolEndpointHandler endpointHandler, IPEndPoint endPoint, string sessionId)
+        {
+            EndpointHandler = endpointHandler;
+            ConnectedEndpoint = endPoint;
+            SessionId = sessionId;
+
+            _promiseApi = endpointHandler.PromiseApi;
+            _eventLoop = endpointHandler.EventLoop;
+
+            var receiveHandler = new ReceiveHandler(this);
+            var sendHandler = new SendHandler(this);
+            var bulkSendHandler = new BulkSendHandler(this, sendHandler);
+            var closeHandler = new CloseHandler(this);
+
+            StateHandlers.Add(receiveHandler);
+            StateHandlers.Add(sendHandler);
+            StateHandlers.Add(bulkSendHandler);
+            StateHandlers.Add(closeHandler);
+        }
+
         public ProtocolEndpointHandler EndpointHandler { get; set; }
         public IPEndPoint ConnectedEndpoint { get; set; }
         public string SessionId { get; set; }
 
+        public bool IsOpened { get; set; }
         public bool IsClosed { get; private set; }
         public int MaxPduSize { get; set; }
         public int MaxRetryCount { get; set; }
         public int WindowSize { get; set; }
         public int IdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
+
+        public List<ISessionStateHandler> StateHandlers { get; } = new List<ISessionStateHandler>();
 
         public AbstractPromise<VoidType> Close(Exception error, bool timeout)
         {
@@ -51,7 +78,7 @@ namespace PortableIPC.Core
                 if (!IsClosed)
                 {
                     EnsureIdleTimeout();
-                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
+                    foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
                         handled = stateHandler.ProcessReceive(message, promiseCb);
                         if (handled)
@@ -85,7 +112,7 @@ namespace PortableIPC.Core
                 if (!IsClosed)
                 {
                     // don't reset idle timeout for receipt of error PDUs
-                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
+                    foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
                         bool handled = stateHandler.ProcessErrorReceive();
                         if (handled)
@@ -115,7 +142,7 @@ namespace PortableIPC.Core
                 {
                     EnsureIdleTimeout();
                     bool handled = false;
-                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
+                    foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
                         handled = stateHandler.ProcessSend(message, promiseCb);
                         if (!handled)
@@ -148,7 +175,7 @@ namespace PortableIPC.Core
                 {
                     EnsureIdleTimeout();
                     bool handled = false;
-                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
+                    foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
                         handled = stateHandler.ProcessSendData(rawData, promiseCb);
                         if (!handled)
@@ -246,13 +273,15 @@ namespace PortableIPC.Core
         public void HandleClosing(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb)
         {
             CancelTimeout();
-            IsClosed = true;
             EndpointHandler.RemoveSessionHandler(ConnectedEndpoint, SessionId);
-            foreach (ISessionStateHandler stateHandler in _stateHandlers)
+            foreach (ISessionStateHandler stateHandler in StateHandlers)
             {
                 stateHandler.Close(error, timeout);
             }
+            IsClosed = true;
 
+            // pass on to application layer. NB: all calls to application layer must go through
+            // event loop.
             _eventLoop.PostCallback(new StoredCallback(_ => OnClose(error, timeout, promiseCb)));
         }
 

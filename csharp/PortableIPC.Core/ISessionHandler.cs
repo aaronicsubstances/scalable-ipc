@@ -11,6 +11,7 @@ namespace PortableIPC.Core
         ProtocolEndpointHandler EndpointHandler { get; set; }
         IPEndPoint ConnectedEndpoint { get; set; }
         string SessionId { get; set; }
+        List<ISessionStateHandler> StateHandlers { get; }
         AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSendData(byte[] rawData);
         AbstractPromise<VoidType> ProcessReceive(ProtocolDatagram message);
@@ -18,6 +19,7 @@ namespace PortableIPC.Core
         AbstractPromise<VoidType> ProcessErrorReceive();
 
         // beginning of internal API with state handlers.
+        bool IsOpened { get; set; }
         bool IsClosed { get; }
         int MaxPduSize { get; set; }
         int MaxRetryCount { get; set; }
