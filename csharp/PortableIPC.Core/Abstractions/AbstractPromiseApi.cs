@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace PortableIPC.Core
+namespace PortableIPC.Core.Abstractions
 {
     /// <summary>
     /// Promise API design is to take common functionality of NodeJS Promises, C#.NET Core Tasks, and
@@ -45,21 +45,5 @@ namespace PortableIPC.Core
         AbstractPromise<T> Extract();
         void CompleteSuccessfully(T value);
         void CompleteExceptionally(Exception error);
-    }
-
-    public class StoredCallback
-    {
-        public StoredCallback(Action<object> callback, object arg = default)
-        {
-            Callback = callback;
-            Arg = arg;
-        }
-
-        public Action<object> Callback { get; }
-        public object Arg { get; }
-        public void Run()
-        {
-            Callback.Invoke(Arg);
-        }
     }
 }

@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text;
 
-namespace PortableIPC.Core
+namespace PortableIPC.Core.Abstractions
 {
     public interface ISessionHandler
     {
         // beginning of public API.
-        ProtocolEndpointHandler EndpointHandler { get; set; }
+        IEndpointHandler EndpointHandler { get; set; }
         IPEndPoint ConnectedEndpoint { get; set; }
         string SessionId { get; set; }
         List<ISessionStateHandler> StateHandlers { get; }

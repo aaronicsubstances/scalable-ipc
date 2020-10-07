@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text;
 
-namespace PortableIPC.Core
+namespace PortableIPC.Core.Abstractions
 {
     public interface ISessionHandlerFactory
     {

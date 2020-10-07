@@ -1,4 +1,5 @@
-﻿using PortableIPC.Core.SessionStateHandlers;
+﻿using PortableIPC.Core.Abstractions;
+using PortableIPC.Core.SessionStateHandlers;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -17,7 +18,7 @@ namespace PortableIPC.Core
             this(null, null, null)
         { }
 
-        public ProtocolSessionHandler(ProtocolEndpointHandler endpointHandler, IPEndPoint endPoint, string sessionId)
+        public ProtocolSessionHandler(IEndpointHandler endpointHandler, IPEndPoint endPoint, string sessionId)
         {
             EndpointHandler = endpointHandler;
             ConnectedEndpoint = endPoint;
@@ -37,7 +38,7 @@ namespace PortableIPC.Core
             StateHandlers.Add(closeHandler);
         }
 
-        public ProtocolEndpointHandler EndpointHandler { get; set; }
+        public IEndpointHandler EndpointHandler { get; set; }
         public IPEndPoint ConnectedEndpoint { get; set; }
         public string SessionId { get; set; }
 

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace PortableIPC.Core
+namespace PortableIPC.Core.Abstractions
 {
     public interface AbstractEventLoopApi
     {

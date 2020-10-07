@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace PortableIPC.Core
+namespace PortableIPC.Core.Abstractions
 {
     public interface ISessionStateHandler
     {
