@@ -24,11 +24,19 @@ namespace PortableIPC.Core
         int WindowSize { get; set; }
         int IdleTimeoutSecs { get; set; }
         int AckTimeoutSecs { get; set; }
-        U RunSerially<T, U>(T arg, Func<T, U> cb);
-        void RunStateCallbackSerially<T>(IStoredCallback<T> cb);
+        void PostSerially(Action cb);
+        void PostSeriallyIfNotClosed(Action cb);
+
+        void EnsureIdleTimeout();
         void ResetIdleTimeout();
 
-        void ResetAckTimeout<T>(int timeoutSecs, IStoredCallback<T> cb);
-        AbstractPromise<VoidType> HandleClosing(Exception error, bool timeout);
+        void ResetAckTimeout(int timeoutSecs, StoredCallback cb);
+        void DiscardReceivedMessage(ProtocolDatagram message, AbstractPromiseOnHold<VoidType> promiseOnHold);
+        void HandleClosing(Exception error, bool timeout, AbstractPromiseOnHold<VoidType> promiseOnHold);
+
+        // application layer interface
+        void OnOpenReceived(ProtocolDatagram message, AbstractPromiseOnHold<VoidType> promiseOnHold);
+        void OnDataReceived(byte[] data, int offset, int length, AbstractPromiseOnHold<VoidType> promiseOnHold);
+        void OnClose(Exception error, bool timeout, AbstractPromiseOnHold<VoidType> promiseOnHold);
     }
 }

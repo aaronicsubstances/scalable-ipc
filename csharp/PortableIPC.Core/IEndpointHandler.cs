@@ -8,9 +8,9 @@ namespace PortableIPC.Core
     public interface IEndpointHandler
     {
         AbstractNetworkApi NetworkSocket { get; }
-        EndpointConfig EndpointConfig { get; }
-
+        AbstractEventLoopApi EventLoop { get; }
         AbstractPromiseApi PromiseApi { get; }
+        EndpointConfig EndpointConfig { get; }
         AbstractPromise<VoidType> OpenSession(IPEndPoint endpoint, ISessionHandler sessionHandler,
             ProtocolDatagram message);
         AbstractPromise<VoidType> HandleReceive(IPEndPoint endpoint, byte[] rawBytes, int offset, int length);

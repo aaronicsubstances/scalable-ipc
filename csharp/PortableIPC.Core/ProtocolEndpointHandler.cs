@@ -26,6 +26,7 @@ namespace PortableIPC.Core
         public EndpointConfig EndpointConfig { get; }
 
         public AbstractPromiseApi PromiseApi { get; }
+        public AbstractEventLoopApi EventLoop { get; }
 
         public AbstractPromise<VoidType> OpenSession(IPEndPoint endpoint, ISessionHandler sessionHandler,
             ProtocolDatagram message)
@@ -73,7 +74,7 @@ namespace PortableIPC.Core
             {
                 message = ProtocolDatagram.Parse(rawBytes, offset, length);
             }
-            catch (SessionDatagramParseException ex)
+            catch (ProtocolSessionException ex)
             {
                 return HandleErrorReceive(endpoint, ex.SessionId);
             }

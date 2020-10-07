@@ -105,7 +105,7 @@ namespace PortableIPC.Core
                 }
                 if (nullTerminatorIndex == -1)
                 {
-                    throw new SessionDatagramParseException(parsedDatagram.SessionId, "null terminator for all options not found");
+                    throw new ProtocolSessionException(parsedDatagram.SessionId, "null terminator for all options not found");
                 }
 
                 var optionNameOrValue = ConvertBytesToString(rawBytes, offset, nullTerminatorIndex);

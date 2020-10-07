@@ -22,12 +22,23 @@ namespace PortableIPC.Core
     public interface AbstractPromiseApi
     {
         AbstractPromise<T> Create<T>(PromiseExecutorCallback<T> code);
+        AbstractPromiseOnHold<T> CreateOnHold<T>();
         AbstractPromise<T> Resolve<T>(T value);
         AbstractPromise<VoidType> Reject(Exception reason);
 
-        object ScheduleTimeout(IStoredCallback<int> cb, long millis);
+        object ScheduleTimeout(long millis, StoredCallback cb);
         void CancelTimeout(object id);
     }
+
+    public interface AbstractPromise<out T>
+    {
+        AbstractPromise<U> Then<U>(Func<T, U> onFulfilled, Action<Exception> onRejected = null);
+        AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
+            Func<Exception, AbstractPromise<U>> onRejected = null);
+        T Sync();
+    }
+
+    public delegate void PromiseExecutorCallback<out T>(Action<T> resolve, Action<Exception> reject);
 
     public interface AbstractPromiseOnHold<T>
     {
@@ -36,36 +47,19 @@ namespace PortableIPC.Core
         void CompleteExceptionally(Exception error);
     }
 
-    public interface IStoredCallback<in T>
+    public class StoredCallback
     {
-        void Run();
-    }
-
-    public class DefaultStoredCallback<T> : IStoredCallback<T>
-    {
-        public DefaultStoredCallback(Action<T> callback, T arg = default)
+        public StoredCallback(Action<object> callback, object arg = default)
         {
             Callback = callback;
             Arg = arg;
         }
 
-        public Action<T> Callback { get; }
-        public T Arg { get; }
+        public Action<object> Callback { get; }
+        public object Arg { get; }
         public void Run()
         {
             Callback.Invoke(Arg);
         }
     }
-
-    public interface AbstractPromise<out T>
-    {
-        AbstractPromise<U> Then<U>(FulfilmentCallback<T, U> onFulfilled, RejectionCallback onRejected = null);
-        AbstractPromise<U> ThenCompose<U>(FulfilmentCallback<T, AbstractPromise<U>> onFulfilled,
-            FulfilmentCallback<Exception, AbstractPromise<U>> onRejected = null);
-    }
-
-    public delegate void PromiseExecutorCallback<out T>(Action<T> resolve, Action<Exception> reject);
-
-    public delegate U FulfilmentCallback<in T, out U>(T value);
-    public delegate void RejectionCallback(Exception reason);
 }

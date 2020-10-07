@@ -4,9 +4,9 @@ using System.Text;
 
 namespace PortableIPC.Core
 {
-    public class SessionDatagramParseException: Exception
+    public class ProtocolSessionException: Exception
     {
-        public SessionDatagramParseException(string sessionId, string message) :
+        public ProtocolSessionException(string sessionId, string message) :
             base(message)
         {
             SessionId = sessionId;
