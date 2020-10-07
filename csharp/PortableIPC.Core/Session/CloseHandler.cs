@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace PortableIPC.Core.SessionStateHandlers
+namespace PortableIPC.Core.Session
 {
     public class CloseHandler: ISessionStateHandler
     {

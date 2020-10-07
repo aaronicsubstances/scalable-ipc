@@ -1,5 +1,5 @@
 ﻿using PortableIPC.Core.Abstractions;
-using PortableIPC.Core.SessionStateHandlers;
+using PortableIPC.Core.Session;
 using System;
 using System.Collections.Generic;
 using System.Net;

@@ -3,22 +3,20 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace PortableIPC.Core.SessionStateHandlers
+namespace PortableIPC.Core.Session
 {
-    public class BulkSendHandler: ISessionStateHandler
+    public class SendHandler: ISessionStateHandler
     {
         private readonly ISessionHandler _sessionHandler;
-        private readonly SendHandler _sendHandler;
 
-        public BulkSendHandler(ISessionHandler sessionHandler, SendHandler sendHandler)
+        public SendHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _sendHandler = sendHandler;
         }
 
         public void Close(Exception error, bool timeout)
         {
-
+            
         }
 
         public bool ProcessErrorReceive()

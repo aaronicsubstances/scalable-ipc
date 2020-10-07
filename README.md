@@ -1,15 +1,18 @@
 # PortableIPC Protocol
 
-Defines and implements a network protocol suited for inter-process communication (IPC) on same host machine (physical or virtual). It is intended to rival and replace TCP/HTTP for IPC between (web) applications within a single host machine.
+Defines and implements a network protocol suited first for inter-process communication (IPC) on same host machine (physical or virtual). It is intended to replace HTTP/TCP for IPC 
+
+   1. among applications running on a single host machine
+   2. in microservices architecture of (web) applications
 
 ## Features
 
   * Based on UDP, and hence available across operating systems and programming platforms.
-  * **Uses session ids unlike TCP, and so eliminates TCP TIME_WAIT state build up as HTTP connections are set up and torn down.**
-  * Exposes configuration parameters such as PDU window size, idle/ack timeout, and maximum retry attempts on a per session basis to cater for wider range of communication needs. In TCP such parameters can only be configured globally for all operating system connections, and are not available to be set by application code.
-  * **Makes streaming or duplex communication easier at application layer, by providing for idle timeout to be disabled, and also by leveraging UDP preserving of message boundaries.**
+  * **Uses session ids unlike TCP, and so eliminates build up of TCP TIME_WAIT states as HTTP connections are set up and torn down.**
+  * Exposes configuration parameters such as PDU window size, idle/ack timeout, and maximum retry attempts on a per session basis to cater for different communication needs. In TCP such parameters can only be configured globally for all operating system connections, and cannot be set directly by applications.
+  * **Makes streaming and duplex communication easier at application layer, by providing for idle timeout to be disabled without need for keep-alive packets, and also by leveraging UDP preserving of message boundaries.**
   * Takes advantage of same host for increased performance by making it possible to increase MTU many times beyond Ethernet circa 1500 limit. This more than compensates for the drop in efficiency caused by protocol running in OS user mode (unlike TCP which runs in kernel mode).
-  * Extensible for local area networks and networks in which store-and-forward network capability doesn't exist, or can be catered for by expiration mechanisms based on a network clock.
+  * Extensible for communication across hosts among cooperating processes, such as occur in microservices architecture.
 
 
 ## Roadmap
