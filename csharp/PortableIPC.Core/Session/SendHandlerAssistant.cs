@@ -41,7 +41,7 @@ namespace PortableIPC.Core.Session
             {
                 return;
             }
-            if (PendingPduIndex == _sendHandler.CurrentWindow.Count)
+            if (PendingPduIndex >= _sendHandler.CurrentWindow.Count)
             {
                 _sendHandler.OnWindowSendSuccess();
                 return;

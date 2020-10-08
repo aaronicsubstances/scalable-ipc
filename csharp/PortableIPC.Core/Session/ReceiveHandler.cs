@@ -26,22 +26,11 @@ namespace PortableIPC.Core.Session
             _eventLoop = sessionHandler.EndpointHandler.EventLoop;
         }
 
-        public void Shutdown(Exception error, bool timeout)
+        public void Shutdown(Exception error)
         {
             if (_waitingForAckSendConfirmation)
             {
-                if (error == null)
-                {
-                    if (timeout)
-                    {
-                        error = new Exception("Session timed out");
-                    }
-                    else
-                    {
-                        error = new Exception("Session closed");
-                    }
-                }
-                _pendingPromiseCb?.CompleteExceptionally(error);
+                _pendingPromiseCb.CompleteExceptionally(error);
                 _waitingForAckSendConfirmation = false;
             }
             _currentWindow?.Clear();

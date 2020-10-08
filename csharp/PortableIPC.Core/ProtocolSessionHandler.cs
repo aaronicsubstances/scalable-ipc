@@ -270,9 +270,22 @@ namespace PortableIPC.Core
         {
             CancelTimeout();
             EndpointHandler.RemoveSessionHandler(ConnectedEndpoint, SessionId);
+
+            var unifiedError = error;
+            if (unifiedError == null)
+            {
+                if (timeout)
+                {
+                    unifiedError = new Exception("Session timed out");
+                }
+                else
+                {
+                    unifiedError = new Exception("Session closed");
+                }
+            }
             foreach (ISessionStateHandler stateHandler in StateHandlers)
             {
-                stateHandler.Shutdown(error, timeout);
+                stateHandler.Shutdown(unifiedError);
             }
             IsClosed = true;
 

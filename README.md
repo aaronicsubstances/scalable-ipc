@@ -3,15 +3,15 @@
 Defines and implements a network protocol suited first for inter-process communication (IPC) on same host machine (physical or virtual). It is intended to replace HTTP/TCP for IPC 
 
    1. among applications running on a single host machine
-   2. in microservices architecture of (web) applications
+   2. in microservices architecture of web applications
 
 ## Features
 
   * Based on UDP, and hence available across operating systems and programming platforms.
   * **Uses session ids unlike TCP, and so eliminates build up of TCP TIME_WAIT states as HTTP connections are set up and torn down.**
-  * Exposes configuration parameters such as PDU window size, idle/ack timeout, and maximum retry attempts on a per session basis to cater for different communication needs. In TCP such parameters can only be configured globally for all operating system connections, and cannot be set directly by applications.
-  * **Makes streaming and duplex communication easier at application layer, by providing for idle timeout to be disabled without need for keep-alive packets, and also by leveraging UDP preserving of message boundaries.**
-  * Takes advantage of same host for increased performance by making it possible to increase MTU many times beyond Ethernet circa 1500 limit. This more than compensates for the drop in efficiency caused by protocol running in OS user mode (unlike TCP which runs in kernel mode).
+  * Exposes configuration parameters such as PDU window size, idle/ack timeout, and maximum retry attempts on a per session basis to cater for different communication needs. In TCP such parameters can only be configured globally for all operating system connections.
+  * **Makes streaming and duplex communication easier at application layer, by providing for idle timeout to be disabled without need for keep-alive packets, and also by leveraging UDP preservation of message boundaries.**
+  * Takes advantage of same host constraint for increased performance by making it possible to increase MTU many times beyond Ethernet circa 1500 limit. This more than compensates for the potential drop in efficiency caused by protocol running in OS user mode (unlike TCP which runs in kernel mode).
   * Extensible for communication across hosts among cooperating processes, such as occur in microservices architecture.
 
 

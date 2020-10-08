@@ -22,10 +22,9 @@ namespace PortableIPC.Core.Session
             _promiseApi = _sessionHandler.EndpointHandler.PromiseApi;
         }
 
-        public void Shutdown(Exception error, bool timeout)
+        public void Shutdown(Exception error)
         {
-            // let send handler cater for shutdown, which will be received in this class as a rejection of 
-            // _pendingPromiseCallback.
+            _pendingPromiseCallback?.CompleteExceptionally(error);
         }
 
         public bool ProcessErrorReceive()
@@ -103,12 +102,9 @@ namespace PortableIPC.Core.Session
             AbstractPromiseCallback<VoidType> partPromiseCb = _promiseApi.CreateCallback<VoidType>();
             AbstractPromise<VoidType> partPromise = partPromiseCb.Extract();
             _sendHandler.ProcessSendWindow(partPromiseCb);
-            partPromise.Then(HandleSendPartSuccess, HandleSendPartError);
-        }
-
-        private void HandleSendPartError(Exception error)
-        {
-            _pendingPromiseCallback?.CompleteExceptionally(error);
+            // let send handler handle error, which will lead to a closure of this handler,
+            // and then _pendingPromiseCallback can be completed with error.
+            partPromise.Then(HandleSendPartSuccess);
         }
 
         private VoidType HandleSendPartSuccess(VoidType _)

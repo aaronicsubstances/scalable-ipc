@@ -24,7 +24,7 @@ namespace PortableIPC.Core.Session
         protected internal bool SendInProgress { get; set; }
         protected internal int NextSeqStart { get; set; }
 
-        public void Shutdown(Exception error, bool timeout)
+        public void Shutdown(Exception error)
         {
             _currentWindowHandler?.Cancel();
             if (SendInProgress)
@@ -34,18 +34,10 @@ namespace PortableIPC.Core.Session
                 {
                     _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
                 }
-                else if (error == null)
+                else
                 {
-                    if (timeout)
-                    {
-                        error = new Exception("Session timed out");
-                    }
-                    else
-                    {
-                        error = new Exception("Session closed");
-                    }
+                    _pendingPromiseCallback.CompleteExceptionally(error);
                 }
-                _pendingPromiseCallback?.CompleteExceptionally(error);
 
                 SendInProgress = false;
             }
@@ -203,8 +195,7 @@ namespace PortableIPC.Core.Session
 
         private void ProcessAckTimeout()
         {
-            // treat negative max retry count as infinite retry attempts.
-            if (_retryCount == _sessionHandler.MaxRetryCount)
+            if (_retryCount >= _sessionHandler.MaxRetryCount)
             {
                 _sessionHandler.ProcessShutdown(null, true);
             }
