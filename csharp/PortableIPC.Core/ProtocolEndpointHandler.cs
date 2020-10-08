@@ -187,7 +187,7 @@ namespace PortableIPC.Core
             AbstractPromise<VoidType> retResult = _voidReturnPromise;
             foreach (var sessionHandler in sessionHandlersSubset)
             {
-                var nextResult = SwallowException(sessionHandler.Close(null, false));
+                var nextResult = SwallowException(sessionHandler.Shutdown(null, false));
                 retResult = retResult.ThenCompose(_ => nextResult);
             }
             return retResult;

@@ -7,6 +7,11 @@ using System.Text;
 
 namespace PortableIPC.Core
 {
+    /// <summary>
+    /// So design of session handler default implementation is to hide acks, retries and sequence numbers from application
+    /// layer. It also should be the only one to use promise callbacks and event loops; the rest of the project
+    /// should only use abstract promises.
+    /// </summary>
     public class ProtocolSessionHandler : ISessionHandler
     {
         private readonly AbstractPromiseApi _promiseApi;
@@ -49,11 +54,11 @@ namespace PortableIPC.Core
 
         public List<ISessionStateHandler> StateHandlers { get; } = new List<ISessionStateHandler>();
 
-        public AbstractPromise<VoidType> Close(Exception error, bool timeout)
+        public AbstractPromise<VoidType> Shutdown(Exception error, bool timeout)
         {
             if (!IsClosed)
             {
-                ProcessClosing(error, timeout);
+                ProcessShutdown(error, timeout);
             }
             return _promiseApi.Resolve(VoidType.Instance);
         }
@@ -256,18 +261,18 @@ namespace PortableIPC.Core
                 }
                 else
                 {
-                    ProcessClosing(null, true);
+                    ProcessShutdown(null, true);
                 }
             });
         }
 
-        public void ProcessClosing(Exception error, bool timeout)
+        public void ProcessShutdown(Exception error, bool timeout)
         {
             CancelTimeout();
             EndpointHandler.RemoveSessionHandler(ConnectedEndpoint, SessionId);
             foreach (ISessionStateHandler stateHandler in StateHandlers)
             {
-                stateHandler.Close(error, timeout);
+                stateHandler.Shutdown(error, timeout);
             }
             IsClosed = true;
 
@@ -281,14 +286,12 @@ namespace PortableIPC.Core
         {
         }
 
-        public void OnOpenReceived(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public void OnOpenReceived(ProtocolDatagram message)
         {
-            promiseCb.CompleteSuccessfully(VoidType.Instance);
         }
 
-        public void OnDataReceived(byte[] data, int offset, int length, AbstractPromiseCallback<VoidType> promiseCb)
+        public void OnDataReceived(byte[] data, int offset, int length)
         {
-            promiseCb.CompleteSuccessfully(VoidType.Instance);
         }
     }
 }

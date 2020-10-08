@@ -15,7 +15,7 @@ namespace PortableIPC.Core.Abstractions
         AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSendData(byte[] rawData);
         AbstractPromise<VoidType> ProcessReceive(ProtocolDatagram message);
-        AbstractPromise<VoidType> Close(Exception error, bool timeout);
+        AbstractPromise<VoidType> Shutdown(Exception error, bool timeout);
         AbstractPromise<VoidType> ProcessErrorReceive();
 
         // beginning of internal API with state handlers.
@@ -34,11 +34,11 @@ namespace PortableIPC.Core.Abstractions
 
         void ResetAckTimeout(int timeoutSecs, Action cb);
         void DiscardReceivedMessage(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb);
-        void ProcessClosing(Exception error, bool timeout);
+        void ProcessShutdown(Exception error, bool timeout);
 
         // application layer interface
-        void OnOpenReceived(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb);
-        void OnDataReceived(byte[] data, int offset, int length, AbstractPromiseCallback<VoidType> promiseCb);
+        void OnOpenReceived(ProtocolDatagram message);
+        void OnDataReceived(byte[] data, int offset, int length);
         void OnClose(Exception error, bool timeout);
     }
 }

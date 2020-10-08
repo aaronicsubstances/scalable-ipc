@@ -26,7 +26,7 @@ namespace PortableIPC.Core.Session
             _eventLoop = sessionHandler.EndpointHandler.EventLoop;
         }
 
-        public void Close(Exception error, bool timeout)
+        public void Shutdown(Exception error, bool timeout)
         {
             if (_waitingForAckSendConfirmation)
             {
@@ -92,7 +92,7 @@ namespace PortableIPC.Core.Session
                 {
                     error = new Exception(message.GetFormattedErrorDescription());
                 }
-                _sessionHandler.ProcessClosing(error, false);
+                _sessionHandler.ProcessShutdown(error, false);
                 _pendingPromiseCb.CompleteSuccessfully(VoidType.Instance);
                 return true;
             }
@@ -166,9 +166,6 @@ namespace PortableIPC.Core.Session
             {
                 _waitingForAckSendConfirmation = false;
 
-                // ready to pass on to application layer.
-                _eventLoop.PostCallback(() => _sessionHandler.OnOpenReceived(openRequest, _pendingPromiseCb));
-
                 // reset current window and remember old window bounds
                 _lastMinSeqUsed = _lastMaxSeqUsed = openRequest.SequenceNumber;
 
@@ -177,6 +174,11 @@ namespace PortableIPC.Core.Session
                 _seqExpectedInMinRange = false;
 
                 _sessionHandler.IsOpened = true;
+
+                _pendingPromiseCb.CompleteSuccessfully(VoidType.Instance);
+
+                // ready to pass on to application layer.
+                _eventLoop.PostCallback(() => _sessionHandler.OnOpenReceived(openRequest));
             });
             return VoidType.Instance;
         }
@@ -273,7 +275,7 @@ namespace PortableIPC.Core.Session
         {
             _sessionHandler.PostSeriallyIfNotClosed(() =>
             {
-                _sessionHandler.ProcessClosing(error, false);
+                _sessionHandler.ProcessShutdown(error, false);
             });
         }
 
@@ -293,10 +295,7 @@ namespace PortableIPC.Core.Session
             {
                 _waitingForAckSendConfirmation = false;
 
-                // ready to pass on to application layer.
                 byte[] currentWindowData = RetrieveCurrentWindowData();
-                _eventLoop.PostCallback(() => _sessionHandler.OnDataReceived(currentWindowData, 0,
-                    currentWindowData.Length, _pendingPromiseCb));
 
                 // reset current window and remember old window bounds
                 _lastMinSeqUsed = _currentWindow[0].SequenceNumber;
@@ -314,6 +313,12 @@ namespace PortableIPC.Core.Session
                     _expectedMinSeq = _lastMaxSeqUsed + 1;
                     _seqExpectedInMinRange = false;
                 }
+
+                _pendingPromiseCb.CompleteSuccessfully(VoidType.Instance);
+
+                // ready to pass on to application layer.
+                _eventLoop.PostCallback(() => _sessionHandler.OnDataReceived(currentWindowData, 0,
+                    currentWindowData.Length));
             });
             return VoidType.Instance;
         }

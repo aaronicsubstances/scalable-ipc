@@ -16,7 +16,7 @@ namespace PortableIPC.Core.Session
             _sendHandler = sendHandler;
         }
 
-        public void Close(Exception error, bool timeout)
+        public void Shutdown(Exception error, bool timeout)
         {
 
         }

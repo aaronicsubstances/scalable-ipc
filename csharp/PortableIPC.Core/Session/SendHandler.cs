@@ -24,7 +24,7 @@ namespace PortableIPC.Core.Session
 
         public List<ProtocolDatagram> CurrentWindow { get; } = new List<ProtocolDatagram>();
 
-        public void Close(Exception error, bool timeout)
+        public void Shutdown(Exception error, bool timeout)
         {
             _currentWindowHandler?.Cancel();
             if (_sendInProgress)
@@ -190,7 +190,7 @@ namespace PortableIPC.Core.Session
             // treat negative max retry count as infinite retry attempts.
             if (_retryCount == _sessionHandler.MaxRetryCount)
             {
-                _sessionHandler.ProcessClosing(null, true);
+                _sessionHandler.ProcessShutdown(null, true);
             }
             else
             {
@@ -201,14 +201,14 @@ namespace PortableIPC.Core.Session
 
         internal void OnWindowSendError(Exception error)
         {
-            _sessionHandler.ProcessClosing(error, false);
+            _sessionHandler.ProcessShutdown(error, false);
         }
 
         internal void OnWindowSendSuccess()
         {
             if (_closing)
             {
-                _sessionHandler.ProcessClosing(null, false);
+                _sessionHandler.ProcessShutdown(null, false);
             }
             else
             {
