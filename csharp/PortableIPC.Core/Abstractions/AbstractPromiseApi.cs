@@ -26,7 +26,7 @@ namespace PortableIPC.Core.Abstractions
         AbstractPromise<T> Resolve<T>(T value);
         AbstractPromise<VoidType> Reject(Exception reason);
 
-        object ScheduleTimeout(long millis, StoredCallback cb);
+        object ScheduleTimeout(long millis, Action cb);
         void CancelTimeout(object id);
     }
 

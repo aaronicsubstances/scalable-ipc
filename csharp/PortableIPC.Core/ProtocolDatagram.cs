@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace PortableIPC.Core
@@ -22,6 +23,10 @@ namespace PortableIPC.Core
         // expected length, sessionId, opCode, sequence number, null separator and checksum are always present.
         private const int MinDatagramSize = 2 + SessionIdLength + 1 + 4 + 1 + 1;
         private const int MaxDatagramSize = 60_000;
+
+        public const int SequenceFirstCrossOverLimit = 1_000;
+        public const int SequenceSecondCrossOverLimit = 1_000_000_000;
+        private const int SequenceAbsoluteLimit = 2_000_000_000;
 
         // reserve s_ prefix for known options
         private const string OptionNameRetryCount = "s_retry_count";
@@ -48,6 +53,7 @@ namespace PortableIPC.Core
         public int? WindowSize { get; set; }
         public int? MaxPduSize { get; set; }
         public bool? IsLastInWindow { get; set; }
+
         public int? IdleTimeoutSecs { get; set; }
         public int? AckTimeoutSecs { get; set; }
         public int? ErrorCode { get; set; }
@@ -83,6 +89,12 @@ namespace PortableIPC.Core
 
             parsedDatagram.SequenceNumber = ReadInt32BigEndian(rawBytes, offset);
             offset += 4;
+
+            if (parsedDatagram.SequenceNumber < 0 || parsedDatagram.SequenceNumber >= SequenceAbsoluteLimit)
+            {
+                throw new ProtocolSessionException(parsedDatagram.SessionId, 
+                    $"invalid sequence number: {parsedDatagram.SequenceNumber}");
+            }
 
             // Now read options until we encounter null terminator for all options, 
             // which is equivalent to empty string option name 
@@ -122,43 +134,43 @@ namespace PortableIPC.Core
                             case OptionNameRetryCount:
                                 if (parsedDatagram.RetryCount == null)
                                 {
-                                    parsedDatagram.RetryCount = ParseOptionAsInt16(optionName, optionNameOrValue);
+                                    parsedDatagram.RetryCount = ParseOptionAsInt16(optionNameOrValue);
                                 }
                                 break;
                             case OptionNameWindowSize:
                                 if (parsedDatagram.WindowSize == null)
                                 {
-                                    parsedDatagram.WindowSize = ParseOptionAsInt16(optionName, optionNameOrValue);
+                                    parsedDatagram.WindowSize = ParseOptionAsInt16(optionNameOrValue);
                                 }
                                 break;
                             case OptionNameMaxPduSize:
                                 if (parsedDatagram.MaxPduSize == null)
                                 {
-                                    parsedDatagram.MaxPduSize = ParseOptionAsInt16(optionName, optionNameOrValue);
+                                    parsedDatagram.MaxPduSize = ParseOptionAsInt16(optionNameOrValue);
                                 }
                                 break;
                             case OptionNameIsLastInWindow:
                                 if (parsedDatagram.IsLastInWindow == null)
                                 {
-                                    parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionName, optionNameOrValue);
+                                    parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionNameOrValue);
                                 }
                                 break;
                             case OptionNameIdleTimeout:
                                 if (parsedDatagram.IdleTimeoutSecs == null)
                                 {
-                                    parsedDatagram.IdleTimeoutSecs = ParseOptionAsInt32(optionName, optionNameOrValue);
+                                    parsedDatagram.IdleTimeoutSecs = ParseOptionAsInt32(optionNameOrValue);
                                 }
                                 break;
                             case OptionNameAckTimeout:
                                 if (parsedDatagram.AckTimeoutSecs == null)
                                 {
-                                    parsedDatagram.AckTimeoutSecs = ParseOptionAsInt32(optionName, optionNameOrValue);
+                                    parsedDatagram.AckTimeoutSecs = ParseOptionAsInt32(optionNameOrValue);
                                 }
                                 break;
                             case OptionNameErrorCode:
                                 if (parsedDatagram.ErrorCode == null)
                                 {
-                                    parsedDatagram.ErrorCode = ParseOptionAsInt16(optionName, optionNameOrValue);
+                                    parsedDatagram.ErrorCode = ParseOptionAsInt16(optionNameOrValue);
                                 }
                                 break;
                             case OptionNameErrorMessage:
@@ -195,6 +207,8 @@ namespace PortableIPC.Core
                         }
                         optionValues.Add(optionNameOrValue);
                     }
+
+                    // important for loop: reset to null
                     optionName = null;
                 }
             }
@@ -339,17 +353,17 @@ namespace PortableIPC.Core
             return chkSumByte;
         }
 
-        internal static short ParseOptionAsInt16(string optionName, string optionValue)
+        internal static short ParseOptionAsInt16(string optionValue)
         {
             return short.Parse(optionValue);
         }
 
-        internal static int ParseOptionAsInt32(string optionName, string optionValue)
+        internal static int ParseOptionAsInt32(string optionValue)
         {
             return int.Parse(optionValue);
         }
 
-        internal static bool ParseOptionAsBoolean(string optionName, string optionValue)
+        internal static bool ParseOptionAsBoolean(string optionValue)
         {
             switch (optionValue.ToLowerInvariant())
             {
@@ -408,6 +422,53 @@ namespace PortableIPC.Core
             int v = ((a & 0xff) << 24) | ((b & 0xff) << 16) |
                 ((c & 0xff) << 8) | (d & 0xff);
             return v;
+        }
+
+        public static bool ValidateSequenceNumbers(IEnumerable<int> sequenceNumbers)
+        {
+            if (sequenceNumbers.All(x => x >= 0 && x < SequenceFirstCrossOverLimit))
+            {
+                return true;
+            }
+            if (sequenceNumbers.All(x => x >= SequenceFirstCrossOverLimit && x < SequenceSecondCrossOverLimit))
+            {
+                return true;
+            }
+            if (sequenceNumbers.All(x => x >= SequenceSecondCrossOverLimit && x < SequenceAbsoluteLimit))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public static int ComputeNextSequenceStart(int currSeq, int windowSize)
+        {
+            // Ensure next sequence start is a multiple of window size no matter what.
+            if (currSeq >= SequenceSecondCrossOverLimit)
+            {
+                // actually any number less than first cross over limit would do.
+                return 0;
+            }
+
+            currSeq++;
+
+            // ensure sequence number don't stradle first or second cross over boundaries.
+            if (currSeq + windowSize >= SequenceSecondCrossOverLimit)
+            {
+                currSeq += windowSize;
+            }
+            else if (currSeq + windowSize >= SequenceFirstCrossOverLimit)
+            {
+                currSeq += windowSize;
+            }
+
+            // Ensure next sequence start is a multiple of window size.
+            int rem = currSeq % windowSize;
+            if (rem != 0)
+            {
+                currSeq += (windowSize - rem);
+            }
+            return currSeq;
         }
     }
 }

@@ -11,7 +11,6 @@ namespace PortableIPC.Core
     {
         private readonly AbstractPromiseApi _promiseApi;
         private readonly AbstractEventLoopApi _eventLoop;
-
         private object _lastTimeoutId;
 
         public ProtocolSessionHandler() :
@@ -59,7 +58,7 @@ namespace PortableIPC.Core
             {
                 if (!IsClosed)
                 {
-                    HandleClosing(error, timeout, promiseCb);
+                    ProcessClosing(error, timeout, promiseCb);
                 }
                 else
                 {
@@ -112,7 +111,7 @@ namespace PortableIPC.Core
                 // no state handler is interested.
                 if (!IsClosed)
                 {
-                    // don't reset idle timeout for receipt of error PDUs
+                    EnsureIdleTimeout();
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
                         bool handled = stateHandler.ProcessErrorReceive();
@@ -123,7 +122,8 @@ namespace PortableIPC.Core
                     }
                 }
             });
-            // always successful, since this method is intended to notify state handlers
+            // always successful, since this method is intended to notify state handlers regardless of 
+            // how it gets processed
             promiseCb.CompleteSuccessfully(VoidType.Instance);
             return returnPromise;
         }
@@ -196,7 +196,7 @@ namespace PortableIPC.Core
 
         public void PostSerially(Action cb)
         {
-            _eventLoop.PostCallbackSerially(this, new StoredCallback(_ => cb.Invoke()));
+            _eventLoop.PostCallbackSerially(this, cb);
         }
 
         public void PostSeriallyIfNotClosed(Action cb)
@@ -210,11 +210,11 @@ namespace PortableIPC.Core
             });
         }
 
-        public void ResetAckTimeout(int timeoutSecs, StoredCallback cb)
+        public void ResetAckTimeout(int timeoutSecs, Action cb)
         {
             CancelTimeout();
-            _lastTimeoutId = _promiseApi.ScheduleTimeout(timeoutSecs * 1000L, new StoredCallback(
-                _ => HandleTimeout(cb)));
+            _lastTimeoutId = _promiseApi.ScheduleTimeout(timeoutSecs * 1000L,
+                () => ProcessTimeout(cb));
         }
 
         public void ResetIdleTimeout()
@@ -239,8 +239,8 @@ namespace PortableIPC.Core
             }
             if (IdleTimeoutSecs > 0)
             {
-                _lastTimeoutId = _promiseApi.ScheduleTimeout(IdleTimeoutSecs * 1000L, new StoredCallback(
-                    _ => HandleTimeout(null)));
+                _lastTimeoutId = _promiseApi.ScheduleTimeout(IdleTimeoutSecs * 1000L,
+                    () => ProcessTimeout(null));
             }
         }
 
@@ -253,7 +253,7 @@ namespace PortableIPC.Core
             }
         }
 
-        private void HandleTimeout(StoredCallback cb)
+        private void ProcessTimeout(Action cb)
         {
             PostSeriallyIfNotClosed(() =>
             {
@@ -262,16 +262,16 @@ namespace PortableIPC.Core
                 {
                     // reset timeout before calling timeout callback.
                     ResetIdleTimeout();
-                    cb.Run();
+                    cb.Invoke();
                 }
                 else
                 {
-                    HandleClosing(null, true, null);
+                    ProcessClosing(null, true, null);
                 }
             });
         }
 
-        public void HandleClosing(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb)
+        public void ProcessClosing(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb)
         {
             CancelTimeout();
             EndpointHandler.RemoveSessionHandler(ConnectedEndpoint, SessionId);
@@ -283,7 +283,7 @@ namespace PortableIPC.Core
 
             // pass on to application layer. NB: all calls to application layer must go through
             // event loop.
-            _eventLoop.PostCallback(new StoredCallback(_ => OnClose(error, timeout, promiseCb)));
+            _eventLoop.PostCallback(() => OnClose(error, timeout, promiseCb));
         }
 
         // calls to application layer

@@ -32,9 +32,9 @@ namespace PortableIPC.Core.Abstractions
         void EnsureIdleTimeout();
         void ResetIdleTimeout();
 
-        void ResetAckTimeout(int timeoutSecs, StoredCallback cb);
+        void ResetAckTimeout(int timeoutSecs, Action cb);
         void DiscardReceivedMessage(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb);
-        void HandleClosing(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb);
+        void ProcessClosing(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb);
 
         // application layer interface
         void OnOpenReceived(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb);

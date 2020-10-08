@@ -6,7 +6,7 @@ namespace PortableIPC.Core.Abstractions
 {
     public interface AbstractEventLoopApi
     {
-        void PostCallback(StoredCallback cb);
-        void PostCallbackSerially(ISessionHandler sessionHandler, StoredCallback cb);
+        void PostCallback(Action cb);
+        void PostCallbackSerially(ISessionHandler sessionHandler, Action cb);
     }
 }
