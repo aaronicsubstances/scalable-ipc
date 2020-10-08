@@ -38,7 +38,7 @@ namespace PortableIPC.Core.Abstractions
 
         // application layer interface
         void OnOpenReceived(ProtocolDatagram message);
-        void OnDataReceived(byte[] data, int offset, int length);
+        void OnDataReceived(byte[] data);
         void OnClose(Exception error, bool timeout);
     }
 }

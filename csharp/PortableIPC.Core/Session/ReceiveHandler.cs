@@ -317,8 +317,7 @@ namespace PortableIPC.Core.Session
                 _pendingPromiseCb.CompleteSuccessfully(VoidType.Instance);
 
                 // ready to pass on to application layer.
-                _eventLoop.PostCallback(() => _sessionHandler.OnDataReceived(currentWindowData, 0,
-                    currentWindowData.Length));
+                _eventLoop.PostCallback(() => _sessionHandler.OnDataReceived(currentWindowData));
             });
             return VoidType.Instance;
         }

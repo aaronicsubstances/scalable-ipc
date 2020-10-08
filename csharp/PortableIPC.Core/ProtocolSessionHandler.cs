@@ -290,7 +290,7 @@ namespace PortableIPC.Core
         {
         }
 
-        public void OnDataReceived(byte[] data, int offset, int length)
+        public void OnDataReceived(byte[] data)
         {
         }
     }

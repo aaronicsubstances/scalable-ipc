@@ -1,7 +1,6 @@
 ﻿using PortableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace PortableIPC.Core.Session
@@ -11,23 +10,24 @@ namespace PortableIPC.Core.Session
         private readonly ISessionHandler _sessionHandler;
 
         private SendHandlerAssistant _currentWindowHandler;
-        private bool _sendInProgress;
         private int _retryCount;
-        private int _nextSeqStart;
         private AbstractPromiseCallback<VoidType> _pendingPromiseCallback;
         private bool _closing;
+        private bool _inUseByBulkSend;
 
         public SendHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }
 
-        public List<ProtocolDatagram> CurrentWindow { get; } = new List<ProtocolDatagram>();
+        protected internal List<ProtocolDatagram> CurrentWindow { get; } = new List<ProtocolDatagram>();
+        protected internal bool SendInProgress { get; set; }
+        protected internal int NextSeqStart { get; set; }
 
         public void Shutdown(Exception error, bool timeout)
         {
             _currentWindowHandler?.Cancel();
-            if (_sendInProgress)
+            if (SendInProgress)
             {
                 // ignore error if closing.
                 if (_closing)
@@ -47,7 +47,7 @@ namespace PortableIPC.Core.Session
                 }
                 _pendingPromiseCallback?.CompleteExceptionally(error);
 
-                _sendInProgress = false;
+                SendInProgress = false;
             }
             CurrentWindow.Clear();
         }
@@ -59,7 +59,7 @@ namespace PortableIPC.Core.Session
 
         public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
         {
-            if (!_sendInProgress)
+            if (!SendInProgress)
             {
                 return false;
             }
@@ -83,9 +83,19 @@ namespace PortableIPC.Core.Session
             return true;
         }
 
+        protected internal void ProcessSendWindow(AbstractPromiseCallback<VoidType> promiseCb)
+        {
+            _retryCount = 0;
+            _currentWindowHandler = null;
+            _pendingPromiseCallback = promiseCb;
+            _inUseByBulkSend = true;
+
+            RestartSend(0);
+        }
+
         public bool ProcessSend(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
         {
-            if (_sendInProgress)
+            if (SendInProgress)
             {
                 promiseCb.CompleteExceptionally(new ProtocolSessionException(_sessionHandler.SessionId,
                     "Send in progress"));
@@ -118,14 +128,15 @@ namespace PortableIPC.Core.Session
 
             // reset current window.
             CurrentWindow.Clear();
-            message.SequenceNumber = _nextSeqStart;
+            message.SequenceNumber = NextSeqStart;
             message.IsLastInWindow = true;
             CurrentWindow.Add(message);
 
-            _sendInProgress = true;
+            SendInProgress = true;
             _retryCount = 0;
             _currentWindowHandler = null;
             _pendingPromiseCallback = promiseCb;
+            _inUseByBulkSend = false;
 
             RestartSend(0);
 
@@ -177,9 +188,14 @@ namespace PortableIPC.Core.Session
             }
 
             // move window bounds
-            _nextSeqStart = ProtocolDatagram.ComputeNextSequenceStart(_nextSeqStart, _sessionHandler.WindowSize);
+            NextSeqStart = ProtocolDatagram.ComputeNextSequenceStart(NextSeqStart, _sessionHandler.WindowSize);
 
-            _sendInProgress = false;
+            // if bulk sending, let bulk send handler be the one to determine when to stop
+            // sending.
+            if (!_inUseByBulkSend)
+            {
+                SendInProgress = false;
+            }
 
             // complete pending promise.
             _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
