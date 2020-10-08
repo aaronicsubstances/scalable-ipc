@@ -49,7 +49,30 @@ namespace PortableIPC.Core.Session
 
         public bool ProcessErrorReceive()
         {
-            return false;
+            // deal with error receipts only when current window is defined.
+            if (_sessionHandler.IsOpened)
+            {
+                // get first of unfilled positions.
+                int firstNullIndex = _currentWindow.FindIndex(x => x == null);
+                if (firstNullIndex != -1)
+                {
+                    // send negative ack for position just before first unfilled.
+                    if (firstNullIndex > 0)
+                    {
+                        int nackSeq = _currentWindow[firstNullIndex - 1].SequenceNumber;
+                        var ack = new ProtocolDatagram
+                        {
+                            OpCode = ProtocolDatagram.OpCodeAck,
+                            SequenceNumber = nackSeq,
+                            SessionId = _sessionHandler.SessionId
+                        };
+                        // only care about failures.
+                        _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
+                            .Then<VoidType>(null, HandleAckSendFailure);
+                    }
+                }
+            }
+            return true;
         }
 
         public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
