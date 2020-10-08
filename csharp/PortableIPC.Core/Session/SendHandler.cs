@@ -15,6 +15,7 @@ namespace PortableIPC.Core.Session
         private int _retryCount;
         private int _nextSeqStart;
         private AbstractPromiseCallback<VoidType> _pendingPromiseCallback;
+        private bool _closing;
 
         public SendHandler(ISessionHandler sessionHandler)
         {
@@ -28,7 +29,12 @@ namespace PortableIPC.Core.Session
             _currentWindowHandler?.Cancel();
             if (_sendInProgress)
             {
-                if (error == null)
+                // ignore error if closing.
+                if (_closing)
+                {
+                    _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
+                }
+                else if (error == null)
                 {
                     if (timeout)
                     {
@@ -40,6 +46,7 @@ namespace PortableIPC.Core.Session
                     }
                 }
                 _pendingPromiseCallback?.CompleteExceptionally(error);
+
                 _sendInProgress = false;
             }
             CurrentWindow.Clear();
@@ -85,21 +92,28 @@ namespace PortableIPC.Core.Session
                 return true;
             }
 
-            if (_sessionHandler.IsOpened)
+            if (message.OpCode == ProtocolDatagram.OpCodeClose || message.OpCode == ProtocolDatagram.OpCodeError)
             {
-                if (message.OpCode != ProtocolDatagram.OpCodeData)
-                {
-                    return false;
-                }
+                _closing = true;
             }
             else
             {
-                if (message.OpCode != ProtocolDatagram.OpCodeOpen)
+                if (_sessionHandler.IsOpened)
                 {
-                    return false;
+                    if (message.OpCode != ProtocolDatagram.OpCodeData)
+                    {
+                        return false;
+                    }
                 }
+                else
+                {
+                    if (message.OpCode != ProtocolDatagram.OpCodeOpen)
+                    {
+                        return false;
+                    }
 
-                // save open parameters
+                    // save open parameters
+                }
             }
 
             // reset current window.
@@ -176,7 +190,7 @@ namespace PortableIPC.Core.Session
             // treat negative max retry count as infinite retry attempts.
             if (_retryCount == _sessionHandler.MaxRetryCount)
             {
-                _sessionHandler.ProcessClosing(null, true, _pendingPromiseCallback);
+                _sessionHandler.ProcessClosing(null, true);
             }
             else
             {
@@ -187,12 +201,19 @@ namespace PortableIPC.Core.Session
 
         internal void OnWindowSendError(Exception error)
         {
-            _sessionHandler.ProcessClosing(error, false, _pendingPromiseCallback);
+            _sessionHandler.ProcessClosing(error, false);
         }
 
         internal void OnWindowSendSuccess()
         {
-            _sessionHandler.ResetAckTimeout(_sessionHandler.AckTimeoutSecs, () => ProcessAckTimeout());
+            if (_closing)
+            {
+                _sessionHandler.ProcessClosing(null, false);
+            }
+            else
+            {
+                _sessionHandler.ResetAckTimeout(_sessionHandler.AckTimeoutSecs, () => ProcessAckTimeout());
+            }
         }
     }
 }

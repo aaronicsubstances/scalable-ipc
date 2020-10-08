@@ -77,10 +77,6 @@ namespace PortableIPC.Core.Session
 
         public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
         {
-            if (_waitingForAckSendConfirmation)
-            {
-                return false;
-            }
             if (message.SequenceNumber < _expectedMinSeq)
             {
                 return false;
@@ -89,23 +85,39 @@ namespace PortableIPC.Core.Session
             {
                 return false;
             }
+            if (message.OpCode == ProtocolDatagram.OpCodeClose || message.OpCode == ProtocolDatagram.OpCodeError)
+            {
+                Exception error = null;
+                if (message.OpCode == ProtocolDatagram.OpCodeError)
+                {
+                    error = new Exception(message.GetFormattedErrorDescription());
+                }
+                _sessionHandler.ProcessClosing(error, false);
+                _pendingPromiseCb.CompleteSuccessfully(VoidType.Instance);
+                return true;
+            }
+            if (_waitingForAckSendConfirmation)
+            {
+                return false;
+            }
             if (_sessionHandler.IsOpened)
             {
-                if (message.OpCode != ProtocolDatagram.OpCodeData)
+                if (message.OpCode == ProtocolDatagram.OpCodeData)
                 {
-                    return false;
+                    ProcessDataReceipt(message, promiseCb);
+                    return true;
                 }
-                ProcessDataReceipt(message, promiseCb);
+                return false;
             }
             else
             {
-                if (message.OpCode != ProtocolDatagram.OpCodeOpen)
+                if (message.OpCode == ProtocolDatagram.OpCodeOpen)
                 {
-                    return false;
+                    ProcessOpenRequest(message, promiseCb);
+                    return true;
                 }
-                ProcessOpenRequest(message, promiseCb);
+                return false;
             }
-            return true;
         }
 
         public bool ProcessSend(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
@@ -191,8 +203,23 @@ namespace PortableIPC.Core.Session
 
             // ensure that if incoming message is added to current window,
             // sequence numbers will still be valid.
-            var seqNrs = _currentWindow.Where(x => x != null).Select(x => x.SequenceNumber)
-                .Union(new List<int>(message.SequenceNumber));
+            var seqNrs = new List<int>();
+            int positionInWindow = message.SequenceNumber % _currentWindow.Count;
+            for (int i = 0; i < _currentWindow.Count; i++)
+            {
+                if (i == positionInWindow)
+                {
+                    seqNrs.Add(message.SequenceNumber);
+                }
+                else
+                {
+                    var msg = _currentWindow[i];
+                    if (msg != null)
+                    {
+                        seqNrs.Add(msg.SequenceNumber);
+                    }
+                }
+            }
             if (!ProtocolDatagram.ValidateSequenceNumbers(seqNrs))
             {
                 _sessionHandler.DiscardReceivedMessage(message, promiseCb);
@@ -201,7 +228,6 @@ namespace PortableIPC.Core.Session
 
             // insert new message and deal with last_in_window option by
             // removing any previous last_in_window
-            int positionInWindow = message.SequenceNumber % _currentWindow.Count;
             if (message.IsLastInWindow == true)
             {
                 for (int i = 0; i < _currentWindow.Count; i++)
@@ -247,8 +273,7 @@ namespace PortableIPC.Core.Session
         {
             _sessionHandler.PostSeriallyIfNotClosed(() =>
             {
-                _waitingForAckSendConfirmation = false;
-                _sessionHandler.ProcessClosing(error, false, _pendingPromiseCb);
+                _sessionHandler.ProcessClosing(error, false);
             });
         }
 

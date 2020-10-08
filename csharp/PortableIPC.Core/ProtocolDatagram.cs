@@ -220,6 +220,11 @@ namespace PortableIPC.Core
             return parsedDatagram;
         }
 
+        public string GetFormattedErrorDescription()
+        {
+            return $"Session error: {ErrorCode} {ErrorMessage}";
+        }
+
         public byte[] ToRawDatagram()
         {
             byte[] rawBytes;
@@ -424,7 +429,7 @@ namespace PortableIPC.Core
             return v;
         }
 
-        public static bool ValidateSequenceNumbers(IEnumerable<int> sequenceNumbers)
+        public static bool ValidateSequenceNumbers(List<int> sequenceNumbers)
         {
             if (sequenceNumbers.All(x => x >= 0 && x < SequenceFirstCrossOverLimit))
             {
@@ -438,6 +443,16 @@ namespace PortableIPC.Core
             {
                 return true;
             }
+
+            // finally check for strictly monotonically increasing sequence.
+            for (int i = 1; i < sequenceNumbers.Count; i++)
+            {
+                if (sequenceNumbers[i] < sequenceNumbers[i - 1])
+                {
+                    return false;
+                }
+            }
+            
             return false;
         }
 

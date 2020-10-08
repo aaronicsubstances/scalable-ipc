@@ -29,12 +29,10 @@ namespace PortableIPC.Core
             var receiveHandler = new ReceiveHandler(this);
             var sendHandler = new SendHandler(this);
             var bulkSendHandler = new BulkSendHandler(this, sendHandler);
-            var closeHandler = new CloseHandler(this);
 
             StateHandlers.Add(receiveHandler);
             StateHandlers.Add(sendHandler);
             StateHandlers.Add(bulkSendHandler);
-            StateHandlers.Add(closeHandler);
         }
 
         public IEndpointHandler EndpointHandler { get; set; }
@@ -53,19 +51,11 @@ namespace PortableIPC.Core
 
         public AbstractPromise<VoidType> Close(Exception error, bool timeout)
         {
-            AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
-            AbstractPromise<VoidType> returnPromise = promiseCb.Extract(); PostSerially(() =>
+            if (!IsClosed)
             {
-                if (!IsClosed)
-                {
-                    ProcessClosing(error, timeout, promiseCb);
-                }
-                else
-                {
-                    promiseCb.CompleteSuccessfully(VoidType.Instance);
-                }
-            });
-            return returnPromise;
+                ProcessClosing(error, timeout);
+            }
+            return _promiseApi.Resolve(VoidType.Instance);
         }
 
         public AbstractPromise<VoidType> ProcessReceive(ProtocolDatagram message)
@@ -266,12 +256,12 @@ namespace PortableIPC.Core
                 }
                 else
                 {
-                    ProcessClosing(null, true, null);
+                    ProcessClosing(null, true);
                 }
             });
         }
 
-        public void ProcessClosing(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb)
+        public void ProcessClosing(Exception error, bool timeout)
         {
             CancelTimeout();
             EndpointHandler.RemoveSessionHandler(ConnectedEndpoint, SessionId);
@@ -283,14 +273,12 @@ namespace PortableIPC.Core
 
             // pass on to application layer. NB: all calls to application layer must go through
             // event loop.
-            _eventLoop.PostCallback(() => OnClose(error, timeout, promiseCb));
+            _eventLoop.PostCallback(() => OnClose(error, timeout));
         }
 
         // calls to application layer
-        public void OnClose(Exception error, bool timeout, AbstractPromiseCallback<VoidType> promiseCb)
+        public void OnClose(Exception error, bool timeout)
         {
-            // NB: promiseCb can be null if called from timeout and not from a state handler.
-            promiseCb?.CompleteSuccessfully(VoidType.Instance);
         }
 
         public void OnOpenReceived(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
