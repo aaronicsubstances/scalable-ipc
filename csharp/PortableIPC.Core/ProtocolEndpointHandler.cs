@@ -73,7 +73,7 @@ namespace PortableIPC.Core
             ProtocolDatagram message;
             try
             {
-                message = ProtocolDatagram.Parse(rawBytes, offset, length);
+                message = ParseRawDatagram(rawBytes, offset, length);
             }
             catch (ProtocolSessionException ex)
             {
@@ -97,6 +97,13 @@ namespace PortableIPC.Core
             {
                 return PromiseApi.Reject(new Exception($"Could not allocate handler for session {message.SessionId} from {endpoint}"));
             }
+        }
+
+        public ProtocolDatagram ParseRawDatagram(byte[] rawBytes, int offset, int length)
+        {
+            // subclasses can implement forward error correction, expiration, etc.
+            var message = ProtocolDatagram.Parse(rawBytes, offset, length);
+            return message;
         }
 
         public AbstractPromise<VoidType> HandleReceiveProtocolControlMessage(IPEndPoint endpoint, ProtocolDatagram message)

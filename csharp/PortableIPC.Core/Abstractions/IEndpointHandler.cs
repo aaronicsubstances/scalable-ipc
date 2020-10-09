@@ -11,6 +11,7 @@ namespace PortableIPC.Core.Abstractions
         AbstractEventLoopApi EventLoop { get; }
         AbstractPromiseApi PromiseApi { get; }
         EndpointConfig EndpointConfig { get; }
+        ProtocolDatagram ParseRawDatagram(byte[] rawBytes, int offset, int length);
         AbstractPromise<VoidType> OpenSession(IPEndPoint endpoint, ISessionHandler sessionHandler,
             ProtocolDatagram message);
         AbstractPromise<VoidType> HandleReceive(IPEndPoint endpoint, byte[] rawBytes, int offset, int length);
