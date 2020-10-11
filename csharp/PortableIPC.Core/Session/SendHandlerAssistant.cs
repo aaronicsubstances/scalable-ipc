@@ -8,17 +8,18 @@ namespace PortableIPC.Core.Session
     public class SendHandlerAssistant
     {
         private readonly ISessionHandler _sessionHandler;
-        private readonly SendHandler _sendHandler;
 
-        public SendHandlerAssistant(ISessionHandler sessionHandler, SendHandler sendHandler, int startIndex)
+        public SendHandlerAssistant(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _sendHandler = sendHandler;
-
-            PendingPduIndex = startIndex;
         }
 
+        public List<ProtocolDatagram> CurrentWindow { get; set; }
+
         public int PendingPduIndex { get; set; }
+        public int EndIndex { get; set; }
+        public Action SuccessCallback { get; set; }
+        public Action<Exception> FailureCallback { get; set; }
 
         public void Cancel()
         {
@@ -41,29 +42,29 @@ namespace PortableIPC.Core.Session
             {
                 return;
             }
-            if (PendingPduIndex >= _sendHandler.CurrentWindow.Count)
+            if (PendingPduIndex >= EndIndex)
             {
-                _sendHandler.OnWindowSendSuccess();
+                SuccessCallback.Invoke();
                 return;
             }
-            var nextMessage = _sendHandler.CurrentWindow[PendingPduIndex++];
+            var nextMessage = CurrentWindow[PendingPduIndex++];
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, nextMessage)
                 .Then(HandleSendSuccess, HandleSendError);
         }
 
         private VoidType HandleSendSuccess(VoidType _)
         {
-            _sessionHandler.PostSeriallyIfNotClosed(ContinueSending);
+            _sessionHandler.PostSerially(ContinueSending);
             return VoidType.Instance;
         }
 
         private void HandleSendError(Exception error)
         {
-            _sessionHandler.PostSeriallyIfNotClosed(() =>
+            _sessionHandler.PostSerially(() =>
             {
                 if (!IsCancelled)
                 {
-                    _sendHandler.OnWindowSendError(error);
+                    FailureCallback.Invoke(error);
                 }
             });
         }

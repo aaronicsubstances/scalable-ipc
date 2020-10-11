@@ -5,48 +5,33 @@ using System.Text;
 
 namespace PortableIPC.Core.Session
 {
-    public class SendHandler: ISessionStateHandler
+    public class SendDataHandler: ISessionStateHandler
     {
         private readonly ISessionHandler _sessionHandler;
 
         private SendHandlerAssistant _currentWindowHandler;
         private int _retryCount;
         private AbstractPromiseCallback<VoidType> _pendingPromiseCallback;
-        private bool _closing;
         private bool _inUseByBulkSend;
+        private bool _initialWindowSendFinished;
+        private int _retryIndex;
 
-        public SendHandler(ISessionHandler sessionHandler)
+        public SendDataHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }
 
         protected internal List<ProtocolDatagram> CurrentWindow { get; } = new List<ProtocolDatagram>();
         protected internal bool SendInProgress { get; set; }
-        protected internal int NextSeqStart { get; set; }
 
         public void Shutdown(Exception error)
         {
             _currentWindowHandler?.Cancel();
             if (SendInProgress)
             {
-                // ignore error if closing.
-                if (_closing)
-                {
-                    _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
-                }
-                else
-                {
-                    _pendingPromiseCallback.CompleteExceptionally(error);
-                }
-
+                _pendingPromiseCallback.CompleteExceptionally(error);
                 SendInProgress = false;
             }
-            CurrentWindow.Clear();
-        }
-
-        public bool ProcessErrorReceive()
-        {
-            return false;
         }
 
         public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
@@ -56,23 +41,50 @@ namespace PortableIPC.Core.Session
                 return false;
             }
 
-            if (_sessionHandler.IsOpened)
+            if (message.OpCode != ProtocolDatagram.OpCodeAck)
             {
-                if (message.OpCode != ProtocolDatagram.OpCodeAck)
-                {
-                    return false;
-                }
+                return false;
             }
-            else
-            {
-                if (message.OpCode != ProtocolDatagram.OpCodeOpenAck)
-                {
-                    return false;
-                }
-            }
+
             promiseCb.CompleteSuccessfully(VoidType.Instance);
             ProcessAckReceipt(message);
             return true;
+        }
+
+        public bool ProcessSend(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        {
+            if (_sessionHandler.SessionState != SessionState.OpenedForData)
+            {
+                return false;
+            }
+
+            if (SendInProgress)
+            {
+                promiseCb.CompleteExceptionally(new Exception("Send in progress"));
+                return true;
+            }
+
+            if (message.OpCode != ProtocolDatagram.OpCodeData)
+            {
+                return false;
+            }
+
+            // reset current window.
+            CurrentWindow.Clear();
+            message.SequenceNumber = _sessionHandler.NextSendSeqStart;
+            message.IsLastInWindow = true;
+            CurrentWindow.Add(message);
+
+            SendInProgress = true;
+            ProcessSendWindow(promiseCb);
+
+            return true;
+        }
+
+        public bool ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options, 
+            AbstractPromiseCallback<VoidType> promiseCb)
+        {
+            return false;
         }
 
         protected internal void ProcessSendWindow(AbstractPromiseCallback<VoidType> promiseCb)
@@ -82,78 +94,41 @@ namespace PortableIPC.Core.Session
             _pendingPromiseCallback = promiseCb;
             _inUseByBulkSend = true;
 
-            RestartSend(0);
+            _initialWindowSendFinished = false;
+            _retryIndex = 0;
+            RetrySend();
         }
 
-        public bool ProcessSend(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
-        {
-            if (SendInProgress)
-            {
-                promiseCb.CompleteExceptionally(new ProtocolSessionException(_sessionHandler.SessionId,
-                    "Send in progress"));
-                return true;
-            }
-
-            if (message.OpCode == ProtocolDatagram.OpCodeClose || message.OpCode == ProtocolDatagram.OpCodeError)
-            {
-                _closing = true;
-            }
-            else
-            {
-                if (_sessionHandler.IsOpened)
-                {
-                    if (message.OpCode != ProtocolDatagram.OpCodeData)
-                    {
-                        return false;
-                    }
-                }
-                else
-                {
-                    if (message.OpCode != ProtocolDatagram.OpCodeOpen)
-                    {
-                        return false;
-                    }
-
-                    // save open parameters
-                }
-            }
-
-            // reset current window.
-            CurrentWindow.Clear();
-            message.SequenceNumber = NextSeqStart;
-            message.IsLastInWindow = true;
-            CurrentWindow.Add(message);
-
-            SendInProgress = true;
-            _retryCount = 0;
-            _currentWindowHandler = null;
-            _pendingPromiseCallback = promiseCb;
-            _inUseByBulkSend = false;
-
-            RestartSend(0);
-
-            return true;
-        }
-
-        public bool ProcessSendData(byte[] rawData, AbstractPromiseCallback<VoidType> promiseCb)
-        {
-            return false;
-        }
-
-        private void RestartSend(int startIndex)
+        private void RetrySend()
         {
             // don't bother if window handler is already about to start sending requested PDUs
-            if (_currentWindowHandler != null && _currentWindowHandler.PendingPduIndex <= startIndex)
+            if (_currentWindowHandler != null && _retryIndex >= _currentWindowHandler.PendingPduIndex &&
+                _retryIndex < _currentWindowHandler.EndIndex)
             {
                 return;
             }
             _currentWindowHandler?.Cancel();
-            _currentWindowHandler = new SendHandlerAssistant(_sessionHandler, this, startIndex);
+            _currentWindowHandler = new SendHandlerAssistant(_sessionHandler)
+            {
+                CurrentWindow = CurrentWindow,
+                FailureCallback = OnWindowSendError,
+                SuccessCallback = OnWindowSendSuccess,
+                PendingPduIndex = _retryIndex,
+                EndIndex = CurrentWindow.Count
+            };
+
+            // after initial bulk window send, switch to sending one at a time.
+            if (_initialWindowSendFinished)
+            {
+                _currentWindowHandler.EndIndex = _retryIndex + 1;
+            }
             _currentWindowHandler.Start();
         }
 
         private void ProcessAckReceipt(ProtocolDatagram ack)
         {
+            // Receipt of an ack is interpreted as reception of message with ack's sequence numbers,
+            // and all preceding messages in window as well.
             int ackIndex = CurrentWindow.FindIndex(item => item.SequenceNumber == ack.SequenceNumber);
             if (ackIndex == -1)
             {
@@ -161,26 +136,32 @@ namespace PortableIPC.Core.Session
                 return;
             }
 
-            // indirectly clear ack timeout.
+            // Indirectly clear ack timeout.
             _sessionHandler.ResetIdleTimeout();
 
+            // Once it is not last message which has not been acknowledged, sending is not
+            // complete.
             if (ackIndex < CurrentWindow.Count - 1)
             {
-                RestartSend(ackIndex + 1);
+                // Ignore retry if initial bulk send is not complete.
+                if (_initialWindowSendFinished)
+                {
+                    _retryIndex = ackIndex + 1;
+                    RetrySend();
+                }
+                else
+                {
+                    // let ack timeout trigger retries after initial bulk send.
+                }
                 return;
             }
 
             // getting here means assistant is done sending all in current window.
             _currentWindowHandler.Cancel();
 
-            if (!_sessionHandler.IsOpened)
-            {
-                // save open ack params if possible.
-                _sessionHandler.IsOpened = true;
-            }
-
             // move window bounds
-            NextSeqStart = ProtocolDatagram.ComputeNextSequenceStart(NextSeqStart, _sessionHandler.WindowSize);
+            _sessionHandler.NextSendSeqStart = ProtocolDatagram.ComputeNextSequenceStart(
+                _sessionHandler.NextSendSeqStart, _sessionHandler.WindowSize);
 
             // if bulk sending, let bulk send handler be the one to determine when to stop
             // sending.
@@ -202,25 +183,26 @@ namespace PortableIPC.Core.Session
             else
             {
                 _retryCount++;
-                RestartSend(0);
+
+                _initialWindowSendFinished = true;
+                RetrySend();
             }
         }
 
         internal void OnWindowSendError(Exception error)
         {
-            _sessionHandler.ProcessShutdown(error, false);
+            _sessionHandler.PostSeriallyIfNotClosed(() =>
+            {
+                _sessionHandler.ProcessShutdown(error, false);
+            });
         }
 
         internal void OnWindowSendSuccess()
         {
-            if (_closing)
-            {
-                _sessionHandler.ProcessShutdown(null, false);
-            }
-            else
+            _sessionHandler.PostSeriallyIfNotClosed(() =>
             {
                 _sessionHandler.ResetAckTimeout(_sessionHandler.AckTimeoutSecs, () => ProcessAckTimeout());
-            }
+            });
         }
     }
 }

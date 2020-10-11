@@ -1,6 +1,6 @@
 # PortableIPC Protocol
 
-Defines and implements a network protocol suite at the session and application layer (of the OSI model) for inter-process communication (IPC) on same host machine (physical or virtual). Its primary purpose is to rival TCP as IPC mechanism of choice on a single host machine.
+Defines and implements a network protocol suite to rival TCP/HTTP as IPC mechanism of choice on a **single host machine** and on "interconnects" (internal networks). *The initial motivation for including interconnects comes from IPC between microservice-based web applications.*
 
 ## Features
 
@@ -9,7 +9,7 @@ Defines and implements a network protocol suite at the session and application l
   * Exposes configuration parameters such as PDU window size, idle/ack timeout, and maximum retry attempts on a per session basis to cater for different communication needs. In TCP such parameters can only be configured globally for all operating system connections.
   * **Makes streaming and duplex communication easier at application layer, by providing for idle timeout to be disabled without need for keep-alive packets, and also by leveraging UDP preservation of message boundaries.**
   * Takes advantage of same host constraint for increased performance by making it possible to increase MTU many times beyond Ethernet circa 1500 limit. This more than compensates for the potential drop in efficiency caused by protocol running in OS user mode (unlike TCP which runs in kernel mode).
-  * Extensible for general network communication, by allowing for introduction of custom PDU types, congestion control, forward error correction and PDU expiration.
+  * Extensible for communication on internal high bandwidth networks (e.g. for use by microservice-based web applications), by allowing for introduction of congestion control, transport security, forward error correction and custom PDU types.
 
 
 ## Roadmap

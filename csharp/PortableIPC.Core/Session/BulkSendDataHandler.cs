@@ -5,17 +5,17 @@ using System.Text;
 
 namespace PortableIPC.Core.Session
 {
-    public class BulkSendHandler: ISessionStateHandler
+    public class BulkSendDataHandler: ISessionStateHandler
     {
         private readonly ISessionHandler _sessionHandler;
-        private readonly SendHandler _sendHandler;
+        private readonly SendDataHandler _sendHandler;
         private readonly AbstractPromiseApi _promiseApi;
 
         private AbstractPromiseCallback<VoidType> _pendingPromiseCallback;
         private byte[] _rawData;
         private int _offset;
 
-        public BulkSendHandler(ISessionHandler sessionHandler, SendHandler sendHandler)
+        public BulkSendDataHandler(ISessionHandler sessionHandler, SendDataHandler sendHandler)
         {
             _sessionHandler = sessionHandler;
             _sendHandler = sendHandler;
@@ -25,11 +25,6 @@ namespace PortableIPC.Core.Session
         public void Shutdown(Exception error)
         {
             _pendingPromiseCallback?.CompleteExceptionally(error);
-        }
-
-        public bool ProcessErrorReceive()
-        {
-            return false;
         }
 
         public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
@@ -42,16 +37,20 @@ namespace PortableIPC.Core.Session
             return false;
         }
 
-        public bool ProcessSendData(byte[] rawData, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessSend(int opCode, byte[] rawData, Dictionary<string, List<string>> options, 
+            AbstractPromiseCallback<VoidType> promiseCb)
         {
-            if (!_sessionHandler.IsOpened)
+            if (_sessionHandler.SessionState != SessionState.OpenedForData)
+            {
+                return false;
+            }
+            if (opCode != ProtocolDatagram.OpCodeData)
             {
                 return false;
             }
             if (_sendHandler.SendInProgress)
             {
-                promiseCb.CompleteExceptionally(new ProtocolSessionException(_sessionHandler.SessionId,
-                    "Send in progress"));
+                promiseCb.CompleteExceptionally(new Exception("Send in progress"));
                 return true;
             }
             // if entire message will fit into 1 PDU, just delegate to sendHandler directly.
@@ -78,7 +77,7 @@ namespace PortableIPC.Core.Session
         private void ContinueBulkSend()
         {
             var nextWindow = new List<ProtocolDatagram>();
-            int seqGen = _sendHandler.NextSeqStart;
+            int seqGen = _sessionHandler.NextSendSeqStart;
             while (_offset < _rawData.Length && nextWindow.Count < _sessionHandler.WindowSize)
             {
                 var messagePart = new ProtocolDatagram

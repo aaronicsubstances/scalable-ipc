@@ -31,32 +31,36 @@ namespace PortableIPC.Core
             _promiseApi = endpointHandler.PromiseApi;
             _eventLoop = endpointHandler.EventLoop;
 
-            var receiveHandler = new ReceiveHandler(this);
-            var sendHandler = new SendHandler(this);
-            var bulkSendHandler = new BulkSendHandler(this, sendHandler);
+            var receiveHandler = new ReceiveDataHandler(this);
+            var sendHandler = new SendDataHandler(this);
+            var bulkSendHandler = new BulkSendDataHandler(this, sendHandler);
+            var closeHandler = new CloseHandler(this);
 
             StateHandlers.Add(receiveHandler);
             StateHandlers.Add(sendHandler);
             StateHandlers.Add(bulkSendHandler);
+            StateHandlers.Add(closeHandler);
         }
 
         public IEndpointHandler EndpointHandler { get; set; }
         public IPEndPoint ConnectedEndpoint { get; set; }
         public string SessionId { get; set; }
 
-        public bool IsOpened { get; set; }
-        public bool IsClosed { get; private set; }
+        public SessionState SessionState { get; set; }
         public int MaxPduSize { get; set; }
         public int MaxRetryCount { get; set; }
         public int WindowSize { get; set; }
         public int IdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
+        public int LastMinSeqReceived { get; set; }
+        public int LastMaxSeqReceived { get; set; }
+        public int NextSendSeqStart { get; set; }
 
         public List<ISessionStateHandler> StateHandlers { get; } = new List<ISessionStateHandler>();
 
         public AbstractPromise<VoidType> Shutdown(Exception error, bool timeout)
         {
-            if (!IsClosed)
+            if (SessionState != SessionState.Closing && SessionState != SessionState.Closed)
             {
                 ProcessShutdown(error, timeout);
             }
@@ -70,7 +74,7 @@ namespace PortableIPC.Core
             PostSerially(() =>
             {
                 bool handled = false;
-                if (!IsClosed)
+                if (SessionState != SessionState.Closing && SessionState != SessionState.Closed)
                 {
                     EnsureIdleTimeout();
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
@@ -96,43 +100,16 @@ namespace PortableIPC.Core
             promiseCb.CompleteSuccessfully(VoidType.Instance);
         }
 
-        public AbstractPromise<VoidType> ProcessErrorReceive()
-        {
-            AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
-            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
-            PostSerially(() =>
-            {
-                // for receipt of error PDUs, ignore processing if session handler is closed or
-                // no state handler is interested.
-                if (!IsClosed)
-                {
-                    EnsureIdleTimeout();
-                    foreach (ISessionStateHandler stateHandler in StateHandlers)
-                    {
-                        bool handled = stateHandler.ProcessErrorReceive();
-                        if (handled)
-                        {
-                            break;
-                        }
-                    }
-                }
-            });
-            // always successful, since this method is intended to notify state handlers regardless of 
-            // how it gets processed
-            promiseCb.CompleteSuccessfully(VoidType.Instance);
-            return returnPromise;
-        }
-
         public AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message)
         {
             AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
-                if (IsClosed)
+                if (SessionState == SessionState.Closing || SessionState == SessionState.Closed)
                 {
-                    promiseCb.CompleteExceptionally(new ProtocolSessionException(SessionId,
-                        "Session handler is closed"));
+                    promiseCb.CompleteExceptionally(new Exception(
+                        SessionState == SessionState.Closed ? "Session handler is closed" : "Session handler is closing"));
                 }
                 else
                 {
@@ -148,24 +125,23 @@ namespace PortableIPC.Core
                     }
                     if (!handled)
                     {
-                        promiseCb.CompleteExceptionally(new ProtocolSessionException(SessionId,
-                            "No state handler found to process send"));
+                        promiseCb.CompleteExceptionally(new Exception("No state handler found to process send"));
                     }
                 }
             });
             return returnPromise;
         }
 
-        public AbstractPromise<VoidType> ProcessSendData(byte[] rawData)
+        public AbstractPromise<VoidType> ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options)
         {
             AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
-                if (IsClosed)
+                if (SessionState == SessionState.Closing || SessionState == SessionState.Closed)
                 {
-                    promiseCb.CompleteExceptionally(new ProtocolSessionException(SessionId,
-                        "Session handler is closed"));
+                    promiseCb.CompleteExceptionally(new Exception(
+                        SessionState == SessionState.Closed ? "Session handler is closed" : "Session handler is closing"));
                 }
                 else
                 {
@@ -173,7 +149,7 @@ namespace PortableIPC.Core
                     bool handled = false;
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
-                        handled = stateHandler.ProcessSendData(rawData, promiseCb);
+                        handled = stateHandler.ProcessSend(opCode, data, options, promiseCb);
                         if (!handled)
                         {
                             break;
@@ -181,8 +157,7 @@ namespace PortableIPC.Core
                     }
                     if (!handled)
                     {
-                        promiseCb.CompleteExceptionally(new ProtocolSessionException(SessionId,
-                            "No state handler found to process send data"));
+                        promiseCb.CompleteExceptionally(new Exception("No state handler found to process send data"));
                     }
                 }
             });
@@ -198,7 +173,7 @@ namespace PortableIPC.Core
         {
             PostSerially(() =>
             {
-                if (!IsClosed)
+                if (SessionState != SessionState.Closing && SessionState != SessionState.Closed)
                 {
                     cb.Invoke();
                 }
@@ -268,6 +243,13 @@ namespace PortableIPC.Core
 
         public void ProcessShutdown(Exception error, bool timeout)
         {
+            if (SessionState == SessionState.Closing || SessionState == SessionState.Closed)
+            {
+                return;
+            }
+
+            SessionState = SessionState.Closing;
+
             CancelTimeout();
             EndpointHandler.RemoveSessionHandler(ConnectedEndpoint, SessionId);
 
@@ -287,7 +269,8 @@ namespace PortableIPC.Core
             {
                 stateHandler.Shutdown(unifiedError);
             }
-            IsClosed = true;
+
+            SessionState = SessionState.Closed;
 
             // pass on to application layer. NB: all calls to application layer must go through
             // event loop.
@@ -295,15 +278,15 @@ namespace PortableIPC.Core
         }
 
         // calls to application layer
+
+        public void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options)
+        {
+        }
+
+        public void OnDataReceived(byte[] data, Dictionary<string, List<string>> options)
+        {
+        }
         public void OnClose(Exception error, bool timeout)
-        {
-        }
-
-        public void OnOpenReceived(ProtocolDatagram message)
-        {
-        }
-
-        public void OnDataReceived(byte[] data)
         {
         }
     }

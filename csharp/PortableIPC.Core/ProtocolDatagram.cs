@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 
 namespace PortableIPC.Core
@@ -12,9 +13,8 @@ namespace PortableIPC.Core
         public const byte OpCodeOpenAck = 2;
         public const byte OpCodeData = 3;
         public const byte OpCodeAck = 4;
-        public const byte OpCodeClose = 10;
+        public const byte OpCodeClose = 5;
         public const byte OpCodeCloseAll = 11;
-        public const byte OpCodeError = 50;
 
         private const byte NullTerminator = 0;
 
@@ -24,40 +24,47 @@ namespace PortableIPC.Core
         private const int MinDatagramSize = 2 + SessionIdLength + 1 + 4 + 1 + 1;
         private const int MaxDatagramSize = 60_000;
 
-        public const int SequenceFirstCrossOverLimit = 1_000;
-        public const int SequenceSecondCrossOverLimit = 1_000_000_000;
-        private const int SequenceAbsoluteLimit = 2_000_000_000;
+        // reserve s_ prefix for known options at session layer.
+        // later will reserver a_ for known options at application layer.
+        public const string OptionNameRetryCount = "s_retry_count";
+        public const string OptionNameWindowSize = "s_window_size";
+        public const string OptionNameMaxPduSize = "s_max_pdu_size";
+        public const string OptionNameIsLastInWindow = "s_last_in_window";
+        public const string OptionNameIdleTimeout = "s_idle_timeout";
+        public const string OptionNameAckTimeout = "s_ack_timeout";
 
-        // reserve s_ prefix for known options
-        private const string OptionNameRetryCount = "s_retry_count";
-        private const string OptionNameWindowSize = "s_window_size";
-        private const string OptionNameMaxPduSize = "s_max_pdu_size";
-        private const string OptionNameIsLastInWindow = "s_last_in_window";
-        private const string OptionNameIdleTimeout = "s_idle_timeout";
-        private const string OptionNameAckTimeout = "s_ack_timeout";
-        private const string OptionNameErrorCode = "s_err_code";
-        private const string OptionNameErrorMessage = "s_err_msg";
+        // use code number prefix like 200 OK, 500 Internal Server Error
+        public const string OptionNameErrorMessage = "s_err_msg";
 
         public int ExpectedDatagramLength { get; set; }
         public string SessionId { get; set; }
         public byte OpCode { get; set; }
         public int SequenceNumber { get; set; }
-        public byte Checksum { get; set; }
+        public Dictionary<string, List<string>> Options { get; set; }
         public byte[] DataBytes { get; set; }
         public int DataOffset { get; set; }
         public int DataLength { get; set; }
-        public Dictionary<string, List<string>> RemainingOptions { get; set; }
+        public byte Checksum { get; set; }
 
-        // Known options.
-        public int? RetryCount { get; set; }
-        public int? WindowSize { get; set; }
-        public int? MaxPduSize { get; set; }
+        // Known session layer options.
+        public List<int> RetryCount { get; set; }
+        public List<int> WindowSize { get; set; }
+
+        public List<int> MaxPduSize { get; set; }
         public bool? IsLastInWindow { get; set; }
 
-        public int? IdleTimeoutSecs { get; set; }
-        public int? AckTimeoutSecs { get; set; }
-        public int? ErrorCode { get; set; }
-        public string ErrorMessage { get; set; }
+        public List<int> IdleTimeoutSecs { get; set; }
+        public List<int> AckTimeoutSecs { get; set; }
+        public List<string> ErrorMessage { get; set; }
+
+        public string FormatErrorMessage()
+        {
+            if (ErrorMessage == null)
+            {
+                return null;
+            }
+            return string.Join("\n", ErrorMessage);
+        }
 
         public static ProtocolDatagram Parse(byte[] rawBytes, int offset, int length)
         {
@@ -65,6 +72,8 @@ namespace PortableIPC.Core
             {
                 throw new Exception("datagram too small to be valid");
             }
+
+            // liberally accept any size once it made it through network without errors.
 
             var parsedDatagram = new ProtocolDatagram();
 
@@ -90,12 +99,6 @@ namespace PortableIPC.Core
             parsedDatagram.SequenceNumber = ReadInt32BigEndian(rawBytes, offset);
             offset += 4;
 
-            if (parsedDatagram.SequenceNumber < 0 || parsedDatagram.SequenceNumber >= SequenceAbsoluteLimit)
-            {
-                throw new ProtocolSessionException(parsedDatagram.SessionId, 
-                    $"invalid sequence number: {parsedDatagram.SequenceNumber}");
-            }
-
             // Now read options until we encounter null terminator for all options, 
             // which is equivalent to empty string option name 
             string optionName = null;
@@ -113,7 +116,7 @@ namespace PortableIPC.Core
                 }
                 if (nullTerminatorIndex == -1)
                 {
-                    throw new ProtocolSessionException(parsedDatagram.SessionId, "null terminator for all options not found");
+                    throw new Exception("null terminator for all options not found");
                 }
 
                 var optionNameOrValue = ConvertBytesToString(rawBytes, offset, nullTerminatorIndex);
@@ -125,8 +128,23 @@ namespace PortableIPC.Core
                 }
                 else
                 {
-                    // Identify known options first. In case of repetition, first one wins.
-                    bool knownOptionEncountered = true;
+                    if (parsedDatagram.Options == null)
+                    {
+                        parsedDatagram.Options = new Dictionary<string, List<string>>();
+                    }
+                    List<string> optionValues;
+                    if (parsedDatagram.Options.ContainsKey(optionName))
+                    {
+                        optionValues = parsedDatagram.Options[optionName];
+                    }
+                    else
+                    {
+                        optionValues = new List<string>();
+                        parsedDatagram.Options.Add(optionName, optionValues);
+                    }
+                    optionValues.Add(optionNameOrValue);
+
+                    // Now identify known options.
                     try
                     {
                         switch (optionName)
@@ -134,22 +152,26 @@ namespace PortableIPC.Core
                             case OptionNameRetryCount:
                                 if (parsedDatagram.RetryCount == null)
                                 {
-                                    parsedDatagram.RetryCount = ParseOptionAsInt16(optionNameOrValue);
+                                    parsedDatagram.RetryCount = new List<int>();
                                 }
+                                parsedDatagram.RetryCount.Add(ParseOptionAsInt16(optionNameOrValue));
                                 break;
                             case OptionNameWindowSize:
                                 if (parsedDatagram.WindowSize == null)
                                 {
-                                    parsedDatagram.WindowSize = ParseOptionAsInt16(optionNameOrValue);
+                                    parsedDatagram.WindowSize = new List<int>();
                                 }
+                                parsedDatagram.WindowSize.Add(ParseOptionAsInt16(optionNameOrValue));
                                 break;
                             case OptionNameMaxPduSize:
                                 if (parsedDatagram.MaxPduSize == null)
                                 {
-                                    parsedDatagram.MaxPduSize = ParseOptionAsInt16(optionNameOrValue);
+                                    parsedDatagram.MaxPduSize = new List<int>();
                                 }
+                                parsedDatagram.MaxPduSize.Add(ParseOptionAsInt16(optionNameOrValue));
                                 break;
-                            case OptionNameIsLastInWindow:
+                            case OptionNameIsLastInWindow: 
+                                // In case of repetition, first one wins.
                                 if (parsedDatagram.IsLastInWindow == null)
                                 {
                                     parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionNameOrValue);
@@ -158,54 +180,31 @@ namespace PortableIPC.Core
                             case OptionNameIdleTimeout:
                                 if (parsedDatagram.IdleTimeoutSecs == null)
                                 {
-                                    parsedDatagram.IdleTimeoutSecs = ParseOptionAsInt32(optionNameOrValue);
+                                    parsedDatagram.IdleTimeoutSecs = new List<int>();
                                 }
+                                parsedDatagram.IdleTimeoutSecs.Add(ParseOptionAsInt32(optionNameOrValue));
                                 break;
                             case OptionNameAckTimeout:
                                 if (parsedDatagram.AckTimeoutSecs == null)
                                 {
-                                    parsedDatagram.AckTimeoutSecs = ParseOptionAsInt32(optionNameOrValue);
+                                    parsedDatagram.AckTimeoutSecs = new List<int>();
                                 }
-                                break;
-                            case OptionNameErrorCode:
-                                if (parsedDatagram.ErrorCode == null)
-                                {
-                                    parsedDatagram.ErrorCode = ParseOptionAsInt16(optionNameOrValue);
-                                }
+                                parsedDatagram.AckTimeoutSecs.Add(ParseOptionAsInt32(optionNameOrValue));
                                 break;
                             case OptionNameErrorMessage:
                                 if (parsedDatagram.ErrorMessage == null)
                                 {
-                                    parsedDatagram.ErrorMessage = optionNameOrValue;
+                                    parsedDatagram.ErrorMessage = new List<string>();
                                 }
+                                parsedDatagram.ErrorMessage.Add(optionNameOrValue);
                                 break;
                             default:
-                                knownOptionEncountered = false;
                                 break;
                         }
                     }
                     catch (Exception ex)
                     {
-                        throw new ProtocolSessionException(parsedDatagram.SessionId,
-                            $"Received invalid value for option {optionName}: {optionNameOrValue} ({ex})");
-                    }
-                    if (!knownOptionEncountered)
-                    {
-                        if (parsedDatagram.RemainingOptions == null)
-                        {
-                            parsedDatagram.RemainingOptions = new Dictionary<string, List<string>>();
-                        }
-                        List<string> optionValues;
-                        if (parsedDatagram.RemainingOptions.ContainsKey(optionName))
-                        {
-                            optionValues = parsedDatagram.RemainingOptions[optionName];
-                        }
-                        else
-                        {
-                            optionValues = new List<string>();
-                            parsedDatagram.RemainingOptions.Add(optionName, optionValues);
-                        }
-                        optionValues.Add(optionNameOrValue);
+                        throw new Exception($"Received invalid value for option {optionName}: {optionNameOrValue} ({ex})");
                     }
 
                     // important for loop: reset to null
@@ -220,12 +219,7 @@ namespace PortableIPC.Core
             return parsedDatagram;
         }
 
-        public string GetFormattedErrorDescription()
-        {
-            return $"Session error: {ErrorCode} {ErrorMessage}";
-        }
-
-        public byte[] ToRawDatagram()
+        public byte[] ToRawDatagram(bool includeKnownOptions)
         {
             byte[] rawBytes;
             using (var ms = new MemoryStream())
@@ -248,51 +242,25 @@ namespace PortableIPC.Core
                     WriteInt32BigEndian(writer, SequenceNumber);
 
                     // write out all options, starting with known ones.
-                    var knownOptions = new Dictionary<string, string>();
-                    if (RetryCount != null)
+                    if (includeKnownOptions)
                     {
-                        knownOptions.Add(OptionNameRetryCount, RetryCount.ToString());
+                        var knownOptions = GatherKnownOptions();
+                        foreach (var kvp in knownOptions)
+                        {
+                            var optionNameBytes = ConvertStringToBytes(kvp.Key);
+                            foreach (var optionValue in kvp.Value)
+                            {
+                                writer.Write(optionNameBytes);
+                                writer.Write(NullTerminator);
+                                var optionValueBytes = ConvertStringToBytes(optionValue);
+                                writer.Write(optionValueBytes);
+                                writer.Write(NullTerminator);
+                            }
+                        }
                     }
-                    if (WindowSize != null)
+                    if (Options != null)
                     {
-                        knownOptions.Add(OptionNameWindowSize, WindowSize.ToString());
-                    }
-                    if (MaxPduSize != null)
-                    {
-                        knownOptions.Add(OptionNameMaxPduSize, MaxPduSize.ToString());
-                    }
-                    if (IsLastInWindow != null)
-                    {
-                        knownOptions.Add(OptionNameIsLastInWindow, IsLastInWindow.ToString());
-                    }
-                    if (IdleTimeoutSecs != null)
-                    {
-                        knownOptions.Add(OptionNameIdleTimeout, IdleTimeoutSecs.ToString());
-                    }
-                    if (AckTimeoutSecs != null)
-                    {
-                        knownOptions.Add(OptionNameAckTimeout, AckTimeoutSecs.ToString());
-                    }
-                    if (ErrorCode != null)
-                    {
-                        knownOptions.Add(OptionNameErrorCode, ErrorCode.ToString());
-                    }
-                    if (ErrorMessage != null)
-                    {
-                        knownOptions.Add(OptionNameErrorMessage, ErrorMessage);
-                    }
-                    foreach (var kvp in knownOptions)
-                    {
-                        var optionNameBytes = ConvertStringToBytes(kvp.Key);
-                        writer.Write(optionNameBytes);
-                        writer.Write(NullTerminator);
-                        var optionValueBytes = ConvertStringToBytes(kvp.Value);
-                        writer.Write(optionValueBytes);
-                        writer.Write(NullTerminator);
-                    }
-                    if (RemainingOptions != null)
-                    {
-                        foreach (var kvp in RemainingOptions)
+                        foreach (var kvp in Options)
                         {
                             var optionNameBytes = ConvertStringToBytes(kvp.Key);
                             foreach (var optionValue in kvp.Value)
@@ -327,6 +295,40 @@ namespace PortableIPC.Core
             InsertChecksum(rawBytes);
 
             return rawBytes;
+        }
+
+        private Dictionary<string, List<string>> GatherKnownOptions()
+        {
+            var knownOptions = new Dictionary<string, List<string>>();
+            if (RetryCount != null)
+            {
+                knownOptions.Add(OptionNameRetryCount, RetryCount.Select(x => x.ToString()).ToList());
+            }
+            if (WindowSize != null)
+            {
+                knownOptions.Add(OptionNameWindowSize, WindowSize.Select(x => x.ToString()).ToList());
+            }
+            if (MaxPduSize != null)
+            {
+                knownOptions.Add(OptionNameMaxPduSize, MaxPduSize.Select(x => x.ToString()).ToList());
+            }
+            if (IsLastInWindow != null)
+            {
+                knownOptions.Add(OptionNameIsLastInWindow, new List<string> { IsLastInWindow.ToString() });
+            }
+            if (IdleTimeoutSecs != null)
+            {
+                knownOptions.Add(OptionNameIdleTimeout, IdleTimeoutSecs.Select(x => x.ToString()).ToList());
+            }
+            if (AckTimeoutSecs != null)
+            {
+                knownOptions.Add(OptionNameAckTimeout, AckTimeoutSecs.Select(x => x.ToString()).ToList());
+            }
+            if (ErrorMessage != null)
+            {
+                knownOptions.Add(OptionNameErrorMessage, ErrorMessage);
+            }
+            return knownOptions;
         }
 
         internal static void InsertExpectedDataLength(byte[] rawBytes)
@@ -431,20 +433,14 @@ namespace PortableIPC.Core
 
         public static bool ValidateSequenceNumbers(List<int> sequenceNumbers)
         {
-            if (sequenceNumbers.All(x => x >= 0 && x < SequenceFirstCrossOverLimit))
+            // Reject negative sequence numbers.
+            if (sequenceNumbers.Any(x => x < 0))
             {
-                return true;
-            }
-            if (sequenceNumbers.All(x => x >= SequenceFirstCrossOverLimit && x < SequenceSecondCrossOverLimit))
-            {
-                return true;
-            }
-            if (sequenceNumbers.All(x => x >= SequenceSecondCrossOverLimit && x < SequenceAbsoluteLimit))
-            {
-                return true;
+                return false;
             }
 
-            // finally check for strictly monotonically increasing sequence.
+            // Check for strictly monotonically increasing sequence.
+            // By this check, sequence numbers are not allowed to straddle maximum 32-bit integer boundary.
             for (int i = 1; i < sequenceNumbers.Count; i++)
             {
                 if (sequenceNumbers[i] < sequenceNumbers[i - 1])
@@ -458,26 +454,14 @@ namespace PortableIPC.Core
 
         public static int ComputeNextSequenceStart(int currSeq, int windowSize)
         {
-            // Ensure next sequence start is a multiple of window size no matter what.
-            if (currSeq >= SequenceSecondCrossOverLimit)
+            // Detect wrap around and start from 0.
+            if (currSeq < 0 || currSeq + windowSize < 0)
             {
-                // actually any number less than first cross over limit would do.
                 return 0;
             }
 
-            currSeq++;
-
-            // ensure sequence number don't stradle first or second cross over boundaries.
-            if (currSeq + windowSize >= SequenceSecondCrossOverLimit)
-            {
-                currSeq += windowSize;
-            }
-            else if (currSeq + windowSize >= SequenceFirstCrossOverLimit)
-            {
-                currSeq += windowSize;
-            }
-
             // Ensure next sequence start is a multiple of window size.
+            currSeq++;
             int rem = currSeq % windowSize;
             if (rem != 0)
             {

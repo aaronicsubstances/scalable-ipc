@@ -75,10 +75,6 @@ namespace PortableIPC.Core
             {
                 message = ParseRawDatagram(rawBytes, offset, length);
             }
-            catch (ProtocolSessionException ex)
-            {
-                return HandleErrorReceive(endpoint, ex.SessionId);
-            }
             catch (Exception ex)
             {
                 return PromiseApi.Reject(ex);
@@ -129,7 +125,7 @@ namespace PortableIPC.Core
             byte[] pdu;
             try
             {
-                pdu = message.ToRawDatagram();
+                pdu = message.ToRawDatagram(true);
             }
             catch (Exception ex)
             {
@@ -198,23 +194,6 @@ namespace PortableIPC.Core
                 retResult = retResult.ThenCompose(_ => nextResult);
             }
             return retResult;
-        }
-
-        private AbstractPromise<VoidType> HandleErrorReceive(IPEndPoint endpoint, string sessionId)
-        {
-            ISessionHandler sessionHandler = null;
-            lock (_sessionHandlerMap)
-            {
-                if (_sessionHandlerMap.ContainsKey(endpoint))
-                {
-                    var subDict = _sessionHandlerMap[endpoint];
-                    if (subDict.ContainsKey(sessionId))
-                    {
-                        sessionHandler = subDict[sessionId];
-                    }
-                }
-            }
-            return sessionHandler?.ProcessErrorReceive() ?? _voidReturnPromise;
         }
 
         public AbstractPromise<VoidType> HandleException(AbstractPromise<VoidType> promise)
