@@ -49,7 +49,7 @@ namespace PortableIPC.Core
         public SessionState SessionState { get; set; }
         public int MaxPduSize { get; set; }
         public int MaxRetryCount { get; set; }
-        public int WindowSize { get; set; }
+        public int DataWindowSize { get; set; }
         public int IdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
         public int LastMinSeqReceived { get; set; }

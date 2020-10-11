@@ -78,7 +78,7 @@ namespace PortableIPC.Core.Session
         {
             var nextWindow = new List<ProtocolDatagram>();
             int seqGen = _sessionHandler.NextSendSeqStart;
-            while (_offset < _rawData.Length && nextWindow.Count < _sessionHandler.WindowSize)
+            while (_offset < _rawData.Length && nextWindow.Count < _sessionHandler.DataWindowSize)
             {
                 var messagePart = new ProtocolDatagram
                 {
@@ -91,9 +91,9 @@ namespace PortableIPC.Core.Session
                 nextWindow.Add(messagePart);
                 _offset += _sessionHandler.MaxPduSize;
             }
-            if (nextWindow.Count < _sessionHandler.WindowSize)
+            if (nextWindow.Count < _sessionHandler.DataWindowSize)
             {
-                nextWindow[nextWindow.Count - 1].IsLastInWindow = true;
+                nextWindow[nextWindow.Count - 1].IsLastInDataWindow = true;
             }
             _sendHandler.CurrentWindow.Clear();
             _sendHandler.CurrentWindow.AddRange(nextWindow);

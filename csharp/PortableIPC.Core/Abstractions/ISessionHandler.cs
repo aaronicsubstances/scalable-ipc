@@ -20,7 +20,7 @@ namespace PortableIPC.Core.Abstractions
         // beginning of internal API with state handlers.
         int MaxPduSize { get; set; }
         int MaxRetryCount { get; set; }
-        int WindowSize { get; set; }
+        int DataWindowSize { get; set; }
         int IdleTimeoutSecs { get; set; }
         int AckTimeoutSecs { get; set; }
         SessionState SessionState { get; set; }

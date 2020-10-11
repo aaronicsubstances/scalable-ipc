@@ -27,9 +27,10 @@ namespace PortableIPC.Core
         // reserve s_ prefix for known options at session layer.
         // later will reserver a_ for known options at application layer.
         public const string OptionNameRetryCount = "s_retry_count";
-        public const string OptionNameWindowSize = "s_window_size";
+        public const string OptionNameDataWindowSize = "s_data_window_size";
         public const string OptionNameMaxPduSize = "s_max_pdu_size";
-        public const string OptionNameIsLastInWindow = "s_last_in_window";
+        public const string OptionNameIsLastInDataWindow = "s_last_in_data_window";
+        public const string OptionNameIsLastInOpenRequest = "s_last_in_open";
         public const string OptionNameIdleTimeout = "s_idle_timeout";
         public const string OptionNameAckTimeout = "s_ack_timeout";
 
@@ -48,10 +49,11 @@ namespace PortableIPC.Core
 
         // Known session layer options.
         public List<int> RetryCount { get; set; }
-        public List<int> WindowSize { get; set; }
+        public List<int> DataWindowSize { get; set; }
 
         public List<int> MaxPduSize { get; set; }
-        public bool? IsLastInWindow { get; set; }
+        public bool? IsLastInDataWindow { get; set; }
+        public bool? IsLastInOpenRequest { get; set; }
 
         public List<int> IdleTimeoutSecs { get; set; }
         public List<int> AckTimeoutSecs { get; set; }
@@ -98,6 +100,11 @@ namespace PortableIPC.Core
 
             parsedDatagram.SequenceNumber = ReadInt32BigEndian(rawBytes, offset);
             offset += 4;
+
+            if (parsedDatagram.SequenceNumber < 0)
+            {
+                throw new Exception("Negative sequence number not allowed");
+            }
 
             // Now read options until we encounter null terminator for all options, 
             // which is equivalent to empty string option name 
@@ -156,12 +163,12 @@ namespace PortableIPC.Core
                                 }
                                 parsedDatagram.RetryCount.Add(ParseOptionAsInt16(optionNameOrValue));
                                 break;
-                            case OptionNameWindowSize:
-                                if (parsedDatagram.WindowSize == null)
+                            case OptionNameDataWindowSize:
+                                if (parsedDatagram.DataWindowSize == null)
                                 {
-                                    parsedDatagram.WindowSize = new List<int>();
+                                    parsedDatagram.DataWindowSize = new List<int>();
                                 }
-                                parsedDatagram.WindowSize.Add(ParseOptionAsInt16(optionNameOrValue));
+                                parsedDatagram.DataWindowSize.Add(ParseOptionAsInt16(optionNameOrValue));
                                 break;
                             case OptionNameMaxPduSize:
                                 if (parsedDatagram.MaxPduSize == null)
@@ -170,11 +177,18 @@ namespace PortableIPC.Core
                                 }
                                 parsedDatagram.MaxPduSize.Add(ParseOptionAsInt16(optionNameOrValue));
                                 break;
-                            case OptionNameIsLastInWindow: 
+                            case OptionNameIsLastInDataWindow:
                                 // In case of repetition, first one wins.
-                                if (parsedDatagram.IsLastInWindow == null)
+                                if (parsedDatagram.IsLastInDataWindow == null)
                                 {
-                                    parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionNameOrValue);
+                                    parsedDatagram.IsLastInDataWindow = ParseOptionAsBoolean(optionNameOrValue);
+                                }
+                                break;
+                            case OptionNameIsLastInOpenRequest:
+                                // In case of repetition, first one wins.
+                                if (parsedDatagram.IsLastInOpenRequest == null)
+                                {
+                                    parsedDatagram.IsLastInOpenRequest = ParseOptionAsBoolean(optionNameOrValue);
                                 }
                                 break;
                             case OptionNameIdleTimeout:
@@ -304,17 +318,21 @@ namespace PortableIPC.Core
             {
                 knownOptions.Add(OptionNameRetryCount, RetryCount.Select(x => x.ToString()).ToList());
             }
-            if (WindowSize != null)
+            if (DataWindowSize != null)
             {
-                knownOptions.Add(OptionNameWindowSize, WindowSize.Select(x => x.ToString()).ToList());
+                knownOptions.Add(OptionNameDataWindowSize, DataWindowSize.Select(x => x.ToString()).ToList());
             }
             if (MaxPduSize != null)
             {
                 knownOptions.Add(OptionNameMaxPduSize, MaxPduSize.Select(x => x.ToString()).ToList());
             }
-            if (IsLastInWindow != null)
+            if (IsLastInDataWindow != null)
             {
-                knownOptions.Add(OptionNameIsLastInWindow, new List<string> { IsLastInWindow.ToString() });
+                knownOptions.Add(OptionNameIsLastInDataWindow, new List<string> { IsLastInDataWindow.ToString() });
+            }
+            if (IsLastInOpenRequest != null)
+            {
+                knownOptions.Add(OptionNameIsLastInOpenRequest, new List<string> { IsLastInOpenRequest.ToString() });
             }
             if (IdleTimeoutSecs != null)
             {
@@ -433,12 +451,6 @@ namespace PortableIPC.Core
 
         public static bool ValidateSequenceNumbers(List<int> sequenceNumbers)
         {
-            // Reject negative sequence numbers.
-            if (sequenceNumbers.Any(x => x < 0))
-            {
-                return false;
-            }
-
             // Check for strictly monotonically increasing sequence.
             // By this check, sequence numbers are not allowed to straddle maximum 32-bit integer boundary.
             for (int i = 1; i < sequenceNumbers.Count; i++)

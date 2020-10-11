@@ -72,7 +72,7 @@ namespace PortableIPC.Core.Session
             // reset current window.
             CurrentWindow.Clear();
             message.SequenceNumber = _sessionHandler.NextSendSeqStart;
-            message.IsLastInWindow = true;
+            message.IsLastInDataWindow = true;
             CurrentWindow.Add(message);
 
             SendInProgress = true;
@@ -161,7 +161,7 @@ namespace PortableIPC.Core.Session
 
             // move window bounds
             _sessionHandler.NextSendSeqStart = ProtocolDatagram.ComputeNextSequenceStart(
-                _sessionHandler.NextSendSeqStart, _sessionHandler.WindowSize);
+                _sessionHandler.NextSendSeqStart, _sessionHandler.DataWindowSize);
 
             // if bulk sending, let bulk send handler be the one to determine when to stop
             // sending.

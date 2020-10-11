@@ -30,10 +30,13 @@ namespace PortableIPC.Core.Session
 
         public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
         {
+            // check session state
             if (_sessionHandler.SessionState != SessionState.OpenedForData)
             {
                 return false;
             }
+
+            // check op code
             if (message.OpCode != ProtocolDatagram.OpCodeData)
             {
                 return false;
@@ -105,13 +108,13 @@ namespace PortableIPC.Core.Session
 
             // before inserting new message, clear any existing message with set last_in_window option
             // and its effects.
-            if (message.IsLastInWindow == true)
+            if (message.IsLastInDataWindow == true)
             {
                 for (int i = 0; i < CurrentWindow.Count; i++)
                 {
                     if (CurrentWindow[i] != null)
                     {
-                        if (CurrentWindow[i].IsLastInWindow == true)
+                        if (CurrentWindow[i].IsLastInDataWindow == true)
                         {
                             CurrentWindow[i] = null;
                         }
@@ -159,10 +162,7 @@ namespace PortableIPC.Core.Session
 
         private VoidType HandleNoOpAckSuccess(AbstractPromiseCallback<VoidType> promiseCb)
         {
-            _sessionHandler.PostSerially(() =>
-            {
-                promiseCb.CompleteSuccessfully(VoidType.Instance);
-            });
+            promiseCb.CompleteSuccessfully(VoidType.Instance);
             return VoidType.Instance;
         }
 
@@ -213,7 +213,7 @@ namespace PortableIPC.Core.Session
         {
             _currentWindowId++;
             CurrentWindow = new List<ProtocolDatagram>();
-            for (int i = 0; i < _sessionHandler.WindowSize; i++)
+            for (int i = 0; i < _sessionHandler.DataWindowSize; i++)
             {
                 CurrentWindow.Add(null);
             }
@@ -232,7 +232,7 @@ namespace PortableIPC.Core.Session
                     }
                 }
                 memoryStream.Write(msg.DataBytes, msg.DataOffset, msg.DataLength);
-                if (msg.IsLastInWindow == true)
+                if (msg.IsLastInDataWindow == true)
                 {
                     break;
                 }
@@ -268,7 +268,7 @@ namespace PortableIPC.Core.Session
             {
                 return true;
             }
-            return CurrentWindow[lastPosInSlidingWindow].IsLastInWindow == true;
+            return CurrentWindow[lastPosInSlidingWindow].IsLastInDataWindow == true;
         }
     }
 }
