@@ -11,7 +11,7 @@ namespace PortableIPC.Core.Session
         private readonly SendDataHandler _sendHandler;
         private readonly AbstractPromiseApi _promiseApi;
 
-        private AbstractPromiseCallback<VoidType> _pendingPromiseCallback;
+        private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
         private byte[] _rawData;
         private int _offset;
 
@@ -27,32 +27,41 @@ namespace PortableIPC.Core.Session
             _pendingPromiseCallback?.CompleteExceptionally(error);
         }
 
-        public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessReceive(ProtocolDatagram message)
         {
             return false;
         }
 
-        public bool ProcessSend(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessSend(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
             return false;
         }
 
-        public bool ProcessSend(int opCode, byte[] rawData, Dictionary<string, List<string>> options, 
-            AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessSend(int opCode, byte[] rawData, Dictionary<string, List<string>> options,
+            PromiseCompletionSource<VoidType> promiseCb)
         {
-            if (_sessionHandler.SessionState != SessionState.OpenedForData)
-            {
-                return false;
-            }
             if (opCode != ProtocolDatagram.OpCodeData)
             {
                 return false;
             }
+
+            ProcessSendRequest(rawData, options, promiseCb);
+            return true;
+        }
+
+        public void ProcessSendRequest(byte[] rawData, Dictionary<string, List<string>> options,
+           PromiseCompletionSource<VoidType> promiseCb)
+        {
+            if (_sessionHandler.SessionState != SessionState.OpenedForData)
+            {
+                return;
+            }
             if (_sendHandler.SendInProgress)
             {
                 promiseCb.CompleteExceptionally(new Exception("Send in progress"));
-                return true;
+                return;
             }
+
             // if entire message will fit into 1 PDU, just delegate to sendHandler directly.
             if (rawData.Length <= _sessionHandler.MaxPduSize)
             {
@@ -62,7 +71,7 @@ namespace PortableIPC.Core.Session
                     DataBytes = rawData,
                     DataLength = rawData.Length
                 };
-                return _sendHandler.ProcessSend(message, promiseCb);
+                _sendHandler.ProcessSend(message, promiseCb);
             }
 
             // So raw bytes will need multiple PDUs.
@@ -70,8 +79,6 @@ namespace PortableIPC.Core.Session
             _rawData = rawData;
             _offset = 0;
             ContinueBulkSend();
-
-            return true;
         }
 
         private void ContinueBulkSend()
@@ -98,9 +105,9 @@ namespace PortableIPC.Core.Session
             _sendHandler.CurrentWindow.Clear();
             _sendHandler.CurrentWindow.AddRange(nextWindow);
             _sendHandler.SendInProgress = true;
-            AbstractPromiseCallback<VoidType> partPromiseCb = _promiseApi.CreateCallback<VoidType>();
+            PromiseCompletionSource<VoidType> partPromiseCb = _promiseApi.CreateCallback<VoidType>();
             AbstractPromise<VoidType> partPromise = partPromiseCb.Extract();
-            _sendHandler.ProcessSendWindow(partPromiseCb);
+            _sendHandler.ProcessSendWindow(partPromiseCb, true);
             // let send handler handle error, which will lead to a closure of this handler,
             // and then _pendingPromiseCallback can be completed with error.
             partPromise.Then(HandleSendPartSuccess);

@@ -13,7 +13,6 @@ namespace PortableIPC.Core.Session
         private readonly AbstractEventLoopApi _eventLoop;
 
         private int _currentWindowId; // used to ignore late acknowledgment send callbacks.
-        private Exception _closeEx;
 
         public ReceiveDataHandler(ISessionHandler sessionHandler)
         {
@@ -25,40 +24,40 @@ namespace PortableIPC.Core.Session
 
         public void Shutdown(Exception error)
         {
-            _closeEx = error;
+            // nothing to do.
         }
 
-        public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessReceive(ProtocolDatagram message)
         {
-            // check session state
-            if (_sessionHandler.SessionState != SessionState.OpenedForData)
-            {
-                return false;
-            }
-
             // check op code
             if (message.OpCode != ProtocolDatagram.OpCodeData)
             {
                 return false;
             }
 
-            ProcessDataReceipt(message, promiseCb);
+            ProcessDataReceipt(message);
             return true;
         }
 
-        public bool ProcessSend(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessSend(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
             return false;
         }
 
         public bool ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options, 
-            AbstractPromiseCallback<VoidType> promiseCb)
+            PromiseCompletionSource<VoidType> promiseCb)
         {
             return false;
         }
 
-        private void ProcessDataReceipt(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        private void ProcessDataReceipt(ProtocolDatagram message)
         {
+            // check session state
+            if (_sessionHandler.SessionState != SessionState.OpenedForData)
+            {
+                return;
+            }
+
             if (CurrentWindow == null)
             {
                 ResetCurrentWindow();
@@ -78,7 +77,7 @@ namespace PortableIPC.Core.Session
                     SessionId = _sessionHandler.SessionId
                 };
                 _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
-                    .Then(_ => HandleNoOpAckSuccess(promiseCb), error => HandleAckSendFailure(error, promiseCb));
+                    .Then<VoidType>(null, HandleAckSendFailure);
                 return;
             }
 
@@ -102,7 +101,7 @@ namespace PortableIPC.Core.Session
             }
             if (!ProtocolDatagram.ValidateSequenceNumbers(seqNrs))
             {
-                _sessionHandler.DiscardReceivedMessage(message, promiseCb);
+                _sessionHandler.DiscardReceivedMessage(message);
                 return;
             }
 
@@ -133,7 +132,6 @@ namespace PortableIPC.Core.Session
             if (lastPositionToAck == -1)
             {
                 // nothing to acknowledge.
-                promiseCb.CompleteSuccessfully(VoidType.Instance);
                 return;
             }
 
@@ -147,37 +145,21 @@ namespace PortableIPC.Core.Session
             };
             int windowIdSnapshot = _currentWindowId;
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
-                .Then(_ => HandleDataAckSendSuccess(windowIdSnapshot, promiseCb), 
-                error => HandleAckSendFailure(error, promiseCb));
+                .Then(_ => HandleDataAckSendSuccess(windowIdSnapshot), HandleAckSendFailure);
         }
 
-        private void HandleAckSendFailure(Exception error, AbstractPromiseCallback<VoidType> promiseCb)
+        private void HandleAckSendFailure(Exception error)
         {
-            _sessionHandler.PostSerially(() =>
+            _sessionHandler.PostSeriallyIfNotClosed(() =>
             {
-                promiseCb.CompleteExceptionally(error);
                 _sessionHandler.ProcessShutdown(error, false);
             });
         }
 
-        private VoidType HandleNoOpAckSuccess(AbstractPromiseCallback<VoidType> promiseCb)
+        private VoidType HandleDataAckSendSuccess(int windowIdSnapshot)
         {
-            promiseCb.CompleteSuccessfully(VoidType.Instance);
-            return VoidType.Instance;
-        }
-
-        private VoidType HandleDataAckSendSuccess(int windowIdSnapshot, AbstractPromiseCallback<VoidType> promiseCb)
-        {
-            _sessionHandler.PostSerially(() =>
+            _sessionHandler.PostSeriallyIfNotClosed(() =>
             {
-                promiseCb.CompleteSuccessfully(VoidType.Instance);
-
-                // check if handler is shutdown.
-                if (_closeEx != null)
-                {
-                    return;
-                }
-
                 // check if ack send callback is coming in too late.
                 if (CurrentWindow == null || _currentWindowId != windowIdSnapshot)
                 {

@@ -16,7 +16,6 @@ namespace PortableIPC.Core.Session
         private readonly AbstractEventLoopApi _eventLoop;
 
         private bool _sendAckInProgress;
-        private Exception _closeEx;
 
         public ReceiveOpenHandler(ISessionHandler sessionHandler)
         {
@@ -28,10 +27,10 @@ namespace PortableIPC.Core.Session
 
         public void Shutdown(Exception error)
         {
-            _closeEx = error;
+            // nothing to do
         }
 
-        public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessReceive(ProtocolDatagram message)
         {
             // check opcode.
             if (message.OpCode != ProtocolDatagram.OpCodeOpen)
@@ -39,29 +38,28 @@ namespace PortableIPC.Core.Session
                 return false;
             }
 
-            // check handler state
-            if (_sendAckInProgress)
-            {
-                return false;
-            }
-
-            ProcessReceiveOpen(message, promiseCb);
+            ProcessReceiveOpen(message);
             return true;
         }
 
-        public bool ProcessSend(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessSend(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
             return false;
         }
 
         public bool ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options, 
-            AbstractPromiseCallback<VoidType> promiseCb)
+            PromiseCompletionSource<VoidType> promiseCb)
         {
             return false;
         }
 
-        private void ProcessReceiveOpen(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        private void ProcessReceiveOpen(ProtocolDatagram message)
         {
+            // check handler state
+            if (_sendAckInProgress)
+            {
+                return;
+            }
             ProtocolDatagram ack;
             if (_sessionHandler.SessionState == SessionState.Opening)
             {
@@ -77,7 +75,7 @@ namespace PortableIPC.Core.Session
                         SessionId = _sessionHandler.SessionId
                     };
                     _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
-                        .Then(_ => HandleNoOpAckSuccess(promiseCb), error => HandleAckSendFailure(error, promiseCb));
+                        .Then<VoidType>(null, HandleAckSendFailure);
                     return;
                 }
             }
@@ -91,7 +89,6 @@ namespace PortableIPC.Core.Session
                 OpenRequestBuffer.Count >= _sessionHandler.EndpointHandler.EndpointConfig.MaxOpenRequestPduCount)
             {
                 var error = new Exception("Maximum limit on PDUs constituting an OPEN request has been reached");
-                promiseCb.CompleteExceptionally(error);
                 _sessionHandler.ProcessShutdown(error, false);
                 return;
             }
@@ -107,38 +104,23 @@ namespace PortableIPC.Core.Session
                 SessionId = _sessionHandler.SessionId
             };
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
-                .Then(_ => HandleOpenAckSendSuccess(promiseCb),
-                      error => HandleAckSendFailure(error, promiseCb));
+                .Then(HandleOpenAckSendSuccess, HandleAckSendFailure);
             _sendAckInProgress = true;
         }
 
-        private void HandleAckSendFailure(Exception error, AbstractPromiseCallback<VoidType> promiseCb)
+        private void HandleAckSendFailure(Exception error)
         {
-            _sessionHandler.PostSerially(() =>
+            _sessionHandler.PostSeriallyIfNotClosed(() =>
             {
-                promiseCb.CompleteExceptionally(error);
                 _sessionHandler.ProcessShutdown(error, false);
             });
         }
 
-        private VoidType HandleNoOpAckSuccess(AbstractPromiseCallback<VoidType> promiseCb)
+        private VoidType HandleOpenAckSendSuccess(VoidType _)
         {
-            promiseCb.CompleteSuccessfully(VoidType.Instance);
-            return VoidType.Instance;
-        }
-
-        private VoidType HandleOpenAckSendSuccess(AbstractPromiseCallback<VoidType> promiseCb)
-        {
-            _sessionHandler.PostSerially(() =>
+            _sessionHandler.PostSeriallyIfNotClosed(() =>
             {
                 _sendAckInProgress = false;
-                promiseCb.CompleteSuccessfully(VoidType.Instance);
-
-                // check if handler is shutdown.
-                if (_closeEx != null)
-                {
-                    return;
-                }
 
                 // save last sequence. NB: window size = 1.
                 _sessionHandler.LastMaxSeqReceived = OpenRequestBuffer[OpenRequestBuffer.Count - 1].SequenceNumber;

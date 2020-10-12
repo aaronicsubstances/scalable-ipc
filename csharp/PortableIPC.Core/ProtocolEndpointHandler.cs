@@ -59,39 +59,31 @@ namespace PortableIPC.Core
             return sessionHandler.ProcessSend(message);
         }
 
-        public AbstractPromise<VoidType> HandleReceive(IPEndPoint endpoint, byte[] rawBytes, int offset, int length)
+        public void HandleReceive(IPEndPoint endpoint, byte[] rawBytes, int offset, int length)
         {
             lock (_disposeLock)
             {
                 if (_isDisposing)
                 {
-                    return PromiseApi.Reject(new Exception("endpoint handler is shutting down"));
+                    throw new Exception("endpoint handler is shutting down");
                 }
             }
 
             // process data from datagram socket.
-            ProtocolDatagram message;
-            try
+            ProtocolDatagram message = ParseRawDatagram(rawBytes, offset, length);
+            var handled = HandleReceiveProtocolControlMessage(endpoint, message);
+            if (handled)
             {
-                message = ParseRawDatagram(rawBytes, offset, length);
-            }
-            catch (Exception ex)
-            {
-                return PromiseApi.Reject(ex);
-            }
-            var returnPromise = HandleReceiveProtocolControlMessage(endpoint, message);
-            if (returnPromise != null)
-            {
-                return returnPromise;
+                return;
             }
             ISessionHandler sessionHandler = GetOrCreateSessionHandler(endpoint, message.SessionId);
             if (sessionHandler != null)
             {
-                return sessionHandler.ProcessReceive(message);
+                sessionHandler.ProcessReceive(message);
             }
             else
             {
-                return PromiseApi.Reject(new Exception($"Could not allocate handler for session {message.SessionId} from {endpoint}"));
+                throw new Exception($"Could not allocate handler for session {message.SessionId} from {endpoint}");
             }
         }
 
@@ -102,13 +94,14 @@ namespace PortableIPC.Core
             return message;
         }
 
-        public AbstractPromise<VoidType> HandleReceiveProtocolControlMessage(IPEndPoint endpoint, ProtocolDatagram message)
+        public bool HandleReceiveProtocolControlMessage(IPEndPoint endpoint, ProtocolDatagram message)
         {
             if (message.OpCode == ProtocolDatagram.OpCodeCloseAll)
             {
-                return HandleReceiveCloseAll(endpoint);
+                HandleReceiveCloseAll(endpoint);
+                return true;
             }
-            return null;
+            return false;
         }
 
         public AbstractPromise<VoidType> HandleSend(IPEndPoint endpoint, ProtocolDatagram message)
@@ -143,7 +136,8 @@ namespace PortableIPC.Core
             };
             // swallow any send exception.
             return HandleSend(endpoint, pdu).
-                ThenCompose(_ => HandleReceiveCloseAll(endpoint), _ => _voidReturnPromise);
+                ThenCompose(_ => { HandleReceiveCloseAll(endpoint); return _voidReturnPromise; }, 
+                            _ => _voidReturnPromise);
         }
 
         public AbstractPromise<VoidType> Shutdown()
@@ -176,7 +170,7 @@ namespace PortableIPC.Core
             return retVal;
         }
 
-        private AbstractPromise<VoidType> HandleReceiveCloseAll(IPEndPoint endpoint)
+        private void HandleReceiveCloseAll(IPEndPoint endpoint)
         {
             var sessionHandlersSubset = new List<ISessionHandler>();
             lock (_sessionHandlerMap)
@@ -187,13 +181,10 @@ namespace PortableIPC.Core
                     _sessionHandlerMap.Remove(endpoint);
                 }
             }
-            AbstractPromise<VoidType> retResult = _voidReturnPromise;
             foreach (var sessionHandler in sessionHandlersSubset)
             {
-                var nextResult = SwallowException(sessionHandler.Shutdown(null, false));
-                retResult = retResult.ThenCompose(_ => nextResult);
+                SwallowException(sessionHandler.Shutdown(null, false));
             }
-            return retResult;
         }
 
         public AbstractPromise<VoidType> HandleException(AbstractPromise<VoidType> promise)

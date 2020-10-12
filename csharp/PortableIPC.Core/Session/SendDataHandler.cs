@@ -11,7 +11,7 @@ namespace PortableIPC.Core.Session
 
         private SendHandlerAssistant _currentWindowHandler;
         private int _retryCount;
-        private AbstractPromiseCallback<VoidType> _pendingPromiseCallback;
+        private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
         private bool _inUseByBulkSend;
         private bool _initialWindowSendFinished;
         private int _retryIndex;
@@ -34,39 +34,46 @@ namespace PortableIPC.Core.Session
             }
         }
 
-        public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessReceive(ProtocolDatagram message)
         {
-            if (!SendInProgress)
-            {
-                return false;
-            }
-
             if (message.OpCode != ProtocolDatagram.OpCodeAck)
             {
                 return false;
             }
 
-            promiseCb.CompleteSuccessfully(VoidType.Instance);
             ProcessAckReceipt(message);
             return true;
         }
 
-        public bool ProcessSend(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessSend(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
+        {
+            if (message.OpCode != ProtocolDatagram.OpCodeData)
+            {
+                return false;
+            }
+
+            ProcessSendRequest(message, promiseCb);
+            return true;
+        }
+
+        public bool ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options, 
+            PromiseCompletionSource<VoidType> promiseCb)
+        {
+            return false;
+        }
+
+        private void ProcessSendRequest(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
             if (_sessionHandler.SessionState != SessionState.OpenedForData)
             {
-                return false;
+                promiseCb.CompleteExceptionally(new Exception("Invalid session state for send data"));
+                return;
             }
 
             if (SendInProgress)
             {
                 promiseCb.CompleteExceptionally(new Exception("Send in progress"));
-                return true;
-            }
-
-            if (message.OpCode != ProtocolDatagram.OpCodeData)
-            {
-                return false;
+                return;
             }
 
             // reset current window.
@@ -76,23 +83,15 @@ namespace PortableIPC.Core.Session
             CurrentWindow.Add(message);
 
             SendInProgress = true;
-            ProcessSendWindow(promiseCb);
-
-            return true;
+            ProcessSendWindow(promiseCb, false);
         }
 
-        public bool ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options, 
-            AbstractPromiseCallback<VoidType> promiseCb)
-        {
-            return false;
-        }
-
-        protected internal void ProcessSendWindow(AbstractPromiseCallback<VoidType> promiseCb)
+        protected internal void ProcessSendWindow(PromiseCompletionSource<VoidType> promiseCb, bool inUseByBulkSend)
         {
             _retryCount = 0;
             _currentWindowHandler = null;
             _pendingPromiseCallback = promiseCb;
-            _inUseByBulkSend = true;
+            _inUseByBulkSend = inUseByBulkSend;
 
             _initialWindowSendFinished = false;
             _retryIndex = 0;
@@ -127,6 +126,11 @@ namespace PortableIPC.Core.Session
 
         private void ProcessAckReceipt(ProtocolDatagram ack)
         {
+            if (!SendInProgress)
+            {
+                return;
+            }
+
             // Receipt of an ack is interpreted as reception of message with ack's sequence numbers,
             // and all preceding messages in window as well.
             int ackIndex = CurrentWindow.FindIndex(item => item.SequenceNumber == ack.SequenceNumber);
@@ -137,7 +141,10 @@ namespace PortableIPC.Core.Session
             }
 
             // Indirectly clear ack timeout.
-            _sessionHandler.ResetIdleTimeout();
+            if (_initialWindowSendFinished)
+            {
+                _sessionHandler.ResetIdleTimeout();
+            }
 
             // Once it is not last message which has not been acknowledged, sending is not
             // complete.

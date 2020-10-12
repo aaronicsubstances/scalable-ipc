@@ -19,7 +19,7 @@ namespace PortableIPC.Core.Session
             // nothing to do.
         }
 
-        public bool ProcessReceive(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessReceive(ProtocolDatagram message)
         {
             // process termination message regardless of session state.
             if (message.OpCode == ProtocolDatagram.OpCodeClose)
@@ -28,12 +28,10 @@ namespace PortableIPC.Core.Session
                 if (message.SequenceNumber >= _sessionHandler.LastMinSeqReceived &&
                     message.SequenceNumber <= _sessionHandler.LastMaxSeqReceived)
                 {
-                    _sessionHandler.DiscardReceivedMessage(message, promiseCb);
+                    _sessionHandler.DiscardReceivedMessage(message);
                 }
                 else
                 {
-                    promiseCb.CompleteSuccessfully(VoidType.Instance);
-
                     Exception error = null;
                     if (message.ErrorMessage != null)
                     {
@@ -49,7 +47,7 @@ namespace PortableIPC.Core.Session
             }
         }
 
-        public bool ProcessSend(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public bool ProcessSend(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
             // process termination message regardless of session state.
             if (message.OpCode == ProtocolDatagram.OpCodeClose)
@@ -67,7 +65,7 @@ namespace PortableIPC.Core.Session
             }
         }
 
-        private VoidType HandleSendSuccessOrError(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        private VoidType HandleSendSuccessOrError(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
             _sessionHandler.PostSerially(() =>
             {
@@ -84,7 +82,7 @@ namespace PortableIPC.Core.Session
         }
 
         public bool ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options,
-            AbstractPromiseCallback<VoidType> promiseCb)
+            PromiseCompletionSource<VoidType> promiseCb)
         {
             return false;
         }

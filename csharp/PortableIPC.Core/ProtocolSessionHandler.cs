@@ -19,10 +19,11 @@ namespace PortableIPC.Core
         private object _lastTimeoutId;
 
         public ProtocolSessionHandler() :
-            this(null, null, null)
+            this(null, null, null, true)
         { }
 
-        public ProtocolSessionHandler(IEndpointHandler endpointHandler, IPEndPoint endPoint, string sessionId)
+        public ProtocolSessionHandler(IEndpointHandler endpointHandler, IPEndPoint endPoint, string sessionId,
+            bool isConfiguredForInitialSend)
         {
             EndpointHandler = endpointHandler;
             ConnectedEndpoint = endPoint;
@@ -40,6 +41,19 @@ namespace PortableIPC.Core
             StateHandlers.Add(sendHandler);
             StateHandlers.Add(bulkSendHandler);
             StateHandlers.Add(closeHandler);
+
+            if (isConfiguredForInitialSend)
+            {
+                var sendOpenHandler = new SendOpenHandler(this);
+                StateHandlers.Add(sendOpenHandler);
+                var bulkSendOpenHandler = new BulkSendOpenHandler(this, sendOpenHandler);
+                StateHandlers.Add(bulkSendOpenHandler);
+            }
+            else
+            {
+                var receiveOpenHandler = new ReceiveOpenHandler(this);
+                StateHandlers.Add(receiveOpenHandler);
+            }
         }
 
         public IEndpointHandler EndpointHandler { get; set; }
@@ -67,10 +81,8 @@ namespace PortableIPC.Core
             return _promiseApi.Resolve(VoidType.Instance);
         }
 
-        public AbstractPromise<VoidType> ProcessReceive(ProtocolDatagram message)
+        public void ProcessReceive(ProtocolDatagram message)
         {
-            AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
-            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
                 bool handled = false;
@@ -79,7 +91,7 @@ namespace PortableIPC.Core
                     EnsureIdleTimeout();
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
-                        handled = stateHandler.ProcessReceive(message, promiseCb);
+                        handled = stateHandler.ProcessReceive(message);
                         if (handled)
                         {
                             break;
@@ -88,21 +100,19 @@ namespace PortableIPC.Core
                 }
                 if (!handled)
                 {
-                    DiscardReceivedMessage(message, promiseCb);
+                    DiscardReceivedMessage(message);
                 }
             });
-            return returnPromise;
         }
 
-        public void DiscardReceivedMessage(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb)
+        public void DiscardReceivedMessage(ProtocolDatagram message)
         {
             // subclasses can log.
-            promiseCb.CompleteSuccessfully(VoidType.Instance);
         }
 
         public AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message)
         {
-            AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
@@ -134,7 +144,7 @@ namespace PortableIPC.Core
 
         public AbstractPromise<VoidType> ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options)
         {
-            AbstractPromiseCallback<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {

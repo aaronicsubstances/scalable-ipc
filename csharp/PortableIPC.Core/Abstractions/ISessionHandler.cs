@@ -12,7 +12,7 @@ namespace PortableIPC.Core.Abstractions
         IPEndPoint ConnectedEndpoint { get; set; }
         string SessionId { get; set; }
         List<ISessionStateHandler> StateHandlers { get; }
-        AbstractPromise<VoidType> ProcessReceive(ProtocolDatagram message);
+        void ProcessReceive(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options);
         AbstractPromise<VoidType> Shutdown(Exception error, bool timeout);
@@ -34,10 +34,10 @@ namespace PortableIPC.Core.Abstractions
         void ResetIdleTimeout();
 
         void ResetAckTimeout(int timeoutSecs, Action cb);
-        void DiscardReceivedMessage(ProtocolDatagram message, AbstractPromiseCallback<VoidType> promiseCb);
+        void DiscardReceivedMessage(ProtocolDatagram message);
         void ProcessShutdown(Exception error, bool timeout);
 
-        // application layer interface
+        // application layer interface. contract here is that these should be called from event loop.
         void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options);
         void OnDataReceived(byte[] data, Dictionary<string, List<string>> options);
         void OnClose(Exception error, bool timeout);

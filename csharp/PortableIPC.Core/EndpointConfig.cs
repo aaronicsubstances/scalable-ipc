@@ -20,6 +20,7 @@ namespace PortableIPC.Core
         public int MininumIdleTimeoutSecs { get; set; }
         public int MaximumIdleTimeoutSecs { get; set; }
         public int MaxOpenRequestPduCount { get; set; }
+        public int MaxRetryCount { get; set; }
         public ISessionHandlerFactory SessionHandlerFactory { get; set; }
 
         public string GenerateSessionId()
