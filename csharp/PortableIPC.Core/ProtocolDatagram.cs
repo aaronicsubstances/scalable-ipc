@@ -481,5 +481,27 @@ namespace PortableIPC.Core
             }
             return currSeq;
         }
+
+        public static byte[] RetrieveData(List<ProtocolDatagram> messages, Dictionary<string, List<string>> optionsReceiver)
+        {
+            var memoryStream = new MemoryStream();
+            foreach (var msg in messages)
+            {
+                if (msg == null)
+                {
+                    break;
+                }
+                if (msg.Options != null)
+                {
+                    foreach (var kvp in msg.Options)
+                    {
+                        optionsReceiver.Add(kvp.Key, kvp.Value);
+                    }
+                }
+                memoryStream.Write(msg.DataBytes, msg.DataOffset, msg.DataLength);
+            }
+            memoryStream.Flush();
+            return memoryStream.ToArray();
+        }
     }
 }

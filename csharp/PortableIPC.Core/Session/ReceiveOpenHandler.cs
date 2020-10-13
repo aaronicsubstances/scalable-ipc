@@ -140,7 +140,7 @@ namespace PortableIPC.Core.Session
                     ProcessOptions();
 
                     var openOptions = new Dictionary<string, List<string>>();
-                    byte[] openData = RetrieveCurrentBufferData(openOptions);
+                    byte[] openData = ProtocolDatagram.RetrieveData(OpenRequestBuffer, openOptions);
 
                     _sessionHandler.SessionState = SessionState.OpenedForData;
 
@@ -176,24 +176,6 @@ namespace PortableIPC.Core.Session
                 .SelectMany(x => x.RetryCount).ToList();
 
             throw new NotImplementedException();
-        }
-
-        private byte[] RetrieveCurrentBufferData(Dictionary<string, List<string>> optionsReceiver)
-        {
-            var memoryStream = new MemoryStream();
-            foreach (var msg in OpenRequestBuffer)
-            {
-                if (msg.Options != null)
-                {
-                    foreach (var kvp in msg.Options)
-                    {
-                        optionsReceiver.Add(kvp.Key, kvp.Value);
-                    }
-                }
-                memoryStream.Write(msg.DataBytes, msg.DataOffset, msg.DataLength);
-            }
-            memoryStream.Flush();
-            return memoryStream.ToArray();
         }
     }
 }

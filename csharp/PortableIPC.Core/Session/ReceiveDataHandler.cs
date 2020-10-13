@@ -29,7 +29,7 @@ namespace PortableIPC.Core.Session
 
         public bool ProcessReceive(ProtocolDatagram message)
         {
-            // check op code
+            // assert expected op code
             if (message.OpCode != ProtocolDatagram.OpCodeData)
             {
                 return false;
@@ -52,7 +52,7 @@ namespace PortableIPC.Core.Session
 
         private void ProcessDataReceipt(ProtocolDatagram message)
         {
-            // check session state
+            // assert expected session state
             if (_sessionHandler.SessionState != SessionState.OpenedForData)
             {
                 return;
@@ -124,6 +124,9 @@ namespace PortableIPC.Core.Session
                     }
                 }
             }
+
+            // Now insert incoming message into position given by sequence number modulo
+            // window size.
             CurrentWindow[positionInWindow] = message;
 
             // Attempt to acknowledge each received message by the sequence number corresponding
@@ -180,7 +183,7 @@ namespace PortableIPC.Core.Session
                 _sessionHandler.LastMaxSeqReceived = CurrentWindow[lastEffectiveWindowPos].SequenceNumber;
 
                 var dataOptions = new Dictionary<string, List<string>>();
-                byte[] currentWindowData = RetrieveCurrentWindowData(dataOptions);
+                byte[] currentWindowData = ProtocolDatagram.RetrieveData(CurrentWindow, dataOptions);
 
                 // invalidate subsequent ack send confirmations for this current window instance.
                 CurrentWindow = null;
@@ -199,28 +202,6 @@ namespace PortableIPC.Core.Session
             {
                 CurrentWindow.Add(null);
             }
-        }
-
-        private byte[] RetrieveCurrentWindowData(Dictionary<string, List<string>> dataOptionsReceiver)
-        {
-            var memoryStream = new MemoryStream();
-            foreach (var msg in CurrentWindow)
-            {
-                if (msg.Options != null)
-                {
-                    foreach (var kvp in msg.Options)
-                    {
-                        dataOptionsReceiver.Add(kvp.Key, kvp.Value);
-                    }
-                }
-                memoryStream.Write(msg.DataBytes, msg.DataOffset, msg.DataLength);
-                if (msg.IsLastInDataWindow == true)
-                {
-                    break;
-                }
-            }
-            memoryStream.Flush();
-            return memoryStream.ToArray();
         }
 
         private int GetLastPositionInSlidingWindow()
