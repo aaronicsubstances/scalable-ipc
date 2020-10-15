@@ -26,12 +26,12 @@ namespace PortableIPC.Core.Session
 
         public void Shutdown(Exception error)
         {
-            _currentWindowHandler?.Cancel();
+            /*_currentWindowHandler?.Cancel();
             if (SendInProgress)
             {
                 _pendingPromiseCallback.CompleteExceptionally(error);
                 SendInProgress = false;
-            }
+            }*/
         }
 
         public bool ProcessReceive(ProtocolDatagram message)
@@ -41,7 +41,7 @@ namespace PortableIPC.Core.Session
                 return false;
             }
 
-            ProcessAckReceipt(message);
+            //ProcessAckReceipt(message);
             return true;
         }
 
@@ -52,7 +52,7 @@ namespace PortableIPC.Core.Session
                 return false;
             }
 
-            ProcessSendRequest(message, promiseCb);
+            //ProcessSendRequest(message, promiseCb);
             return true;
         }
 
@@ -62,7 +62,7 @@ namespace PortableIPC.Core.Session
             return false;
         }
 
-        private void ProcessSendRequest(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
+        /*private void ProcessSendRequest(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
             if (_sessionHandler.SessionState != SessionState.OpenedForData)
             {
@@ -210,6 +210,6 @@ namespace PortableIPC.Core.Session
             {
                 _sessionHandler.ResetAckTimeout(_sessionHandler.AckTimeoutSecs, () => ProcessAckTimeout());
             });
-        }
+        }*/
     }
 }

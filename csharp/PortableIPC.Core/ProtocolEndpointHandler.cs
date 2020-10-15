@@ -27,7 +27,6 @@ namespace PortableIPC.Core
         public EndpointConfig EndpointConfig { get; }
 
         public AbstractPromiseApi PromiseApi { get; }
-        public AbstractEventLoopApi EventLoop { get; }
 
         public AbstractPromise<VoidType> OpenSession(IPEndPoint endpoint, ISessionHandler sessionHandler,
             ProtocolDatagram message)
@@ -90,7 +89,22 @@ namespace PortableIPC.Core
         public ProtocolDatagram ParseRawDatagram(byte[] rawBytes, int offset, int length)
         {
             // subclasses can implement forward error correction, expiration, etc.
+
             var message = ProtocolDatagram.Parse(rawBytes, offset, length);
+
+            // validate op code
+            switch (message.OpCode)
+            {
+                case ProtocolDatagram.OpCodeAck:
+                case ProtocolDatagram.OpCodeClose:
+                case ProtocolDatagram.OpCodeCloseAll:
+                case ProtocolDatagram.OpCodeData:
+                case ProtocolDatagram.OpCodeOpen:
+                case ProtocolDatagram.OpCodeOpenAck:
+                    break;
+                default:
+                    throw new Exception($"Invalid op code: {message.OpCode}");
+            }
             return message;
         }
 
@@ -118,13 +132,22 @@ namespace PortableIPC.Core
             byte[] pdu;
             try
             {
-                pdu = message.ToRawDatagram(true);
+                pdu = GenerateRawDatagram(message);
             }
             catch (Exception ex)
             {
                 return PromiseApi.Reject(ex);
             }
             return HandleException(NetworkSocket.HandleSend(endpoint, pdu, 0, pdu.Length));
+        }
+
+        public byte[] GenerateRawDatagram(ProtocolDatagram message)
+        {
+            // subclasses can implement forward error correction, expiration, etc.
+            byte[] rawBytes = message.ToRawDatagram(true);
+
+            // could validate size?
+            return rawBytes;
         }
 
         private AbstractPromise<VoidType> HandleSendCloseAll(IPEndPoint endpoint)

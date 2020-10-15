@@ -17,20 +17,17 @@ namespace PortableIPC.Core
         private readonly AbstractPromiseApi _promiseApi;
         private readonly AbstractEventLoopApi _eventLoop;
         private object _lastTimeoutId;
+        private int _currTimeoutSeqNr; // used to enforce timeout cancellations.
 
-        public ProtocolSessionHandler() :
-            this(null, null, null, true)
-        { }
-
-        public ProtocolSessionHandler(IEndpointHandler endpointHandler, IPEndPoint endPoint, string sessionId,
-            bool isConfiguredForInitialSend)
+        public ProtocolSessionHandler(IEndpointHandler endpointHandler, AbstractEventLoopApi eventLoop,
+            IPEndPoint endPoint, string sessionId, bool isConfiguredForInitialSend)
         {
             EndpointHandler = endpointHandler;
+            _eventLoop = eventLoop;
             ConnectedEndpoint = endPoint;
             SessionId = sessionId;
 
             _promiseApi = endpointHandler.PromiseApi;
-            _eventLoop = endpointHandler.EventLoop;
 
             var receiveHandler = new ReceiveDataHandler(this);
             var sendHandler = new SendDataHandler(this);
@@ -60,25 +57,38 @@ namespace PortableIPC.Core
         public IPEndPoint ConnectedEndpoint { get; set; }
         public string SessionId { get; set; }
 
-        public SessionState SessionState { get; set; }
-        public int MaxPduSize { get; set; }
-        public int MaxRetryCount { get; set; }
-        public int DataWindowSize { get; set; }
-        public int IdleTimeoutSecs { get; set; }
-        public int AckTimeoutSecs { get; set; }
-        public int LastMinSeqReceived { get; set; }
-        public int LastMaxSeqReceived { get; set; }
-        public int NextSendSeqStart { get; set; }
+        public SessionState SessionState { get; set; } = SessionState.NotStarted;
+        public bool IsOpening
+        {
+            get
+            {
+                return SessionState == SessionState.NotStarted || SessionState == SessionState.Opening;
+            }
+        }
+        public bool IsClosing
+        { 
+            get
+            {
+                return SessionState == SessionState.Closing || SessionState == SessionState.Closed;
+            }
+        }
+        public long NextWindowIdToSend { get; set; } = 0;
+        public long LastWindowIdSent { get; set; } = -1;
+        public long LastWindowIdReceived { get; set; } = -1;
+        public bool IdleTimeoutEnabled { get; set; } = true;
 
         public List<ISessionStateHandler> StateHandlers { get; } = new List<ISessionStateHandler>();
 
         public AbstractPromise<VoidType> Shutdown(Exception error, bool timeout)
         {
-            if (SessionState != SessionState.Closing && SessionState != SessionState.Closed)
+            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
+            PostSerially(() =>
             {
                 ProcessShutdown(error, timeout);
-            }
-            return _promiseApi.Resolve(VoidType.Instance);
+                promiseCb.CompleteSuccessfully(VoidType.Instance);
+            });
+            return returnPromise;
         }
 
         public void ProcessReceive(ProtocolDatagram message)
@@ -86,7 +96,7 @@ namespace PortableIPC.Core
             PostSerially(() =>
             {
                 bool handled = false;
-                if (SessionState != SessionState.Closing && SessionState != SessionState.Closed)
+                if (!IsClosing)
                 {
                     EnsureIdleTimeout();
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
@@ -116,7 +126,7 @@ namespace PortableIPC.Core
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
-                if (SessionState == SessionState.Closing || SessionState == SessionState.Closed)
+                if (IsClosing)
                 {
                     promiseCb.CompleteExceptionally(new Exception(
                         SessionState == SessionState.Closed ? "Session handler is closed" : "Session handler is closing"));
@@ -148,7 +158,7 @@ namespace PortableIPC.Core
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
-                if (SessionState == SessionState.Closing || SessionState == SessionState.Closed)
+                if (IsClosing)
                 {
                     promiseCb.CompleteExceptionally(new Exception(
                         SessionState == SessionState.Closed ? "Session handler is closed" : "Session handler is closing"));
@@ -179,11 +189,16 @@ namespace PortableIPC.Core
             _eventLoop.PostCallbackSerially(this, cb);
         }
 
+        public void PostNonSerially(Action cb)
+        {
+            _eventLoop.PostCallback(cb);
+        }
+
         public void PostSeriallyIfNotClosed(Action cb)
         {
             PostSerially(() =>
             {
-                if (SessionState != SessionState.Closing && SessionState != SessionState.Closed)
+                if (!IsClosing)
                 {
                     cb.Invoke();
                 }
@@ -193,8 +208,9 @@ namespace PortableIPC.Core
         public void ResetAckTimeout(int timeoutSecs, Action cb)
         {
             CancelTimeout();
+            int timeoutSeqNr = ++_currTimeoutSeqNr;
             _lastTimeoutId = _promiseApi.ScheduleTimeout(timeoutSecs * 1000L,
-                () => ProcessTimeout(cb));
+                () => ProcessTimeout(timeoutSeqNr, cb));
         }
 
         public void ResetIdleTimeout()
@@ -217,10 +233,12 @@ namespace PortableIPC.Core
             {
                 return;
             }
-            if (IdleTimeoutSecs > 0)
+            if (IdleTimeoutEnabled)
             {
-                _lastTimeoutId = _promiseApi.ScheduleTimeout(IdleTimeoutSecs * 1000L,
-                    () => ProcessTimeout(null));
+                int timeoutSeqNr = ++_currTimeoutSeqNr;
+                _lastTimeoutId = _promiseApi.ScheduleTimeout(
+                    EndpointHandler.EndpointConfig.IdleTimeoutSecs * 1000L,
+                    () => ProcessTimeout(timeoutSeqNr, null));
             }
         }
 
@@ -233,27 +251,30 @@ namespace PortableIPC.Core
             }
         }
 
-        private void ProcessTimeout(Action cb)
+        private void ProcessTimeout(int seqNr, Action cb)
         {
             PostSeriallyIfNotClosed(() =>
             {
-                _lastTimeoutId = null;
-                if (cb != null)
+                if (_lastTimeoutId != null && _currTimeoutSeqNr == seqNr)
                 {
-                    // reset timeout before calling timeout callback.
-                    ResetIdleTimeout();
-                    cb.Invoke();
-                }
-                else
-                {
-                    ProcessShutdown(null, true);
+                    _lastTimeoutId = null;
+                    if (cb != null)
+                    {
+                        // reset timeout before calling timeout callback.
+                        ResetIdleTimeout();
+                        cb.Invoke();
+                    }
+                    else
+                    {
+                        ProcessShutdown(null, true);
+                    }
                 }
             });
         }
 
         public void ProcessShutdown(Exception error, bool timeout)
         {
-            if (SessionState == SessionState.Closing || SessionState == SessionState.Closed)
+            if (IsClosing)
             {
                 return;
             }
@@ -284,7 +305,7 @@ namespace PortableIPC.Core
 
             // pass on to application layer. NB: all calls to application layer must go through
             // event loop.
-            _eventLoop.PostCallback(() => OnClose(error, timeout));
+            PostNonSerially(() => OnClose(error, timeout));
         }
 
         // calls to application layer

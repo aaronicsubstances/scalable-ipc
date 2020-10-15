@@ -10,14 +10,12 @@ namespace PortableIPC.Core.Session
     public class ReceiveDataHandler: ISessionStateHandler
     {
         private readonly ISessionHandler _sessionHandler;
-        private readonly AbstractEventLoopApi _eventLoop;
 
         private int _currentWindowId; // used to ignore late acknowledgment send callbacks.
 
         public ReceiveDataHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _eventLoop = sessionHandler.EndpointHandler.EventLoop;
         }
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
@@ -35,7 +33,7 @@ namespace PortableIPC.Core.Session
                 return false;
             }
 
-            ProcessDataReceipt(message);
+            //ProcessDataReceipt(message);
             return true;
         }
 
@@ -50,7 +48,7 @@ namespace PortableIPC.Core.Session
             return false;
         }
 
-        private void ProcessDataReceipt(ProtocolDatagram message)
+        /*private void ProcessDataReceipt(ProtocolDatagram message)
         {
             // assert expected session state
             if (_sessionHandler.SessionState != SessionState.OpenedForData)
@@ -232,6 +230,6 @@ namespace PortableIPC.Core.Session
                 return true;
             }
             return CurrentWindow[lastPosInSlidingWindow].IsLastInDataWindow == true;
-        }
+        }*/
     }
 }

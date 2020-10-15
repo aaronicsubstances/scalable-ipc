@@ -18,24 +18,34 @@ namespace PortableIPC.Core.Abstractions
         AbstractPromise<VoidType> Shutdown(Exception error, bool timeout);
 
         // beginning of internal API with state handlers.
-        int MaxPduSize { get; set; }
-        int MaxRetryCount { get; set; }
-        int DataWindowSize { get; set; }
-        int IdleTimeoutSecs { get; set; }
-        int AckTimeoutSecs { get; set; }
+        bool IdleTimeoutEnabled { get; set; }
         SessionState SessionState { get; set; }
-        int LastMinSeqReceived { get; set; }
-        int LastMaxSeqReceived { get; set; }
-        int NextSendSeqStart { get; set; }
-        void PostSerially(Action cb);
-        void PostSeriallyIfNotClosed(Action cb);
+        bool IsOpening { get; }
+        bool IsClosing { get; }
 
+        // Rules for window id changes are:
+        //  - Receiver usually accepts only next ids larger than last received window id.
+        //  - The only exception is that receiver can receive a next of 0, provided 
+        //    last received id is larger than 0.
+        // By so doing receiver can be conservative, and sender can have 
+        // freedom in varying trend of window ids.
+        long NextWindowIdToSend { get; set; }
+        long LastWindowIdSent { get; set; }
+        long LastWindowIdReceived { get; set; }
+
+        // timeout api assumes only 1 timeout can be outstanding at any time.
+        // setting a timeout clears previous timeout.
         void EnsureIdleTimeout();
         void ResetIdleTimeout();
 
         void ResetAckTimeout(int timeoutSecs, Action cb);
         void DiscardReceivedMessage(ProtocolDatagram message);
         void ProcessShutdown(Exception error, bool timeout);
+
+        // event loop interface
+        void PostSerially(Action cb);
+        void PostSeriallyIfNotClosed(Action cb);
+        void PostNonSerially(Action cb);
 
         // application layer interface. contract here is that these should be called from event loop.
         void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options);

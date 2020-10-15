@@ -8,10 +8,10 @@ namespace PortableIPC.Core.Abstractions
     public interface IEndpointHandler
     {
         AbstractNetworkApi NetworkSocket { get; }
-        AbstractEventLoopApi EventLoop { get; }
         AbstractPromiseApi PromiseApi { get; }
         EndpointConfig EndpointConfig { get; }
         ProtocolDatagram ParseRawDatagram(byte[] rawBytes, int offset, int length);
+        byte[] GenerateRawDatagram(ProtocolDatagram message);
         AbstractPromise<VoidType> OpenSession(IPEndPoint endpoint, ISessionHandler sessionHandler,
             ProtocolDatagram message);
         void HandleReceive(IPEndPoint endpoint, byte[] rawBytes, int offset, int length);

@@ -45,11 +45,11 @@ namespace PortableIPC.Core.Session
                 return false;
             }
 
-            ProcessSendRequest(rawData, options, promiseCb);
+            //ProcessSendRequest(rawData, options, promiseCb);
             return true;
         }
 
-        public void ProcessSendRequest(byte[] rawData, Dictionary<string, List<string>> options,
+        /*public void ProcessSendRequest(byte[] rawData, Dictionary<string, List<string>> options,
            PromiseCompletionSource<VoidType> promiseCb)
         {
             if (_sessionHandler.SessionState != SessionState.OpenedForData)
@@ -132,6 +132,6 @@ namespace PortableIPC.Core.Session
                 }
             });
             return VoidType.Instance;
-        }
+        }*/
     }
 }

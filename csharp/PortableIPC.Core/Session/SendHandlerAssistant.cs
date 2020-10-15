@@ -1,7 +1,6 @@
 ﻿using PortableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace PortableIPC.Core.Session
 {

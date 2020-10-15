@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Runtime.Serialization;
 using System.Text;
 
 namespace PortableIPC.Core
@@ -20,26 +18,23 @@ namespace PortableIPC.Core
 
         public const int SessionIdLength = 50;
 
-        // expected length, sessionId, opCode, sequence number, null separator and checksum are always present.
-        private const int MinDatagramSize = 2 + SessionIdLength + 1 + 4 + 1 + 1;
-        private const int MaxDatagramSize = 60_000;
+        // expected length, sessionId, opCode, timestamp, window id, 
+        // sequence number, null separator and checksum are always present.
+        public const int MinDatagramSize = 2 + SessionIdLength + 1 + 8 + 8 + 
+            4 + 1 + 1;
+        public const int DatagramSizeAbsoluteLimit = 65_507;
 
-        // reserve s_ prefix for known options at session layer.
-        // later will reserver a_ for known options at application layer.
-        public const string OptionNameRetryCount = "s_retry_count";
-        public const string OptionNameDataWindowSize = "s_data_window_size";
-        public const string OptionNameMaxPduSize = "s_max_pdu_size";
-        public const string OptionNameIsLastInDataWindow = "s_last_in_data_window";
-        public const string OptionNameIsLastInOpenRequest = "s_last_in_open";
-        public const string OptionNameIdleTimeout = "s_idle_timeout";
-        public const string OptionNameAckTimeout = "s_ack_timeout";
-
-        // use code number prefix like 200 OK, 500 Internal Server Error
-        public const string OptionNameErrorMessage = "s_err_msg";
+        // Reserve s_ prefix for known options at session layer.
+        // Also reserver a_ for known options at application layer.
+        public const string OptionNameIsLastInWindow = "s_last_in_window";
+        public const string OptionNameDisableIdleTimeout = "s_no_idle_timeout";
+        public const string OptionNameErrorCode = "s_err_code";
 
         public int ExpectedDatagramLength { get; set; }
         public string SessionId { get; set; }
         public byte OpCode { get; set; }
+        public long Timestamp { get; set; }
+        public long WindowId { get; set; }
         public int SequenceNumber { get; set; }
         public Dictionary<string, List<string>> Options { get; set; }
         public byte[] DataBytes { get; set; }
@@ -48,25 +43,9 @@ namespace PortableIPC.Core
         public byte Checksum { get; set; }
 
         // Known session layer options.
-        public List<int> RetryCount { get; set; }
-        public List<int> DataWindowSize { get; set; }
-
-        public List<int> MaxPduSize { get; set; }
-        public bool? IsLastInDataWindow { get; set; }
-        public bool? IsLastInOpenRequest { get; set; }
-
-        public List<int> IdleTimeoutSecs { get; set; }
-        public List<int> AckTimeoutSecs { get; set; }
-        public List<string> ErrorMessage { get; set; }
-
-        public string FormatErrorMessage()
-        {
-            if (ErrorMessage == null)
-            {
-                return null;
-            }
-            return string.Join("\n", ErrorMessage);
-        }
+        public bool? IsLastInWindow { get; set; }
+        public bool? DisableIdleTimeout { get; set; }
+        public int? ErrorCode { get; set; }
 
         public static ProtocolDatagram Parse(byte[] rawBytes, int offset, int length)
         {
@@ -98,13 +77,22 @@ namespace PortableIPC.Core
             parsedDatagram.OpCode = rawBytes[offset];
             offset += 1;
 
-            parsedDatagram.SequenceNumber = ReadInt32BigEndian(rawBytes, offset);
-            offset += 4;
+            parsedDatagram.Timestamp = ReadInt64BigEndian(rawBytes, offset);
+            offset += 8;
 
+            parsedDatagram.WindowId = ReadInt64BigEndian(rawBytes, offset);
+            if (parsedDatagram.WindowId < 0)
+            {
+                throw new Exception("Negative window id not allowed");
+            }
+            offset += 8;
+
+            parsedDatagram.SequenceNumber = ReadInt32BigEndian(rawBytes, offset);
             if (parsedDatagram.SequenceNumber < 0)
             {
                 throw new Exception("Negative sequence number not allowed");
             }
+            offset += 4;
 
             // Now read options until we encounter null terminator for all options, 
             // which is equivalent to empty string option name 
@@ -152,65 +140,28 @@ namespace PortableIPC.Core
                     optionValues.Add(optionNameOrValue);
 
                     // Now identify known options.
+                    // In case of repetition, first one wins.
                     try
                     {
                         switch (optionName)
                         {
-                            case OptionNameRetryCount:
-                                if (parsedDatagram.RetryCount == null)
+                            case OptionNameIsLastInWindow:
+                                if (parsedDatagram.IsLastInWindow == null)
                                 {
-                                    parsedDatagram.RetryCount = new List<int>();
-                                }
-                                parsedDatagram.RetryCount.Add(ParseOptionAsInt16(optionNameOrValue));
-                                break;
-                            case OptionNameDataWindowSize:
-                                if (parsedDatagram.DataWindowSize == null)
-                                {
-                                    parsedDatagram.DataWindowSize = new List<int>();
-                                }
-                                parsedDatagram.DataWindowSize.Add(ParseOptionAsInt16(optionNameOrValue));
-                                break;
-                            case OptionNameMaxPduSize:
-                                if (parsedDatagram.MaxPduSize == null)
-                                {
-                                    parsedDatagram.MaxPduSize = new List<int>();
-                                }
-                                parsedDatagram.MaxPduSize.Add(ParseOptionAsInt16(optionNameOrValue));
-                                break;
-                            case OptionNameIsLastInDataWindow:
-                                // In case of repetition, first one wins.
-                                if (parsedDatagram.IsLastInDataWindow == null)
-                                {
-                                    parsedDatagram.IsLastInDataWindow = ParseOptionAsBoolean(optionNameOrValue);
+                                    parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionNameOrValue);
                                 }
                                 break;
-                            case OptionNameIsLastInOpenRequest:
-                                // In case of repetition, first one wins.
-                                if (parsedDatagram.IsLastInOpenRequest == null)
+                            case OptionNameDisableIdleTimeout:
+                                if (parsedDatagram.DisableIdleTimeout == null)
                                 {
-                                    parsedDatagram.IsLastInOpenRequest = ParseOptionAsBoolean(optionNameOrValue);
+                                    parsedDatagram.DisableIdleTimeout = ParseOptionAsBoolean(optionNameOrValue);
                                 }
                                 break;
-                            case OptionNameIdleTimeout:
-                                if (parsedDatagram.IdleTimeoutSecs == null)
+                            case OptionNameErrorCode:
+                                if (parsedDatagram.ErrorCode == null)
                                 {
-                                    parsedDatagram.IdleTimeoutSecs = new List<int>();
+                                    parsedDatagram.ErrorCode = ParseOptionAsInt32(optionNameOrValue);
                                 }
-                                parsedDatagram.IdleTimeoutSecs.Add(ParseOptionAsInt32(optionNameOrValue));
-                                break;
-                            case OptionNameAckTimeout:
-                                if (parsedDatagram.AckTimeoutSecs == null)
-                                {
-                                    parsedDatagram.AckTimeoutSecs = new List<int>();
-                                }
-                                parsedDatagram.AckTimeoutSecs.Add(ParseOptionAsInt32(optionNameOrValue));
-                                break;
-                            case OptionNameErrorMessage:
-                                if (parsedDatagram.ErrorMessage == null)
-                                {
-                                    parsedDatagram.ErrorMessage = new List<string>();
-                                }
-                                parsedDatagram.ErrorMessage.Add(optionNameOrValue);
                                 break;
                             default:
                                 break;
@@ -253,6 +204,8 @@ namespace PortableIPC.Core
 
                     writer.Write(OpCode);
 
+                    WriteInt64BigEndian(writer, Timestamp);
+                    WriteInt64BigEndian(writer, WindowId);
                     WriteInt32BigEndian(writer, SequenceNumber);
 
                     // write out all options, starting with known ones.
@@ -262,14 +215,11 @@ namespace PortableIPC.Core
                         foreach (var kvp in knownOptions)
                         {
                             var optionNameBytes = ConvertStringToBytes(kvp.Key);
-                            foreach (var optionValue in kvp.Value)
-                            {
-                                writer.Write(optionNameBytes);
-                                writer.Write(NullTerminator);
-                                var optionValueBytes = ConvertStringToBytes(optionValue);
-                                writer.Write(optionValueBytes);
-                                writer.Write(NullTerminator);
-                            }
+                            writer.Write(optionNameBytes);
+                            writer.Write(NullTerminator);
+                            var optionValueBytes = ConvertStringToBytes(kvp.Value);
+                            writer.Write(optionValueBytes);
+                            writer.Write(NullTerminator);
                         }
                     }
                     if (Options != null)
@@ -293,16 +243,21 @@ namespace PortableIPC.Core
                     {
                         writer.Write(DataBytes, DataOffset, DataLength);
                     }
-                    
+
                     // make space for checksum
-                    writer.Write((byte) 0);
+                    writer.Write((byte)0);
                 }
                 rawBytes = ms.ToArray();
             }
 
-            if (rawBytes.Length > MaxDatagramSize)
+            if (rawBytes.Length > DatagramSizeAbsoluteLimit)
             {
                 throw new Exception("datagram too large to send");
+            }
+
+            if (ExpectedDatagramLength > 0 && ExpectedDatagramLength != rawBytes.Length)
+            {
+                throw new Exception($"expected datagram length != actual ({ExpectedDatagramLength} != {rawBytes.Length})");
             }
 
             InsertExpectedDataLength(rawBytes);
@@ -311,40 +266,21 @@ namespace PortableIPC.Core
             return rawBytes;
         }
 
-        private Dictionary<string, List<string>> GatherKnownOptions()
+        private Dictionary<string, string> GatherKnownOptions()
         {
-            var knownOptions = new Dictionary<string, List<string>>();
-            if (RetryCount != null)
+            var knownOptions = new Dictionary<string, string>();
+            
+            if (IsLastInWindow != null)
             {
-                knownOptions.Add(OptionNameRetryCount, RetryCount.Select(x => x.ToString()).ToList());
+                knownOptions.Add(OptionNameIsLastInWindow, IsLastInWindow.ToString());
             }
-            if (DataWindowSize != null)
+            if (DisableIdleTimeout != null)
             {
-                knownOptions.Add(OptionNameDataWindowSize, DataWindowSize.Select(x => x.ToString()).ToList());
+                knownOptions.Add(OptionNameDisableIdleTimeout, DisableIdleTimeout.ToString());
             }
-            if (MaxPduSize != null)
+            if (ErrorCode != null)
             {
-                knownOptions.Add(OptionNameMaxPduSize, MaxPduSize.Select(x => x.ToString()).ToList());
-            }
-            if (IsLastInDataWindow != null)
-            {
-                knownOptions.Add(OptionNameIsLastInDataWindow, new List<string> { IsLastInDataWindow.ToString() });
-            }
-            if (IsLastInOpenRequest != null)
-            {
-                knownOptions.Add(OptionNameIsLastInOpenRequest, new List<string> { IsLastInOpenRequest.ToString() });
-            }
-            if (IdleTimeoutSecs != null)
-            {
-                knownOptions.Add(OptionNameIdleTimeout, IdleTimeoutSecs.Select(x => x.ToString()).ToList());
-            }
-            if (AckTimeoutSecs != null)
-            {
-                knownOptions.Add(OptionNameAckTimeout, AckTimeoutSecs.Select(x => x.ToString()).ToList());
-            }
-            if (ErrorMessage != null)
-            {
-                knownOptions.Add(OptionNameErrorMessage, ErrorMessage);
+                knownOptions.Add(OptionNameErrorCode, ErrorCode.ToString());
             }
             return knownOptions;
         }
@@ -430,6 +366,18 @@ namespace PortableIPC.Core
             writer.Write((byte)(0xff & v));
         }
 
+        internal static void WriteInt64BigEndian(BinaryWriter writer, long v)
+        {
+            writer.Write((byte)(0xff & (v >> 56)));
+            writer.Write((byte)(0xff & (v >> 48)));
+            writer.Write((byte)(0xff & (v >> 40)));
+            writer.Write((byte)(0xff & (v >> 32)));
+            writer.Write((byte)(0xff & (v >> 24)));
+            writer.Write((byte)(0xff & (v >> 16)));
+            writer.Write((byte)(0xff & (v >> 8)));
+            writer.Write((byte)(0xff & v));
+        }
+
         internal static short ReadInt16BigEndian(byte[] rawBytes, int offset)
         {
             byte a = rawBytes[offset];
@@ -449,37 +397,20 @@ namespace PortableIPC.Core
             return v;
         }
 
-        public static bool ValidateSequenceNumbers(List<int> sequenceNumbers)
+        internal static long ReadInt64BigEndian(byte[] rawBytes, int offset)
         {
-            // Check for strictly monotonically increasing sequence.
-            // By this check, sequence numbers are not allowed to straddle maximum 32-bit integer boundary.
-            for (int i = 1; i < sequenceNumbers.Count; i++)
-            {
-                if (sequenceNumbers[i] < sequenceNumbers[i - 1])
-                {
-                    return false;
-                }
-            }
-            
-            return false;
-        }
-
-        public static int ComputeNextSequenceStart(int currSeq, int windowSize)
-        {
-            // Detect wrap around and start from 0.
-            if (currSeq < 0 || currSeq + windowSize < 0)
-            {
-                return 0;
-            }
-
-            // Ensure next sequence start is a multiple of window size.
-            currSeq++;
-            int rem = currSeq % windowSize;
-            if (rem != 0)
-            {
-                currSeq += (windowSize - rem);
-            }
-            return currSeq;
+            byte a = rawBytes[offset];
+            byte b = rawBytes[offset + 1];
+            byte c = rawBytes[offset + 2];
+            byte d = rawBytes[offset + 3];
+            byte e = rawBytes[offset + 4];
+            byte f = rawBytes[offset + 5];
+            byte g = rawBytes[offset + 6];
+            byte h = rawBytes[offset + 7];
+            long v = ((a & 0xff) << 56) | ((b & 0xff) << 48) |
+                ((c & 0xff) << 40) | ((d & 0xff) << 32) | ((e & 0xff) << 24) | ((f & 0xff) << 16) |
+                ((g & 0xff) << 8) | (h & 0xff);
+            return v;
         }
 
         public static byte[] RetrieveData(List<ProtocolDatagram> messages, Dictionary<string, List<string>> optionsReceiver)

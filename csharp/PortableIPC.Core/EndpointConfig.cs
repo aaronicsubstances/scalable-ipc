@@ -14,13 +14,10 @@ namespace PortableIPC.Core
 
         public IPEndPoint Endpoint { get; set; }
         public int IdleTimeoutSecs { get; set; }
-        public int MinIdleTimeoutSecs { get; set; }
-        public int MaxIdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
-        public int MininumIdleTimeoutSecs { get; set; }
-        public int MaximumIdleTimeoutSecs { get; set; }
-        public int MaxOpenRequestPduCount { get; set; }
+        public int MaxWindowSize { get; set; }
         public int MaxRetryCount { get; set; }
+        public int MaxDatagramLength { get; set; }
         public ISessionHandlerFactory SessionHandlerFactory { get; set; }
 
         public string GenerateSessionId()
