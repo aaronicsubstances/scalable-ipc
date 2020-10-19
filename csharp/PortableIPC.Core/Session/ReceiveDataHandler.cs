@@ -1,17 +1,13 @@
 ﻿using PortableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
 
 namespace PortableIPC.Core.Session
 {
     public class ReceiveDataHandler: ISessionStateHandler
     {
         private readonly ISessionHandler _sessionHandler;
-
-        private int _currentWindowId; // used to ignore late acknowledgment send callbacks.
+        private long _currentWindowId = -1; // used to ignore late acknowledgment send callbacks.
 
         public ReceiveDataHandler(ISessionHandler sessionHandler)
         {
@@ -33,7 +29,7 @@ namespace PortableIPC.Core.Session
                 return false;
             }
 
-            //ProcessDataReceipt(message);
+            OnReceiveData(message);
             return true;
         }
 
@@ -48,105 +44,67 @@ namespace PortableIPC.Core.Session
             return false;
         }
 
-        /*private void ProcessDataReceipt(ProtocolDatagram message)
+        private void OnReceiveData(ProtocolDatagram message)
         {
-            // assert expected session state
+            // validate state
             if (_sessionHandler.SessionState != SessionState.OpenedForData)
-            {
-                return;
-            }
-
-            if (CurrentWindow == null)
-            {
-                ResetCurrentWindow();
-            }
-
-            ProtocolDatagram ack;
-            // check if sequence number suggests data pdu has already been processed.
-            if (message.SequenceNumber >= _sessionHandler.LastMinSeqReceived && 
-                message.SequenceNumber <= _sessionHandler.LastMaxSeqReceived)
-            {
-                // already received and passed to application layer.
-                // just send back benign acknowledgement.
-                ack = new ProtocolDatagram
-                {
-                    OpCode = ProtocolDatagram.OpCodeAck,
-                    SequenceNumber = _sessionHandler.LastMaxSeqReceived,
-                    SessionId = _sessionHandler.SessionId
-                };
-                _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
-                    .Then<VoidType>(null, HandleAckSendFailure);
-                return;
-            }
-
-            // ensure that sequence numbers remain valid with addition of incoming message.
-            var seqNrs = new List<int>();
-            int positionInWindow = message.SequenceNumber % CurrentWindow.Count;
-            for (int i = 0; i < CurrentWindow.Count; i++)
-            {
-                if (i == positionInWindow)
-                {
-                    seqNrs.Add(message.SequenceNumber);
-                }
-                else
-                {
-                    var msg = CurrentWindow[i];
-                    if (msg != null)
-                    {
-                        seqNrs.Add(msg.SequenceNumber);
-                    }
-                }
-            }
-            if (!ProtocolDatagram.ValidateSequenceNumbers(seqNrs))
             {
                 _sessionHandler.DiscardReceivedMessage(message);
                 return;
             }
 
-            // before inserting new message, clear any existing message with set last_in_window option
-            // and its effects.
-            if (message.IsLastInDataWindow == true)
+            if (message.WindowId == _sessionHandler.LastWindowIdReceived)
             {
-                for (int i = 0; i < CurrentWindow.Count; i++)
+                // already received and passed to application layer.
+                // just send back benign acknowledgement.
+                var ack = new ProtocolDatagram
                 {
-                    if (CurrentWindow[i] != null)
-                    {
-                        if (CurrentWindow[i].IsLastInDataWindow == true)
-                        {
-                            CurrentWindow[i] = null;
-                        }
-                        else if (i > positionInWindow)
-                        {
-                            CurrentWindow[i] = null;
-                        }
-                    }
+                    SessionId = _sessionHandler.SessionId,
+                    OpCode = ProtocolDatagram.OpCodeAck,
+                    WindowId = _sessionHandler.LastWindowIdReceived,
+                    SequenceNumber = _sessionHandler.LastMaxSeqReceived,
+                    IsLastInWindow = true
+                };
+                _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
+                    .Then<VoidType>(null, HandleAckSendFailure);
+                return;
+            }
+            else if (message.WindowId < _sessionHandler.LastWindowIdReceived)
+            {
+                // allow 0 if last is not 0.
+                if (message.WindowId != 0 || _sessionHandler.LastWindowIdReceived == 0)
+                {
+                    _sessionHandler.DiscardReceivedMessage(message);
+                    return;
                 }
             }
 
-            // Now insert incoming message into position given by sequence number modulo
-            // window size.
-            CurrentWindow[positionInWindow] = message;
-
-            // Attempt to acknowledge each received message by the sequence number corresponding
-            // to the last position in the currently filled sliding window.
-            int lastPositionToAck = GetLastPositionInSlidingWindow();
-            if (lastPositionToAck == -1)
+            if (message.SequenceNumber >= _sessionHandler.MaxReceiveWindowSize)
             {
-                // nothing to acknowledge.
+                _sessionHandler.DiscardReceivedMessage(message);
                 return;
             }
 
-            // time to send back acknowledgment.
-            int ackSeqNr = CurrentWindow[lastPositionToAck].SequenceNumber;
-            ack = new ProtocolDatagram
+            // save message.
+            AddToCurrentWindow(message);
+
+            // send back ack
+            var lastEffectiveSeqNr = GetLastPositionInSlidingWindow();
+            var isWindowFull = IsCurrentWindowFull(lastEffectiveSeqNr);
+            if (lastEffectiveSeqNr != -1)
             {
-                OpCode = ProtocolDatagram.OpCodeAck,
-                SequenceNumber = ackSeqNr,
-                SessionId = _sessionHandler.SessionId
-            };
-            int windowIdSnapshot = _currentWindowId;
-            _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
-                .Then(_ => HandleDataAckSendSuccess(windowIdSnapshot), HandleAckSendFailure);
+                var ack = new ProtocolDatagram
+                {
+                    SessionId = message.SessionId,
+                    OpCode = ProtocolDatagram.OpCodeAck,
+                    WindowId = message.WindowId,
+                    SequenceNumber = lastEffectiveSeqNr,
+                    IsLastInWindow = isWindowFull
+                };
+                long windowIdSnapshot = _currentWindowId;
+                _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
+                    .Then(_ => HandleAckSendSuccess(windowIdSnapshot), HandleAckSendFailure);
+            }
         }
 
         private void HandleAckSendFailure(Exception error)
@@ -157,18 +115,18 @@ namespace PortableIPC.Core.Session
             });
         }
 
-        private VoidType HandleDataAckSendSuccess(int windowIdSnapshot)
+        private VoidType HandleAckSendSuccess(long callbackId)
         {
             _sessionHandler.PostSeriallyIfNotClosed(() =>
             {
                 // check if ack send callback is coming in too late.
-                if (CurrentWindow == null || _currentWindowId != windowIdSnapshot)
+                if (_currentWindowId != callbackId)
                 {
                     return;
                 }
 
-                int lastEffectiveWindowPos = GetLastPositionInSlidingWindow();
-                if (!IsCurrentWindowFull(lastEffectiveWindowPos))
+                int lastEffectiveSeqNr = GetLastPositionInSlidingWindow();
+                if (!IsCurrentWindowFull(lastEffectiveSeqNr))
                 {
                     // window is not yet full so keep on waiting for more data.
                     return;
@@ -177,29 +135,56 @@ namespace PortableIPC.Core.Session
                 // Window is full.
 
                 // save window data and bounds before reseting current window.
-                _sessionHandler.LastMinSeqReceived = CurrentWindow[0].SequenceNumber;
-                _sessionHandler.LastMaxSeqReceived = CurrentWindow[lastEffectiveWindowPos].SequenceNumber;
+                _sessionHandler.LastWindowIdReceived = CurrentWindow[0].WindowId;
+                _sessionHandler.LastMaxSeqReceived = lastEffectiveSeqNr;
 
-                var dataOptions = new Dictionary<string, List<string>>();
-                byte[] currentWindowData = ProtocolDatagram.RetrieveData(CurrentWindow, dataOptions);
+                var windowOptions = new Dictionary<string, List<string>>();
+                byte[] windowData = ProtocolDatagram.RetrieveData(CurrentWindow, windowOptions);
 
                 // invalidate subsequent ack send confirmations for this current window instance.
-                CurrentWindow = null;
+                _currentWindowId = -1;
 
                 // ready to pass on to application layer.
-                _eventLoop.PostCallback(() => _sessionHandler.OnDataReceived(currentWindowData, dataOptions));
+                _sessionHandler.PostNonSerially(() => _sessionHandler.OnDataReceived(windowData,
+                    windowOptions));
             });
             return VoidType.Instance;
         }
 
-        private void ResetCurrentWindow()
+        private void AddToCurrentWindow(ProtocolDatagram message)
         {
-            _currentWindowId++;
-            CurrentWindow = new List<ProtocolDatagram>();
-            for (int i = 0; i < _sessionHandler.DataWindowSize; i++)
+            // if window id is different, clear all entries.
+            if (_currentWindowId != message.WindowId)
             {
-                CurrentWindow.Add(null);
+                CurrentWindow?.Clear();
+                for (int i = 0; i < _sessionHandler.MaxReceiveWindowSize; i++)
+                {
+                    CurrentWindow.Add(null);
+                }
             }
+
+            // before inserting new message, clear any existing message with set last_in_window option
+            // and its effects.
+            else if (message.IsLastInWindow == true)
+            {
+                for (int i = 0; i < CurrentWindow.Count; i++)
+                {
+                    if (CurrentWindow[i] != null)
+                    {
+                        if (CurrentWindow[i].IsLastInWindow == true)
+                        {
+                            CurrentWindow[i] = null;
+                        }
+                        else if (i > message.SequenceNumber)
+                        {
+                            CurrentWindow[i] = null;
+                        }
+                    }
+                }
+            }
+
+            CurrentWindow[message.SequenceNumber] = message;
+            _currentWindowId = CurrentWindow[message.SequenceNumber].WindowId;
         }
 
         private int GetLastPositionInSlidingWindow()
@@ -229,7 +214,7 @@ namespace PortableIPC.Core.Session
             {
                 return true;
             }
-            return CurrentWindow[lastPosInSlidingWindow].IsLastInDataWindow == true;
-        }*/
+            return CurrentWindow[lastPosInSlidingWindow].IsLastInWindow == true;
+        }
     }
 }

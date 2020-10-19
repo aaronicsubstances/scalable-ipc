@@ -13,18 +13,24 @@ PortableIPC constraints
  - lastinwindow?
  - disable idle timeout?
  - error code
+ - lastOpenRequest
  
-About window size, retry count and timeouts
- - sender only knows, using his default window size, and algorithms for retry count, ack timeout, idle timeout
-About maximum pdu size
- - use default of 512.
+About max window size, retry count and timeouts, maximum pdu size
+ - only application knows, using his max window size, and algorithms for retry count, ack timeout, idle timeout
 
-during open none of these options is known already. 
+Rules for window id changes are:
+  - Receiver usually accepts only next ids larger than last received window id.
+  - The only exception is that receiver can receive a next of 0, provided  last received id is larger than 0.
+  - By so doing receiver can be conservative, and sender can have freedom in varying trend of window ids.
+
+during open
  - if at any time, we have an open request pdu buffer such that, there exists a lastinwindow pdu, and pdus for all prior sequence numbers exist, we are done.
+ - also if max window  size is filled, we are done. discard sequence numbers larger than max window size without acknowledging them.
  - until then, receipt of a pdu overwrites existing with same sequence number. 
    - additionally, receipt of lastinwindow pdu ejects any existing one also with lastinwindow option set. and all larger sequence numbers as well.
  - if before any data is received, a sequence number corresponding to any received is seen, just pass back ack response with lastinwindow set.
  - any new window number clears existing buffer
+ - presence of last open request in a window ends open phase and begins data exchange phase
 
 receipt processing of open or even data must always be conservative. any alternate session state handler, such as to introduce congestion control, must be done at sender side.
 -totally ignores all session layer options except idle timeout.

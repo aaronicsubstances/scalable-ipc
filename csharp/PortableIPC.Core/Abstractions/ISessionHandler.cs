@@ -18,10 +18,17 @@ namespace PortableIPC.Core.Abstractions
         AbstractPromise<VoidType> Shutdown(Exception error, bool timeout);
 
         // beginning of internal API with state handlers.
-        bool IdleTimeoutEnabled { get; set; }
         SessionState SessionState { get; set; }
         bool IsOpening { get; }
         bool IsClosing { get; }
+
+        // sesion parameters.
+        int MaxReceiveWindowSize { get; set; }
+        int MaxSendWindowSize { get; set; }
+        int MaxSendDatagramLength { get; set; }
+        int MaxRetryCount { get; set; }
+        int AckTimeoutSecs { get; set; }
+        int IdleTimeoutSecs { get; set; }
 
         // Rules for window id changes are:
         //  - Receiver usually accepts only next ids larger than last received window id.
@@ -32,9 +39,11 @@ namespace PortableIPC.Core.Abstractions
         long NextWindowIdToSend { get; set; }
         long LastWindowIdSent { get; set; }
         long LastWindowIdReceived { get; set; }
+        int LastMaxSeqReceived { get; set; }
 
         // timeout api assumes only 1 timeout can be outstanding at any time.
         // setting a timeout clears previous timeout.
+        bool IdleTimeoutEnabled { get; set; }
         void EnsureIdleTimeout();
         void ResetIdleTimeout();
 
@@ -48,7 +57,7 @@ namespace PortableIPC.Core.Abstractions
         void PostNonSerially(Action cb);
 
         // application layer interface. contract here is that these should be called from event loop.
-        void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options);
+        void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest);
         void OnDataReceived(byte[] data, Dictionary<string, List<string>> options);
         void OnClose(Exception error, bool timeout);
     }

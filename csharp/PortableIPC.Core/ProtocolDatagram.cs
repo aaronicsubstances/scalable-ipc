@@ -29,6 +29,7 @@ namespace PortableIPC.Core
         public const string OptionNameIsLastInWindow = "s_last_in_window";
         public const string OptionNameDisableIdleTimeout = "s_no_idle_timeout";
         public const string OptionNameErrorCode = "s_err_code";
+        public const string OptionNameIsLastOpenRequest = "s_last_open";
 
         public int ExpectedDatagramLength { get; set; }
         public string SessionId { get; set; }
@@ -46,6 +47,7 @@ namespace PortableIPC.Core
         public bool? IsLastInWindow { get; set; }
         public bool? DisableIdleTimeout { get; set; }
         public int? ErrorCode { get; set; }
+        public bool? IsLastOpenRequest { get; set; }
 
         public static ProtocolDatagram Parse(byte[] rawBytes, int offset, int length)
         {
@@ -161,6 +163,12 @@ namespace PortableIPC.Core
                                 if (parsedDatagram.ErrorCode == null)
                                 {
                                     parsedDatagram.ErrorCode = ParseOptionAsInt32(optionNameOrValue);
+                                }
+                                break;
+                            case OptionNameIsLastOpenRequest:
+                                if (parsedDatagram.IsLastOpenRequest == null)
+                                {
+                                    parsedDatagram.IsLastOpenRequest = ParseOptionAsBoolean(optionNameOrValue);
                                 }
                                 break;
                             default:
@@ -282,6 +290,10 @@ namespace PortableIPC.Core
             {
                 knownOptions.Add(OptionNameErrorCode, ErrorCode.ToString());
             }
+            if (IsLastOpenRequest != null)
+            {
+                knownOptions.Add(OptionNameIsLastOpenRequest, IsLastOpenRequest.ToString());
+            }    
             return knownOptions;
         }
 

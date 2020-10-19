@@ -29,15 +29,7 @@ namespace PortableIPC.Core
 
             _promiseApi = endpointHandler.PromiseApi;
 
-            var receiveHandler = new ReceiveDataHandler(this);
-            var sendHandler = new SendDataHandler(this);
-            var bulkSendHandler = new BulkSendDataHandler(this, sendHandler);
-            var closeHandler = new CloseHandler(this);
-
-            StateHandlers.Add(receiveHandler);
-            StateHandlers.Add(sendHandler);
-            StateHandlers.Add(bulkSendHandler);
-            StateHandlers.Add(closeHandler);
+            // NB: put receive open handler before receive data handler.
 
             if (isConfiguredForInitialSend)
             {
@@ -51,13 +43,30 @@ namespace PortableIPC.Core
                 var receiveOpenHandler = new ReceiveOpenHandler(this);
                 StateHandlers.Add(receiveOpenHandler);
             }
+
+            var receiveHandler = new ReceiveDataHandler(this);
+            var sendHandler = new SendDataHandler(this);
+            var bulkSendHandler = new BulkSendDataHandler(this, sendHandler);
+            var closeHandler = new CloseHandler(this);
+
+            StateHandlers.Add(receiveHandler);
+            StateHandlers.Add(sendHandler);
+            StateHandlers.Add(bulkSendHandler);
+            StateHandlers.Add(closeHandler);
+
+            // initialize session management parameters from endpoint config.
+            IdleTimeoutSecs = endpointHandler.EndpointConfig.IdleTimeoutSecs;
+            AckTimeoutSecs = endpointHandler.EndpointConfig.AckTimeoutSecs;
+            MaxRetryCount = endpointHandler.EndpointConfig.MaxRetryCount;
+            MaxSendDatagramLength = endpointHandler.EndpointConfig.MaxDatagramLength;
+            MaxSendWindowSize = MaxReceiveWindowSize = endpointHandler.EndpointConfig.MaxWindowSize;            
         }
 
         public IEndpointHandler EndpointHandler { get; set; }
         public IPEndPoint ConnectedEndpoint { get; set; }
         public string SessionId { get; set; }
 
-        public SessionState SessionState { get; set; } = SessionState.NotStarted;
+        public SessionState SessionState { get; set; } = SessionState.Opening;
         public bool IsOpening
         {
             get
@@ -72,9 +81,17 @@ namespace PortableIPC.Core
                 return SessionState == SessionState.Closing || SessionState == SessionState.Closed;
             }
         }
+        public int MaxReceiveWindowSize { get; set; }
+        public int MaxSendWindowSize { get; set; }
+        public int MaxSendDatagramLength { get; set; }
+        public int MaxRetryCount { get; set; }
+        public int IdleTimeoutSecs { get; set; }
+        public int AckTimeoutSecs { get; set; }
+
         public long NextWindowIdToSend { get; set; } = 0;
         public long LastWindowIdSent { get; set; } = -1;
         public long LastWindowIdReceived { get; set; } = -1;
+        public int LastMaxSeqReceived { get; set; }
         public bool IdleTimeoutEnabled { get; set; } = true;
 
         public List<ISessionStateHandler> StateHandlers { get; } = new List<ISessionStateHandler>();
@@ -236,8 +253,7 @@ namespace PortableIPC.Core
             if (IdleTimeoutEnabled)
             {
                 int timeoutSeqNr = ++_currTimeoutSeqNr;
-                _lastTimeoutId = _promiseApi.ScheduleTimeout(
-                    EndpointHandler.EndpointConfig.IdleTimeoutSecs * 1000L,
+                _lastTimeoutId = _promiseApi.ScheduleTimeout(IdleTimeoutSecs * 1000L,
                     () => ProcessTimeout(timeoutSeqNr, null));
             }
         }
@@ -310,7 +326,7 @@ namespace PortableIPC.Core
 
         // calls to application layer
 
-        public void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options)
+        public void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest)
         {
         }
 
