@@ -38,6 +38,7 @@ namespace PortableIPC.Core
         public long WindowId { get; set; }
         public int SequenceNumber { get; set; }
         public Dictionary<string, List<string>> Options { get; set; }
+
         public byte[] DataBytes { get; set; }
         public int DataOffset { get; set; }
         public int DataLength { get; set; }

@@ -66,7 +66,7 @@ namespace PortableIPC.Core
         public IPEndPoint ConnectedEndpoint { get; set; }
         public string SessionId { get; set; }
 
-        public SessionState SessionState { get; set; } = SessionState.Opening;
+        public SessionState SessionState { get; set; } = SessionState.NotStarted;
         public bool IsOpening
         {
             get
@@ -220,6 +220,15 @@ namespace PortableIPC.Core
                     cb.Invoke();
                 }
             });
+        }
+
+        public void IncrementNextWindowIdToSend()
+        {
+            NextWindowIdToSend++;
+            if (NextWindowIdToSend < 0)
+            {
+                NextWindowIdToSend = 0;
+            }
         }
 
         public void ResetAckTimeout(int timeoutSecs, Action cb)

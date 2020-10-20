@@ -63,7 +63,7 @@ namespace PortableIPC.Core.Session
         private void OnReceiveOpeningMessage(ProtocolDatagram message)
         {
             // validate state
-            if (_sessionHandler.SessionState != SessionState.Opening)
+            if (!_sessionHandler.IsOpening)
             {
                 _sessionHandler.DiscardReceivedMessage(message);
                 return;
@@ -103,6 +103,7 @@ namespace PortableIPC.Core.Session
 
             // save message.
             AddToCurrentWindow(message);
+            _sessionHandler.SessionState = SessionState.Opening;
 
             // send back ack
             var lastEffectiveSeqNr = GetLastPositionInSlidingWindow();
@@ -240,23 +241,19 @@ namespace PortableIPC.Core.Session
             // All session layer options are single valued.
             // Also session layer options in later pdus override previous ones.
             bool? disableIdleTimeout = null;
-            bool? isLastOpenRequest = null;
             for (int i = maxSeqNr; i >= 0; i--)
             {
                 if (!disableIdleTimeout.HasValue && CurrentWindow[i].DisableIdleTimeout != null)
                 {
                     disableIdleTimeout = CurrentWindow[i].DisableIdleTimeout;
                 }
-                if (!isLastOpenRequest.HasValue && CurrentWindow[i].IsLastOpenRequest != null)
-                {
-                    isLastOpenRequest = CurrentWindow[i].IsLastOpenRequest;
-                }
             }
-            _isLastOpenRequest = isLastOpenRequest == true;
             if (disableIdleTimeout.HasValue)
             {
                 _disableIdleTimeout = disableIdleTimeout;
             }
+            _isLastOpenRequest = CurrentWindow[maxSeqNr].IsLastInWindow == true && 
+                CurrentWindow[maxSeqNr].IsLastOpenRequest == true;
         }
     }
 }

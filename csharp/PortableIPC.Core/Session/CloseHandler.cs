@@ -29,17 +29,6 @@ namespace PortableIPC.Core.Session
             return true;
         }
 
-        private void ProcessReceiveClose(ProtocolDatagram message)
-        {
-            // process termination message regardless of session state.
-            Exception error = null;
-            if (message.ErrorCode != null)
-            {
-
-            }
-            _sessionHandler.ProcessShutdown(error, false);
-        }
-
         public bool ProcessSend(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
             if (message.OpCode != ProtocolDatagram.OpCodeClose)
@@ -50,36 +39,52 @@ namespace PortableIPC.Core.Session
             return true;
         }
 
-        private void ProcessSendClose(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
-        {
-            // process termination message regardless of session state.
-
-            // send but don't care about success.
-            _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, message)
-                .Then(_ => HandleSendSuccessOrError(message, promiseCb),
-                    _ => HandleSendSuccessOrError(message, promiseCb));
-        }
-
-        private VoidType HandleSendSuccessOrError(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
-        {
-            _sessionHandler.PostSerially(() =>
-            {
-                promiseCb.CompleteSuccessfully(VoidType.Instance);
-
-                Exception error = null;
-                if (message.ErrorCode != null)
-                {
-
-                }
-                _sessionHandler.ProcessShutdown(error, false);
-            });
-            return VoidType.Instance;
-        }
-
         public bool ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options,
             PromiseCompletionSource<VoidType> promiseCb)
         {
             return false;
+        }
+
+        private void ProcessReceiveClose(ProtocolDatagram message)
+        {
+            // process termination message regardless of session state.
+            Exception error = null;
+            if (message.ErrorCode != null)
+            {
+                error = new Exception(FormatErrorcode(message.ErrorCode.Value));
+            }
+            _sessionHandler.ProcessShutdown(error, false);
+        }
+
+        public virtual string FormatErrorcode(int errorCode)
+        {
+            switch (errorCode)
+            {
+                default:
+                    return $"{errorCode} Unknown error";
+            }
+        }
+
+        private void ProcessSendClose(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
+        {
+            // process termination message regardless of session state.
+
+            // send but ignore errors.
+            _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, message)
+                .Then(_ => HandleSendSuccessOrError(promiseCb),
+                    _ => HandleSendSuccessOrError(promiseCb));
+        }
+
+        private VoidType HandleSendSuccessOrError(PromiseCompletionSource<VoidType> promiseCb)
+        {            
+            _sessionHandler.PostSerially(() =>
+            {
+                _sessionHandler.PostNonSerially(() =>
+                   promiseCb.CompleteSuccessfully(VoidType.Instance));
+                _sessionHandler.ProcessShutdown(null, false);
+            });
+
+            return VoidType.Instance;
         }
     }
 }

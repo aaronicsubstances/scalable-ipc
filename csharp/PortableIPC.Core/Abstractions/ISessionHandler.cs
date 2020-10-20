@@ -55,6 +55,7 @@ namespace PortableIPC.Core.Abstractions
         void PostSerially(Action cb);
         void PostSeriallyIfNotClosed(Action cb);
         void PostNonSerially(Action cb);
+        void IncrementNextWindowIdToSend();
 
         // application layer interface. contract here is that these should be called from event loop.
         void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest);
