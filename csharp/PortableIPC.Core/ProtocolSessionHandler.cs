@@ -3,7 +3,6 @@ using PortableIPC.Core.Session;
 using System;
 using System.Collections.Generic;
 using System.Net;
-using System.Text;
 
 namespace PortableIPC.Core
 {
@@ -29,30 +28,20 @@ namespace PortableIPC.Core
 
             _promiseApi = endpointHandler.PromiseApi;
 
-            // NB: put receive open handler before receive data handler.
+            StateHandlers.Add(new ReceiveDataHandler(this));
+            StateHandlers.Add(new SendDataHandler(this));
+            StateHandlers.Add(new BulkSendDataHandler(this));
+            StateHandlers.Add(new CloseHandler(this));
 
             if (isConfiguredForInitialSend)
             {
-                var sendOpenHandler = new SendOpenHandler(this);
-                StateHandlers.Add(sendOpenHandler);
-                var bulkSendOpenHandler = new BulkSendOpenHandler(this, sendOpenHandler);
-                StateHandlers.Add(bulkSendOpenHandler);
+                StateHandlers.Add(new SendOpenHandler(this));
+                StateHandlers.Add(new BulkSendOpenHandler(this));
             }
             else
             {
-                var receiveOpenHandler = new ReceiveOpenHandler(this);
-                StateHandlers.Add(receiveOpenHandler);
+                StateHandlers.Add(new ReceiveOpenHandler(this));
             }
-
-            var receiveHandler = new ReceiveDataHandler(this);
-            var sendHandler = new SendDataHandler(this);
-            var bulkSendHandler = new BulkSendDataHandler(this, sendHandler);
-            var closeHandler = new CloseHandler(this);
-
-            StateHandlers.Add(receiveHandler);
-            StateHandlers.Add(sendHandler);
-            StateHandlers.Add(bulkSendHandler);
-            StateHandlers.Add(closeHandler);
 
             // initialize session management parameters from endpoint config.
             IdleTimeoutSecs = endpointHandler.EndpointConfig.IdleTimeoutSecs;
@@ -66,21 +55,8 @@ namespace PortableIPC.Core
         public IPEndPoint ConnectedEndpoint { get; set; }
         public string SessionId { get; set; }
 
-        public SessionState SessionState { get; set; } = SessionState.NotStarted;
-        public bool IsOpening
-        {
-            get
-            {
-                return SessionState == SessionState.NotStarted || SessionState == SessionState.Opening;
-            }
-        }
-        public bool IsClosing
-        { 
-            get
-            {
-                return SessionState == SessionState.Closing || SessionState == SessionState.Closed;
-            }
-        }
+        public SessionState SessionState { get; set; } = SessionState.Opening;
+
         public int MaxReceiveWindowSize { get; set; }
         public int MaxSendWindowSize { get; set; }
         public int MaxSendDatagramLength { get; set; }
@@ -113,7 +89,7 @@ namespace PortableIPC.Core
             PostSerially(() =>
             {
                 bool handled = false;
-                if (!IsClosing)
+                if (SessionState != SessionState.Closed)
                 {
                     EnsureIdleTimeout();
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
@@ -143,7 +119,7 @@ namespace PortableIPC.Core
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
-                if (IsClosing)
+                if (SessionState == SessionState.Closed)
                 {
                     promiseCb.CompleteExceptionally(new Exception(
                         SessionState == SessionState.Closed ? "Session handler is closed" : "Session handler is closing"));
@@ -175,7 +151,7 @@ namespace PortableIPC.Core
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             PostSerially(() =>
             {
-                if (IsClosing)
+                if (SessionState == SessionState.Closed)
                 {
                     promiseCb.CompleteExceptionally(new Exception(
                         SessionState == SessionState.Closed ? "Session handler is closed" : "Session handler is closing"));
@@ -215,7 +191,7 @@ namespace PortableIPC.Core
         {
             PostSerially(() =>
             {
-                if (!IsClosing)
+                if (SessionState != SessionState.Closed)
                 {
                     cb.Invoke();
                 }
@@ -224,11 +200,24 @@ namespace PortableIPC.Core
 
         public void IncrementNextWindowIdToSend()
         {
+            LastWindowIdSent = NextWindowIdToSend;
             NextWindowIdToSend++;
             if (NextWindowIdToSend < 0)
             {
                 NextWindowIdToSend = 0;
             }
+        }
+
+        public bool IsSendInProgress()
+        {
+            foreach (var handler in StateHandlers)
+            {
+                if (handler.SendInProgress)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         public void ResetAckTimeout(int timeoutSecs, Action cb)
@@ -259,7 +248,8 @@ namespace PortableIPC.Core
             {
                 return;
             }
-            if (IdleTimeoutEnabled)
+            // NB: disabling of idle timeout only applies to data exchange phase.
+            if (SessionState != SessionState.OpenedForData || IdleTimeoutEnabled)
             {
                 int timeoutSeqNr = ++_currTimeoutSeqNr;
                 _lastTimeoutId = _promiseApi.ScheduleTimeout(IdleTimeoutSecs * 1000L,
@@ -299,12 +289,10 @@ namespace PortableIPC.Core
 
         public void ProcessShutdown(Exception error, bool timeout)
         {
-            if (IsClosing)
+            if (SessionState == SessionState.Closed)
             {
                 return;
             }
-
-            SessionState = SessionState.Closing;
 
             CancelTimeout();
             EndpointHandler.RemoveSessionHandler(ConnectedEndpoint, SessionId);

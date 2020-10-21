@@ -15,12 +15,13 @@ namespace PortableIPC.Core.Session
         private byte[] _rawData;
         private int _offset;
 
-        public BulkSendDataHandler(ISessionHandler sessionHandler, SendDataHandler sendHandler)
+        public BulkSendDataHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _sendHandler = sendHandler;
             _promiseApi = _sessionHandler.EndpointHandler.PromiseApi;
         }
+
+        public bool SendInProgress { get; set; }
 
         public void Shutdown(Exception error)
         {

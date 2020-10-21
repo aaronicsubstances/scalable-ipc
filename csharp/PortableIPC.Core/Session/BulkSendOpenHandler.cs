@@ -10,11 +10,12 @@ namespace PortableIPC.Core.Session
         private ISessionHandler _sessionHandler;
         private SendOpenHandler _sendHandler;
 
-        public BulkSendOpenHandler(ISessionHandler sessionHandler, SendOpenHandler sendHandler)
+        public BulkSendOpenHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _sendHandler = sendHandler;
         }
+
+        public bool SendInProgress { get; set; }
 
         public void Shutdown(Exception error)
         {

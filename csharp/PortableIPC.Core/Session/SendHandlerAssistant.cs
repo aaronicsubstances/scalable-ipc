@@ -67,7 +67,7 @@ namespace PortableIPC.Core.Session
                 _sessionHandler.DiscardReceivedMessage(ack);
                 return;
             }
-            if (!StopAndWait && ack.IsLastInWindow != true && ack.SequenceNumber != maxExpectedSeqNumber)
+            if (!StopAndWait && ack.IsWindowFull != true && ack.SequenceNumber != maxExpectedSeqNumber)
             {
                 // ignore.
                 return;
@@ -81,7 +81,7 @@ namespace PortableIPC.Core.Session
                 IsComplete = true;
                 SuccessCallback.Invoke();
             }
-            else if (ack.IsLastInWindow == true)
+            else if (ack.IsWindowFull == true)
             {
                 StartIndex += ack.SequenceNumber + 1;
                 StopAndWait = false;

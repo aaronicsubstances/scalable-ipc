@@ -10,10 +10,11 @@ PortableIPC constraints
 -application layer can use options only in open and data.
 
 -session layer options during data exchanges:
- - lastinwindow?
- - disable idle timeout?
+ - lastinwindow? - must always be set by sender.
+ - disable idle timeout? - only applies to data exchange phase.
  - error code
- - lastOpenRequest
+ - lastOpenRequest - requires lastinwindow? to be set.
+ - windowFull? - must always be set by receiver in acks.
  
 About max window size, retry count and timeouts, maximum pdu size
  - only application knows, using his max window size, and algorithms for retry count, ack timeout, idle timeout

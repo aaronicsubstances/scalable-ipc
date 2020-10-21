@@ -19,8 +19,6 @@ namespace PortableIPC.Core.Abstractions
 
         // beginning of internal API with state handlers.
         SessionState SessionState { get; set; }
-        bool IsOpening { get; }
-        bool IsClosing { get; }
 
         // sesion parameters.
         int MaxReceiveWindowSize { get; set; }
@@ -56,6 +54,7 @@ namespace PortableIPC.Core.Abstractions
         void PostSeriallyIfNotClosed(Action cb);
         void PostNonSerially(Action cb);
         void IncrementNextWindowIdToSend();
+        bool IsSendInProgress();
 
         // application layer interface. contract here is that these should be called from event loop.
         void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest);

@@ -26,10 +26,14 @@ namespace PortableIPC.Core
 
         // Reserve s_ prefix for known options at session layer.
         // Also reserver a_ for known options at application layer.
-        public const string OptionNameIsLastInWindow = "s_last_in_window";
+
+        // NB: only applies to data exchange phase.
         public const string OptionNameDisableIdleTimeout = "s_no_idle_timeout";
+
         public const string OptionNameErrorCode = "s_err_code";
         public const string OptionNameIsLastOpenRequest = "s_last_open";
+        public const string OptionNameIsWindowFull = "s_window_full";
+        public const string OptionNameIsLastInWindow = "s_last_in_window";
 
         public int ExpectedDatagramLength { get; set; }
         public string SessionId { get; set; }
@@ -49,6 +53,7 @@ namespace PortableIPC.Core
         public bool? DisableIdleTimeout { get; set; }
         public int? ErrorCode { get; set; }
         public bool? IsLastOpenRequest { get; set; }
+        public bool? IsWindowFull { get; set; }
 
         public static ProtocolDatagram Parse(byte[] rawBytes, int offset, int length)
         {
@@ -170,6 +175,12 @@ namespace PortableIPC.Core
                                 if (parsedDatagram.IsLastOpenRequest == null)
                                 {
                                     parsedDatagram.IsLastOpenRequest = ParseOptionAsBoolean(optionNameOrValue);
+                                }
+                                break;
+                            case OptionNameIsWindowFull:
+                                if (parsedDatagram.IsWindowFull == null)
+                                {
+                                    parsedDatagram.IsWindowFull = ParseOptionAsBoolean(optionNameOrValue);
                                 }
                                 break;
                             default:
@@ -294,7 +305,11 @@ namespace PortableIPC.Core
             if (IsLastOpenRequest != null)
             {
                 knownOptions.Add(OptionNameIsLastOpenRequest, IsLastOpenRequest.ToString());
-            }    
+            }
+            if (IsWindowFull != null)
+            {
+                knownOptions.Add(OptionNameIsWindowFull, IsWindowFull.ToString());
+            }
             return knownOptions;
         }
 

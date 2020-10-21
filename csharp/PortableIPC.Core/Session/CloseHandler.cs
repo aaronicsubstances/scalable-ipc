@@ -14,6 +14,14 @@ namespace PortableIPC.Core.Session
             _sessionHandler = sessionHandler;
         }
 
+        public bool SendInProgress
+        {
+            get
+            {
+                return false;
+            }
+        }
+
         public void Shutdown(Exception error)
         {
             // nothing to do.
