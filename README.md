@@ -4,11 +4,11 @@ Defines and implements a network protocol suite to rival TCP/HTTP as IPC mechani
 
 ## Features
 
-  * Based on UDP, and hence available across operating systems and programming platforms.
-  * **Uses session ids unlike TCP, and so eliminates build up of TCP TIME_WAIT states (e.g when HTTP connections are being set up and torn down rapidly).**
-  * Exposes configuration parameters such as maximum window length, idle/ack timeout, and maximum retry attempts on a per application basis to cater for different communication needs. In TCP such parameters can only be configured globally for all operating system connections.
+  * Based on UDP, and hence available across operating systems and programming platforms unlike Unix domain sockets and Windows named pipes.
+  * **Uses session ids unlike TCP, and so enables multiplexing unlike in HTTP, eliminates head-of-line blocking in TCP, and eliminates build up of HTTP/TCP TIME_WAIT states (when HTTP connections are not being reused, which is the usual case).**
+  * Exposes configuration parameters such as maximum window size, idle/ack timeout, and maximum retry attempts on a per application basis to cater for different communication needs. In TCP such parameters can only be configured globally for all operating system connections.
   * **Makes streaming and duplex communication easier at application layer, by providing for idle timeout to be disabled without need for keep-alive packets, and also by leveraging UDP preservation of message boundaries.**
-  * Takes advantage of same host constraint for increased performance by making it possible to increase MTU many times beyond Ethernet circa 1500 limit. This more than compensates for the potential drop in efficiency caused by protocol running in OS user mode (unlike TCP which runs in kernel mode).
+  * Optimized towards communications within single machine host, or within LAN, or between similar networks. Efficiency of communications between dissimilar networks is of lower priority.
   * Extensible for communication on internal networks (e.g. for use by microservice-based web applications), by allowing for introduction of congestion control, transport security (DTLS), forward error correction, and whatever is possible with custom PDU types and options.
 
 
