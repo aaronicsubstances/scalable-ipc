@@ -49,14 +49,14 @@ namespace PortableIPC.Core.Session
 
         public void RetrySend(int ackTimeoutSecs)
         {
-            int retryIndex = 0;
+            int previousSendCount = 0;
             bool stopAndWait = false;
             if (_currentWindowHandler != null)
             {
-                retryIndex = _currentWindowHandler.StartIndex;
-
-                // NB: alternate between stop and wait and go back N, in between timeouts. 
-                stopAndWait = !_currentWindowHandler.StopAndWait;
+                previousSendCount = _currentWindowHandler.PreviousSendCount;
+                // subsequent attempts after timeout within same window id
+                // should always use stop and wait flow control.
+                stopAndWait = true;
             }
             _currentWindowHandler = new SendHandlerAssistant(_sessionHandler)
             {
@@ -64,7 +64,7 @@ namespace PortableIPC.Core.Session
                 TimeoutCallback = OnWindowSendTimeout,
                 SuccessCallback = SuccessCallback,
                 AckTimeoutSecs = ackTimeoutSecs,
-                StartIndex = retryIndex,
+                PreviousSendCount = previousSendCount,
                 StopAndWait = stopAndWait
             };
             _currentWindowHandler.Start();

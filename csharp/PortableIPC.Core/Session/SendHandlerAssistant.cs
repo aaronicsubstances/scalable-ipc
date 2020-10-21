@@ -7,7 +7,7 @@ namespace PortableIPC.Core.Session
     public class SendHandlerAssistant
     {
         private readonly ISessionHandler _sessionHandler;
-        private int _pendingPduIndex;
+        private int _sentPduCount;
 
         public SendHandlerAssistant(ISessionHandler sessionHandler)
         {
@@ -15,7 +15,11 @@ namespace PortableIPC.Core.Session
         }
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
-        public int StartIndex { get; set; }
+        public int PreviousSendCount { get; set; }
+
+        /// <summary>
+        /// Used to alternate between stop and wait flow control, or go back N, in between timeouts. 
+        /// </summary>
         public bool StopAndWait { get; set; }
         public int AckTimeoutSecs { get; set; }
         public Action SuccessCallback { get; set; }
@@ -35,17 +39,18 @@ namespace PortableIPC.Core.Session
 
         public void Start()
         {
-            _pendingPduIndex = StartIndex;
+            _sentPduCount = PreviousSendCount;
             ContinueSending();
         }
 
         private void ContinueSending()
         {
-            var nextMessage = CurrentWindow[_pendingPduIndex];
-            nextMessage.WindowId = _sessionHandler.NextWindowIdToSend;
-            nextMessage.SequenceNumber = _pendingPduIndex - StartIndex;
+            var nextMessage = CurrentWindow[_sentPduCount];
+            long windowIdSnapshot = _sessionHandler.NextWindowIdToSend;
+            nextMessage.WindowId = windowIdSnapshot;
+            nextMessage.SequenceNumber = _sentPduCount - PreviousSendCount;
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, nextMessage)
-                .Then(HandleSendSuccess, HandleSendError);
+                .Then(_ => HandleSendSuccess(windowIdSnapshot), HandleSendError);
         }
 
         public void OnAckReceived(ProtocolDatagram ack)
@@ -56,63 +61,78 @@ namespace PortableIPC.Core.Session
                 return;
             }
 
-            // Receipt of an ack is interpreted as reception of message with ack's sequence numbers,
+            // Receipt of an ack is interpreted as reception of message with ack's sequence number,
             // and all preceding messages in window as well.
 
-            var minExpectedSeqNumber = StopAndWait ? (_pendingPduIndex - StartIndex) : 0;
-            var maxExpectedSeqNumber = CurrentWindow.Count - 1 - StartIndex;
+            var minExpectedSeqNumber = StopAndWait ? (_sentPduCount - PreviousSendCount) : 0;
+            var maxExpectedSeqNumber = CurrentWindow.Count - PreviousSendCount;
             if (ack.SequenceNumber < minExpectedSeqNumber || ack.SequenceNumber > maxExpectedSeqNumber)
             {
                 // reject.
                 _sessionHandler.DiscardReceivedMessage(ack);
                 return;
             }
-            if (!StopAndWait && ack.IsWindowFull != true && ack.SequenceNumber != maxExpectedSeqNumber)
-            {
-                // ignore.
-                return;
-            }
-
-            // indirectly cancel ack timeout.
-            _sessionHandler.ResetIdleTimeout();
 
             if (ack.SequenceNumber == maxExpectedSeqNumber)
             {
+                // indirectly cancel ack timeout.
+                _sessionHandler.ResetIdleTimeout();
+
                 IsComplete = true;
                 SuccessCallback.Invoke();
             }
             else if (ack.IsWindowFull == true)
             {
-                StartIndex += ack.SequenceNumber + 1;
-                StopAndWait = false;
+                // indirectly cancel ack timeout.
+                _sessionHandler.ResetIdleTimeout();
+
                 _sessionHandler.IncrementNextWindowIdToSend();
+                PreviousSendCount += ack.SequenceNumber + 1;
+                StopAndWait = false;
                 Start();
+            }
+            else if (StopAndWait)
+            {
+                // indirectly cancel ack timeout.
+                _sessionHandler.ResetIdleTimeout();
+
+                // continue stop and wait.
+                _sentPduCount = PreviousSendCount + ack.SequenceNumber + 1;
+                ContinueSending();
             }
             else
             {
-                // continue stop and wait.
-                _pendingPduIndex = StartIndex + ack.SequenceNumber + 1;
-                ContinueSending();
+                // ignore but don't discard.
             }
         }
 
-        private VoidType HandleSendSuccess(VoidType _)
+        private VoidType HandleSendSuccess(long windowIdSnapshot)
         {
             _sessionHandler.PostSerially(() =>
             {
-                if (IsComplete)
+                // check if not needed or arriving too late.
+                if (IsComplete || _sessionHandler.NextWindowIdToSend != windowIdSnapshot)
                 {
                     return;
                 }
-                if (StopAndWait || _pendingPduIndex + 1 >= CurrentWindow.Count)
+
+                // if stop and wait, let ack receipt increment sent pdu count and continue sending.
+                if (StopAndWait)
                 {
                     // set up ack timeout.
                     _sessionHandler.ResetAckTimeout(AckTimeoutSecs, ProcessAckTimeout);
                 }
                 else
                 {
-                    _pendingPduIndex++;
-                    ContinueSending();
+                    _sentPduCount++;
+                    if (_sentPduCount >= CurrentWindow.Count)
+                    {
+                        _sessionHandler.ResetAckTimeout(AckTimeoutSecs, ProcessAckTimeout);
+                    }
+                    else
+                    {
+                        ContinueSending();
+                    }
                 }
             });
             return VoidType.Instance;
