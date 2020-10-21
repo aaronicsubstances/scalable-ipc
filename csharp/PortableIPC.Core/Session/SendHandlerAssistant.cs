@@ -81,6 +81,7 @@ namespace PortableIPC.Core.Session
                 _sessionHandler.ResetIdleTimeout();
 
                 IsComplete = true;
+                _sessionHandler.IncrementNextWindowIdToSend();
                 SuccessCallback.Invoke();
             }
             else if (ack.IsWindowFull == true)

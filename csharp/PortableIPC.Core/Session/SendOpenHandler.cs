@@ -76,14 +76,16 @@ namespace PortableIPC.Core.Session
                 return;
             }
 
-            // create current window to send. let assistant handlers handle assignment of window and sequence numbers.
-            message.IsLastInWindow = true;
-            var currentWindow = new List<ProtocolDatagram> { message };
+            // Process options.
             _isLastOpenRequest = message.IsLastOpenRequest == true;
             if (message.DisableIdleTimeout != null)
             {
                 _sessionHandler.IdleTimeoutEnabled = !message.DisableIdleTimeout.Value;
             }
+
+            // create current window to send. let assistant handlers handle assignment of window and sequence numbers.
+            message.IsLastInWindow = true;
+            var currentWindow = new List<ProtocolDatagram> { message };
 
             _sendWindowHandler = new RetrySendHandlerAssistant(_sessionHandler)
             {
@@ -110,9 +112,6 @@ namespace PortableIPC.Core.Session
         private void OnWindowSendSuccess()
         {
             SendInProgress = false;
-
-            // move window bounds
-            _sessionHandler.IncrementNextWindowIdToSend();
 
             if (_isLastOpenRequest)
             {

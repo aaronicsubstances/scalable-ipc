@@ -8,29 +8,44 @@ namespace PortableIPC.Core.Session
     public class BulkSendDataHandler: ISessionStateHandler
     {
         private readonly ISessionHandler _sessionHandler;
-        private readonly SendDataHandler _sendHandler;
-        private readonly AbstractPromiseApi _promiseApi;
-
+        private DatagramChopper _datagramChopper;
         private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
-        private byte[] _rawData;
-        private int _offset;
+        private RetrySendHandlerAssistant _sendWindowHandler;
 
         public BulkSendDataHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _promiseApi = _sessionHandler.EndpointHandler.PromiseApi;
         }
 
         public bool SendInProgress { get; set; }
 
         public void Shutdown(Exception error)
         {
-            _pendingPromiseCallback?.CompleteExceptionally(error);
+            _sendWindowHandler?.Cancel();
+            SendInProgress = false;
+            if (_pendingPromiseCallback != null)
+            {
+                var cb = _pendingPromiseCallback;
+                _pendingPromiseCallback = null;
+                _sessionHandler.PostNonSerially(() => cb.CompleteExceptionally(error));
+            }
         }
 
         public bool ProcessReceive(ProtocolDatagram message)
         {
-            return false;
+            if (message.OpCode != ProtocolDatagram.OpCodeAck)
+            {
+                return false;
+            }
+
+            // to prevent clashes with other send handlers, check that specific send in progress is on.
+            if (!SendInProgress)
+            {
+                return false;
+            }
+
+            _sendWindowHandler.OnAckReceived(message);
+            return true;
         }
 
         public bool ProcessSend(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
@@ -46,93 +61,77 @@ namespace PortableIPC.Core.Session
                 return false;
             }
 
-            //ProcessSendRequest(rawData, options, promiseCb);
+            ProcessSendRequest(rawData, options, promiseCb);
             return true;
         }
 
-        /*public void ProcessSendRequest(byte[] rawData, Dictionary<string, List<string>> options,
+        private void ProcessSendRequest(byte[] rawData, Dictionary<string, List<string>> options,
            PromiseCompletionSource<VoidType> promiseCb)
         {
             if (_sessionHandler.SessionState != SessionState.OpenedForData)
             {
-                return;
-            }
-            if (_sendHandler.SendInProgress)
-            {
-                promiseCb.CompleteExceptionally(new Exception("Send in progress"));
+                _sessionHandler.PostNonSerially(() =>
+                    promiseCb.CompleteExceptionally(new Exception("Invalid session state for send data")));
                 return;
             }
 
-            // if entire message will fit into 1 PDU, just delegate to sendHandler directly.
-            if (rawData.Length <= _sessionHandler.MaxPduSize)
+            if (_sessionHandler.IsSendInProgress())
             {
-                var message = new ProtocolDatagram
-                {
-                    SessionId = _sessionHandler.SessionId,
-                    DataBytes = rawData,
-                    DataLength = rawData.Length
-                };
-                _sendHandler.ProcessSend(message, promiseCb);
+                _sessionHandler.PostNonSerially(() =>
+                    promiseCb.CompleteExceptionally(new Exception("Send in progress")));
+                return;
             }
 
-            // So raw bytes will need multiple PDUs.
+            _datagramChopper = new DatagramChopper(rawData, options, _sessionHandler.MaxSendDatagramLength);
             _pendingPromiseCallback = promiseCb;
-            _rawData = rawData;
-            _offset = 0;
-            ContinueBulkSend();
+            SendInProgress = ContinueBulkSend();
         }
 
-        private void ContinueBulkSend()
+        private bool ContinueBulkSend()
         {
+            var reserveSpace = ProtocolDatagram.OptionNameIsLastInWindow.Length +
+                Math.Max(true.ToString().Length, false.ToString().Length);
             var nextWindow = new List<ProtocolDatagram>();
-            int seqGen = _sessionHandler.NextSendSeqStart;
-            while (_offset < _rawData.Length && nextWindow.Count < _sessionHandler.DataWindowSize)
+            while (nextWindow.Count < _sessionHandler.MaxSendWindowSize)
             {
-                var messagePart = new ProtocolDatagram
+                var nextPdu =_datagramChopper.Next(reserveSpace, false);
+                if (nextPdu == null)
                 {
-                    SessionId = _sessionHandler.SessionId,
-                    SequenceNumber = seqGen++,
-                    DataBytes = _rawData,
-                    DataOffset = _offset,
-                    DataLength = Math.Min(_sessionHandler.MaxPduSize, _rawData.Length - _offset)
-                };
-                nextWindow.Add(messagePart);
-                _offset += _sessionHandler.MaxPduSize;
+                    break;
+                }
+                nextWindow.Add(nextPdu);
             }
-            if (nextWindow.Count < _sessionHandler.DataWindowSize)
+            if (nextWindow.Count == 0)
             {
-                nextWindow[nextWindow.Count - 1].IsLastInDataWindow = true;
+                return false;
             }
-            _sendHandler.CurrentWindow.Clear();
-            _sendHandler.CurrentWindow.AddRange(nextWindow);
-            _sendHandler.SendInProgress = true;
-            PromiseCompletionSource<VoidType> partPromiseCb = _promiseApi.CreateCallback<VoidType>();
-            AbstractPromise<VoidType> partPromise = partPromiseCb.Extract();
-            _sendHandler.ProcessSendWindow(partPromiseCb, true);
-            // let send handler handle error, which will lead to a closure of this handler,
-            // and then _pendingPromiseCallback can be completed with error.
-            partPromise.Then(HandleSendPartSuccess);
+            nextWindow[nextWindow.Count - 1].IsLastInWindow = true;
+
+            _sendWindowHandler = new RetrySendHandlerAssistant(_sessionHandler)
+            {
+                CurrentWindow = nextWindow,
+                SuccessCallback = OnWindowSendSuccess
+            };
+            _sendWindowHandler.Start();
+            return true;
         }
 
-        private VoidType HandleSendPartSuccess(VoidType _)
+        private void OnWindowSendSuccess()
         {
-            _sessionHandler.PostSeriallyIfNotClosed(() =>
+            if (ContinueBulkSend())
             {
-                if (_offset < _rawData.Length)
-                {
-                    ContinueBulkSend();
-                }
-                else
-                {
-                    // Done.
-                    _sendHandler.SendInProgress = false;
-                    _rawData = null;
-                    _sendHandler.CurrentWindow.Clear();
+                return;
+            }
 
-                    _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
-                }
+            SendInProgress = false;
+
+            // complete pending promise.
+            var cb = _pendingPromiseCallback;
+            _pendingPromiseCallback = null;
+            _sessionHandler.PostNonSerially(() =>
+            {
+                cb.CompleteSuccessfully(VoidType.Instance);
             });
-            return VoidType.Instance;
-        }*/
+        }
     }
 }

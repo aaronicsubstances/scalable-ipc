@@ -38,7 +38,13 @@ namespace PortableIPC.Core.Session
                 return false;
             }
 
-            ProcessAckReceipt(message);
+            // to prevent clashes with other send handlers, check that specific send in progress is on.
+            if (!SendInProgress)
+            {
+                return false;
+            }
+
+            _sendWindowHandler.OnAckReceived(message);
             return true;
         }
 
@@ -90,23 +96,9 @@ namespace PortableIPC.Core.Session
             SendInProgress = true;
         }
 
-        private void ProcessAckReceipt(ProtocolDatagram ack)
-        {
-            if (!SendInProgress)
-            {
-                _sessionHandler.DiscardReceivedMessage(ack);
-                return;
-            }
-
-            _sendWindowHandler.OnAckReceived(ack);            
-        }
-
         private void OnWindowSendSuccess()
         {
             SendInProgress = false;
-
-            // move window bounds
-            _sessionHandler.IncrementNextWindowIdToSend();
 
             // complete pending promise.
             var cb = _pendingPromiseCallback;

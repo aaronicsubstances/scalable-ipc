@@ -29,9 +29,18 @@ namespace PortableIPC.Core.Session
             _started = false;
         }
 
-        public ProtocolDatagram Next(int reserveSpaceByteCount)
+        public ProtocolDatagram Next(int reserveSpaceByteCount, bool peekOnly)
         {
             // send all options first, then data.
+
+            var savedState = new
+            {
+                Started = _started,
+                DoneWithOptions= _doneWithOptions,
+                UsedOptionKeyCount = _usedOptionKeyCount, 
+                UsedOptionValueCount = _usedOptionValueCount,
+                UsedDataByteCount = _usedDataByteCount
+            };
 
             if (!_started)
             {
@@ -146,6 +155,15 @@ namespace PortableIPC.Core.Session
             }
 
             _started = false;
+
+            if (peekOnly)
+            {
+                _usedOptionKeyCount = savedState.UsedOptionKeyCount;
+                _usedOptionValueCount = savedState.UsedOptionValueCount;
+                _usedDataByteCount = savedState.UsedDataByteCount;
+                _doneWithOptions = savedState.DoneWithOptions;
+                _started = savedState.Started;
+            }
 
             return nextPdu;
         }
