@@ -51,6 +51,7 @@ namespace PortableIPC.Core.Session
             nextMessage.SequenceNumber = _sentPduCount - PreviousSendCount;
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, nextMessage)
                 .Then(_ => HandleSendSuccess(windowIdSnapshot), HandleSendError);
+            _sentPduCount++;
         }
 
         public void OnAckReceived(ProtocolDatagram ack)
@@ -63,17 +64,18 @@ namespace PortableIPC.Core.Session
 
             // Receipt of an ack is interpreted as reception of message with ack's sequence number,
             // and all preceding messages in window as well.
+            var receiveCount = ack.SequenceNumber + 1;
 
-            var minExpectedSeqNumber = StopAndWait ? (_sentPduCount - PreviousSendCount) : 0;
-            var maxExpectedSeqNumber = CurrentWindow.Count - PreviousSendCount;
-            if (ack.SequenceNumber < minExpectedSeqNumber || ack.SequenceNumber > maxExpectedSeqNumber)
+            var minExpectedReceiveCount = StopAndWait ? (_sentPduCount - PreviousSendCount) : 1;
+            var maxExpectedReceiveCount = CurrentWindow.Count - PreviousSendCount;
+            if (receiveCount < minExpectedReceiveCount || receiveCount > maxExpectedReceiveCount)
             {
                 // reject.
                 _sessionHandler.DiscardReceivedMessage(ack);
                 return;
             }
 
-            if (ack.SequenceNumber == maxExpectedSeqNumber)
+            if (receiveCount == maxExpectedReceiveCount)
             {
                 // indirectly cancel ack timeout.
                 _sessionHandler.ResetIdleTimeout();
@@ -87,7 +89,7 @@ namespace PortableIPC.Core.Session
                 _sessionHandler.ResetIdleTimeout();
 
                 _sessionHandler.IncrementNextWindowIdToSend();
-                PreviousSendCount += ack.SequenceNumber + 1;
+                PreviousSendCount += receiveCount;
                 StopAndWait = false;
                 Start();
             }
@@ -97,7 +99,7 @@ namespace PortableIPC.Core.Session
                 _sessionHandler.ResetIdleTimeout();
 
                 // continue stop and wait.
-                _sentPduCount = PreviousSendCount + ack.SequenceNumber + 1;
+                _sentPduCount = PreviousSendCount + receiveCount;
                 ContinueSending();
             }
             else
@@ -116,23 +118,13 @@ namespace PortableIPC.Core.Session
                     return;
                 }
 
-                // if stop and wait, let ack receipt increment sent pdu count and continue sending.
-                if (StopAndWait)
+                if (StopAndWait || _sentPduCount >= CurrentWindow.Count)
                 {
-                    // set up ack timeout.
                     _sessionHandler.ResetAckTimeout(AckTimeoutSecs, ProcessAckTimeout);
                 }
                 else
                 {
-                    _sentPduCount++;
-                    if (_sentPduCount >= CurrentWindow.Count)
-                    {
-                        _sessionHandler.ResetAckTimeout(AckTimeoutSecs, ProcessAckTimeout);
-                    }
-                    else
-                    {
-                        ContinueSending();
-                    }
+                    ContinueSending();
                 }
             });
             return VoidType.Instance;
