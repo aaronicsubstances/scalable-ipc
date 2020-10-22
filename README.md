@@ -1,16 +1,14 @@
 # PortableIPC Protocol
 
-Defines and implements a network protocol suite to rival TCP/HTTP as IPC mechanism of choice on a **single host machine** and on "interconnects" (internal networks). *The initial motivation for targetting interconnects comes from IPC between microservice-based web applications.*
+Defines and implements a network protocol suite to replace HTTP as IPC mechanism of choice on a **single host machine** and on "interconnects" (internal networks). *The initial motivation for this protocol is for IPC between microservice-based web applications.*
 
 ## Features
 
-  * Based on UDP, and hence available across operating systems and programming platforms unlike Unix domain sockets and Windows named pipes.
-  * **Uses session ids unlike TCP, and so enables multiplexing unlike in HTTP, eliminates head-of-line blocking in TCP, and eliminates build up of HTTP/TCP TIME_WAIT states (when HTTP connections are not being reused, which is the usual case).**
-  * Exposes configuration parameters such as maximum window size, idle/ack timeout, and maximum retry attempts on a per application basis to cater for different communication needs. In TCP such parameters can only be configured globally for all operating system connections.
-  * **Makes streaming and duplex communication easier at application layer, by providing for idle timeout to be disabled without need for keep-alive packets, and also by leveraging UDP preservation of message boundaries.**
-  * Optimized towards communications within single machine host, or within LAN, or between similar networks. Efficiency of communications between dissimilar networks is of lower priority.
-  * Extensible for communication on internal networks (e.g. for use by microservice-based web applications), by allowing for introduction of congestion control, transport security (DTLS), forward error correction, and whatever is possible with custom PDU types and options.
-
+  * Based on TCP/TLS and UDP.
+  * Enables multiplexing by using application layer session ids.
+  * Eliminates unbounded build up of TIME_WAIT states in underlying TCP of HTTP, especially when HTTP connections are not being reused, which is the usual case.
+  * Makes streaming and duplex communication easier by working with messages (like UDP datagrams) and presenting option to disable idle timeout per session.
+  * Optimized for communications within single machine host by using UDP. E.g. eliminates need for TLS, head-of-line blocking and TIME_WAIT state in TCP. Also can enable faster start up with larger MTU and window size, and quicker session shutdown with lower values for ack timeout and max retry count.
 
 ## Roadmap
 
