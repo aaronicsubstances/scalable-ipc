@@ -34,9 +34,9 @@ namespace PortableIPC.Core.Abstractions
         //    last received id is larger than 0.
         // By so doing receiver can be conservative, and sender can have 
         // freedom in varying trend of window ids.
-        long NextWindowIdToSend { get; set; }
-        long LastWindowIdSent { get; set; }
-        long LastWindowIdReceived { get; set; }
+        int NextWindowIdToSend { get; set; }
+        int LastWindowIdSent { get; set; }
+        int LastWindowIdReceived { get; set; }
         int LastMaxSeqReceived { get; set; }
 
         // timeout api assumes only 1 timeout can be outstanding at any time.

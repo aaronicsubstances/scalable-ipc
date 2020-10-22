@@ -4,11 +4,12 @@ Defines and implements a network protocol suite to replace HTTP as IPC mechanism
 
 ## Features
 
-  * Based on TCP/TLS and UDP.
+  * Based on UDP for IPC on single host machine, and TCP/TLS for use on the Internet.
   * Enables multiplexing by using application layer session ids.
-  * Eliminates unbounded build up of TIME_WAIT states in underlying TCP of HTTP, especially when HTTP connections are not being reused, which is the usual case.
-  * Makes streaming and duplex communication easier by working with messages (like UDP datagrams) and presenting option to disable idle timeout per session.
-  * Optimized for communications within single machine host by using UDP. E.g. eliminates need for TLS, head-of-line blocking and TIME_WAIT state in TCP. Also can enable faster start up with larger MTU and window size, and quicker session shutdown with lower values for ack timeout and max retry count.
+  * Eliminates unbounded build up of TCP TIME_WAIT states in HTTP, especially when HTTP connections are not being reused, which is the usual case.
+  * Makes streaming and duplex communication easier at application layer, by providing for idle timeout to be disabled without need for keep-alive packets, and also by leveraging UDP preservation of message boundaries.
+  * Optimized for communications within single host machine.
+  * Extensible for use on the Internet as a TCP alternative by using UDP and allowing for introduction of congestion control, transport security (DTLS), forward error correction, and whatever is possible with custom PDU types and options. Also exposes configuration parameters such as maximum window size, idle/ack timeout, and maximum retry attempts on a per application basis to cater for different communication needs. In TCP such parameters can only be configured globally for all operating system connections.
 
 ## Roadmap
 

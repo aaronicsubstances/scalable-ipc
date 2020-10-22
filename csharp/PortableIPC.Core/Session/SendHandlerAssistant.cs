@@ -46,7 +46,7 @@ namespace PortableIPC.Core.Session
         private void ContinueSending()
         {
             var nextMessage = CurrentWindow[_sentPduCount];
-            long windowIdSnapshot = _sessionHandler.NextWindowIdToSend;
+            int windowIdSnapshot = _sessionHandler.NextWindowIdToSend;
             nextMessage.WindowId = windowIdSnapshot;
             nextMessage.SequenceNumber = _sentPduCount - PreviousSendCount;
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, nextMessage)
@@ -109,7 +109,7 @@ namespace PortableIPC.Core.Session
             }
         }
 
-        private VoidType HandleSendSuccess(long windowIdSnapshot)
+        private VoidType HandleSendSuccess(int windowIdSnapshot)
         {
             _sessionHandler.PostSerially(() =>
             {

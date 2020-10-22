@@ -128,7 +128,6 @@ namespace PortableIPC.Core
                 }
             }
 
-            // send through datagram socket.
             byte[] pdu;
             try
             {
@@ -138,15 +137,14 @@ namespace PortableIPC.Core
             {
                 return PromiseApi.Reject(ex);
             }
+            // send through network.
             return HandleException(NetworkSocket.HandleSend(endpoint, pdu, 0, pdu.Length));
         }
 
         public byte[] GenerateRawDatagram(ProtocolDatagram message)
         {
-            // subclasses can implement forward error correction, expiration, etc.
+            // subclasses can implement forward error correction, expiration, maximum length validation, etc.
             byte[] rawBytes = message.ToRawDatagram(true);
-
-            // could validate size?
             return rawBytes;
         }
 

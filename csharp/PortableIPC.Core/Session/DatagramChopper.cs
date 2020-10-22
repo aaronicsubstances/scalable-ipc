@@ -8,11 +8,16 @@ namespace PortableIPC.Core.Session
 {
     public class DatagramChopper
     {
+        private static readonly List<string> OptionsToSkipElseCouldInterfere = new List<string>
+        {
+            ProtocolDatagram.OptionNameIsLastInWindow, ProtocolDatagram.OptionNameIsLastOpenRequest,
+            ProtocolDatagram.OptionNameIsWindowFull
+        };
+
         private readonly byte[] _data;
         private readonly List<string> _optionKeys;
         private readonly Dictionary<string, List<string>> _options;
         private readonly int _maxPduSize;
-
         private int _usedOptionKeyCount;
         private int _usedOptionValueCount;
         private int _usedDataByteCount;
@@ -26,6 +31,10 @@ namespace PortableIPC.Core.Session
             _options = options;
             _maxPduSize = maxPduSize;
 
+            _usedOptionKeyCount = 0;
+            _usedOptionValueCount = 0;
+            _usedDataByteCount = 0;
+            _doneWithOptions = false;
             _started = false;
         }
 
@@ -42,24 +51,6 @@ namespace PortableIPC.Core.Session
                 UsedDataByteCount = _usedDataByteCount
             };
 
-            if (!_started)
-            {
-                _usedOptionKeyCount = 0;
-                _usedOptionValueCount = 0;
-                _doneWithOptions = false;
-
-                // locate first key with non-empty values.
-                foreach (var k in _optionKeys)
-                {
-                    if (_options[k].Count > 0)
-                    {
-                        break;
-                    }
-                    _usedOptionKeyCount++;
-                }
-                _doneWithOptions = _usedOptionKeyCount >= _optionKeys.Count;
-            }
-
             reserveSpaceByteCount += ProtocolDatagram.MinDatagramSize;
             const int nullByteCountNeededPerOption = 2;
 
@@ -71,32 +62,37 @@ namespace PortableIPC.Core.Session
                 while (_usedOptionKeyCount < _optionKeys.Count)
                 {
                     string k = _optionKeys[_usedOptionKeyCount];
-                    var optionValues = _options[k];
-                    int kLength = ProtocolDatagram.ConvertStringToBytes(k).Length;
-                    while (_usedOptionValueCount < optionValues.Count)
-                    {
-                        var v = optionValues[_usedOptionValueCount];
-                        int vLength = ProtocolDatagram.ConvertStringToBytes(v).Length;
-                        int extraSpaceNeeded = kLength + vLength + nullByteCountNeededPerOption;
 
-                        if (spaceUsed + extraSpaceNeeded > _maxPduSize - reserveSpaceByteCount)
+                    // skip known session layer options which could interfere with bulk sending.
+                    if (!OptionsToSkipElseCouldInterfere.Contains(k))
+                    {
+                        var optionValues = _options[k];
+                        int kLength = ProtocolDatagram.ConvertStringToBytes(k).Length;
+                        while (_usedOptionValueCount < optionValues.Count)
                         {
-                            nextOptionsSpaceUsedUp = true;
-                            break;
+                            var v = optionValues[_usedOptionValueCount];
+                            int vLength = ProtocolDatagram.ConvertStringToBytes(v).Length;
+                            int extraSpaceNeeded = kLength + vLength + nullByteCountNeededPerOption;
+
+                            if (spaceUsed + extraSpaceNeeded > _maxPduSize - reserveSpaceByteCount)
+                            {
+                                nextOptionsSpaceUsedUp = true;
+                                break;
+                            }
+                            List<string> subOptionList;
+                            if (subOptions.ContainsKey(k))
+                            {
+                                subOptionList = subOptions[k];
+                            }
+                            else
+                            {
+                                subOptionList = new List<string>();
+                                subOptions.Add(k, subOptionList);
+                            }
+                            subOptionList.Add(v);
+                            _usedOptionValueCount++;
+                            spaceUsed += extraSpaceNeeded;
                         }
-                        List<string> subOptionList;
-                        if (subOptions.ContainsKey(k))
-                        {
-                            subOptionList = subOptions[k];
-                        }
-                        else
-                        {
-                            subOptionList = new List<string>();
-                            subOptions.Add(k, subOptionList);
-                        }
-                        subOptionList.Add(v);
-                        _usedOptionValueCount++;
-                        spaceUsed += extraSpaceNeeded;
                     }
 
                     if (nextOptionsSpaceUsedUp)
@@ -118,7 +114,7 @@ namespace PortableIPC.Core.Session
             int dataChunkLength = 0;
             if (_doneWithOptions)
             {
-                dataChunkLength = Math.Max(0, 
+                dataChunkLength = Math.Max(0,
                     Math.Min(_maxPduSize - spaceUsed - reserveSpaceByteCount, _data.Length - dataChunkOffset));
                 _usedDataByteCount += dataChunkLength;
                 spaceUsed += dataChunkLength;

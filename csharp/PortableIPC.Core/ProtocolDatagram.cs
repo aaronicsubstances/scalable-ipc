@@ -18,11 +18,10 @@ namespace PortableIPC.Core
 
         public const int SessionIdLength = 50;
 
-        // expected length, sessionId, opCode, timestamp, window id, 
-        // sequence number, null separator and checksum are always present.
-        public const int MinDatagramSize = 2 + SessionIdLength + 1 + 8 + 8 + 
-            4 + 1 + 1;
-        public const int DatagramSizeAbsoluteLimit = 65_507;
+        // expected length, sessionId, opCode, window id, 
+        // sequence number, null separator are always present.
+        public const int MinDatagramSize = 4 + SessionIdLength + 1 + 4 + 
+            4 + 1;
 
         // Reserve s_ prefix for known options at session layer.
         // Also reserver a_ for known options at application layer.
@@ -38,15 +37,13 @@ namespace PortableIPC.Core
         public int ExpectedDatagramLength { get; set; }
         public string SessionId { get; set; }
         public byte OpCode { get; set; }
-        public long Timestamp { get; set; }
-        public long WindowId { get; set; }
+        public int WindowId { get; set; }
         public int SequenceNumber { get; set; }
         public Dictionary<string, List<string>> Options { get; set; }
 
         public byte[] DataBytes { get; set; }
         public int DataOffset { get; set; }
         public int DataLength { get; set; }
-        public byte Checksum { get; set; }
 
         // Known session layer options.
         public bool? IsLastInWindow { get; set; }
@@ -67,17 +64,16 @@ namespace PortableIPC.Core
             var parsedDatagram = new ProtocolDatagram();
 
             // validate length and checksum.
-            int expectedDatagramLength = ReadInt16BigEndian(rawBytes, offset);
+            int expectedDatagramLength = ReadInt32BigEndian(rawBytes, offset);
             if (expectedDatagramLength != length)
             {
                 throw new Exception("expected datagram length incorrect");
             }
-            ValidateChecksum(rawBytes, offset, length);
 
-            int endOffset = offset + length - 1; // exempt checksum
+            int endOffset = offset + length;
 
             parsedDatagram.ExpectedDatagramLength = expectedDatagramLength;
-            offset += 2; // skip past expected data length;
+            offset += 4; // skip past expected data length;
 
             parsedDatagram.SessionId = ConvertBytesToString(rawBytes, offset, SessionIdLength);
             offset += SessionIdLength;
@@ -85,15 +81,12 @@ namespace PortableIPC.Core
             parsedDatagram.OpCode = rawBytes[offset];
             offset += 1;
 
-            parsedDatagram.Timestamp = ReadInt64BigEndian(rawBytes, offset);
-            offset += 8;
-
-            parsedDatagram.WindowId = ReadInt64BigEndian(rawBytes, offset);
+            parsedDatagram.WindowId = ReadInt32BigEndian(rawBytes, offset);
             if (parsedDatagram.WindowId < 0)
             {
                 throw new Exception("Negative window id not allowed");
             }
-            offset += 8;
+            offset += 4;
 
             parsedDatagram.SequenceNumber = ReadInt32BigEndian(rawBytes, offset);
             if (parsedDatagram.SequenceNumber < 0)
@@ -214,6 +207,8 @@ namespace PortableIPC.Core
                     // Make space for expected data length.
                     writer.Write((byte)0);
                     writer.Write((byte)0);
+                    writer.Write((byte)0);
+                    writer.Write((byte)0);
 
                     byte[] sessionId = ConvertStringToBytes(SessionId);
                     if (sessionId.Length != SessionIdLength)
@@ -224,8 +219,7 @@ namespace PortableIPC.Core
 
                     writer.Write(OpCode);
 
-                    WriteInt64BigEndian(writer, Timestamp);
-                    WriteInt64BigEndian(writer, WindowId);
+                    WriteInt32BigEndian(writer, WindowId);
                     WriteInt32BigEndian(writer, SequenceNumber);
 
                     // write out all options, starting with known ones.
@@ -263,16 +257,8 @@ namespace PortableIPC.Core
                     {
                         writer.Write(DataBytes, DataOffset, DataLength);
                     }
-
-                    // make space for checksum
-                    writer.Write((byte)0);
                 }
                 rawBytes = ms.ToArray();
-            }
-
-            if (rawBytes.Length > DatagramSizeAbsoluteLimit)
-            {
-                throw new Exception("datagram too large to send");
             }
 
             if (ExpectedDatagramLength > 0 && ExpectedDatagramLength != rawBytes.Length)
@@ -281,7 +267,6 @@ namespace PortableIPC.Core
             }
 
             InsertExpectedDataLength(rawBytes);
-            InsertChecksum(rawBytes);
 
             return rawBytes;
         }
@@ -315,31 +300,7 @@ namespace PortableIPC.Core
 
         internal static void InsertExpectedDataLength(byte[] rawBytes)
         {
-            WriteInt16BigEndian(rawBytes, 0, (short)rawBytes.Length);
-        }
-
-        internal static void InsertChecksum(byte[] rawBytes)
-        {
-            rawBytes[rawBytes.Length - 1] = CalculateLongitudinalParityCheck(rawBytes, 0, rawBytes.Length - 1);
-        }
-
-        internal static void ValidateChecksum(byte[] rawBytes, int offset, int length)
-        {
-            byte expectedLrc = CalculateLongitudinalParityCheck(rawBytes, offset, length - 1);
-            if (rawBytes[offset + length - 1] != expectedLrc)
-            {
-                throw new Exception("checksum error");
-            }
-        }
-
-        internal static byte CalculateLongitudinalParityCheck(byte[] byteData, int offset, int length)
-        {
-            byte chkSumByte = 0x00;
-            for (int i = offset; i < offset + length; i++)
-            {
-                chkSumByte ^= byteData[i];
-            }
-            return chkSumByte;
+            WriteInt32BigEndian(rawBytes, 0, rawBytes.Length);
         }
 
         internal static short ParseOptionAsInt16(string optionValue)
@@ -380,26 +341,16 @@ namespace PortableIPC.Core
             writer.Write((byte)(0xff & v));
         }
 
-        internal static void WriteInt16BigEndian(byte[] rawBytes, int offset, short v)
+        internal static void WriteInt32BigEndian(byte[] rawBytes, int offset, int v)
         {
-            rawBytes[offset] = (byte)(0xff & (v >> 8));
-            rawBytes[offset + 1] = (byte)(0xff & v);
+            rawBytes[offset] = (byte)(0xff & (v >> 24));
+            rawBytes[offset + 1] = (byte)(0xff & (v >> 16));
+            rawBytes[offset + 2] = (byte)(0xff & (v >> 8));
+            rawBytes[offset + 3] = (byte)(0xff & v);
         }
 
         internal static void WriteInt32BigEndian(BinaryWriter writer, int v)
         {
-            writer.Write((byte)(0xff & (v >> 24)));
-            writer.Write((byte)(0xff & (v >> 16)));
-            writer.Write((byte)(0xff & (v >> 8)));
-            writer.Write((byte)(0xff & v));
-        }
-
-        internal static void WriteInt64BigEndian(BinaryWriter writer, long v)
-        {
-            writer.Write((byte)(0xff & (v >> 56)));
-            writer.Write((byte)(0xff & (v >> 48)));
-            writer.Write((byte)(0xff & (v >> 40)));
-            writer.Write((byte)(0xff & (v >> 32)));
             writer.Write((byte)(0xff & (v >> 24)));
             writer.Write((byte)(0xff & (v >> 16)));
             writer.Write((byte)(0xff & (v >> 8)));
@@ -422,22 +373,6 @@ namespace PortableIPC.Core
             byte d = rawBytes[offset + 3];
             int v = ((a & 0xff) << 24) | ((b & 0xff) << 16) |
                 ((c & 0xff) << 8) | (d & 0xff);
-            return v;
-        }
-
-        internal static long ReadInt64BigEndian(byte[] rawBytes, int offset)
-        {
-            byte a = rawBytes[offset];
-            byte b = rawBytes[offset + 1];
-            byte c = rawBytes[offset + 2];
-            byte d = rawBytes[offset + 3];
-            byte e = rawBytes[offset + 4];
-            byte f = rawBytes[offset + 5];
-            byte g = rawBytes[offset + 6];
-            byte h = rawBytes[offset + 7];
-            long v = ((a & 0xff) << 56) | ((b & 0xff) << 48) |
-                ((c & 0xff) << 40) | ((d & 0xff) << 32) | ((e & 0xff) << 24) | ((f & 0xff) << 16) |
-                ((g & 0xff) << 8) | (h & 0xff);
             return v;
         }
 

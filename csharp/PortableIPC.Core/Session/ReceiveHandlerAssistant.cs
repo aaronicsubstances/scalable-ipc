@@ -8,7 +8,7 @@ namespace PortableIPC.Core.Session
     {
         private readonly ISessionHandler _sessionHandler;
         private readonly List<ProtocolDatagram> _currentWindow;
-        private long? _currentWindowId;
+        private int? _currentWindowId;
         private bool _isComplete;
 
         public ReceiveHandlerAssistant(ISessionHandler sessionHandler)
@@ -126,8 +126,7 @@ namespace PortableIPC.Core.Session
             }
 
             // ensure enough capacity of current window for new message.
-            if (_sessionHandler.MaxReceiveWindowSize > 0 && 
-                message.SequenceNumber >= _sessionHandler.MaxReceiveWindowSize)
+            if (message.SequenceNumber >= _sessionHandler.MaxReceiveWindowSize)
             {
                 return false;
             }
@@ -188,8 +187,7 @@ namespace PortableIPC.Core.Session
             {
                 return true;
             }
-            if (_sessionHandler.MaxReceiveWindowSize > 0 && 
-                lastPosInSlidingWindow == _sessionHandler.MaxReceiveWindowSize - 1)
+            if (lastPosInSlidingWindow == _sessionHandler.MaxReceiveWindowSize - 1)
             {
                 return true;
             }

@@ -7,8 +7,9 @@ using System.Net;
 namespace PortableIPC.Core
 {
     /// <summary>
-    /// So design of session handler default implementation is to hide acks, retries and sequence numbers from application
-    /// layer. It also should be the only one to use promise callbacks and event loops; the rest of the project
+    /// So design of session handler default implementation is to hide acks, retries, window ids and
+    /// sequence numbers from application layer. 
+    /// It also should be the only one to use promise callbacks and event loops; the rest of the project
     /// should only use abstract promises.
     /// </summary>
     public class ProtocolSessionHandler : ISessionHandler
@@ -64,9 +65,9 @@ namespace PortableIPC.Core
         public int IdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
 
-        public long NextWindowIdToSend { get; set; } = 0;
-        public long LastWindowIdSent { get; set; } = -1;
-        public long LastWindowIdReceived { get; set; } = -1;
+        public int NextWindowIdToSend { get; set; } = 0;
+        public int LastWindowIdSent { get; set; } = -1;
+        public int LastWindowIdReceived { get; set; } = -1;
         public int LastMaxSeqReceived { get; set; }
         public bool IdleTimeoutEnabled { get; set; } = true;
 
@@ -223,9 +224,13 @@ namespace PortableIPC.Core
         public void ResetAckTimeout(int timeoutSecs, Action cb)
         {
             CancelTimeout();
-            int timeoutSeqNr = ++_currTimeoutSeqNr;
-            _lastTimeoutId = _promiseApi.ScheduleTimeout(timeoutSecs * 1000L,
-                () => ProcessTimeout(timeoutSeqNr, cb));
+            // interpret non positive timeout as disable ack timeout.
+            if (timeoutSecs > 0)
+            {
+                int timeoutSeqNr = ++_currTimeoutSeqNr;
+                _lastTimeoutId = _promiseApi.ScheduleTimeout(timeoutSecs * 1000L,
+                    () => ProcessTimeout(timeoutSeqNr, cb));
+            }
         }
 
         public void ResetIdleTimeout()
@@ -251,9 +256,13 @@ namespace PortableIPC.Core
             // NB: disabling of idle timeout only applies to data exchange phase.
             if (SessionState != SessionState.OpenedForData || IdleTimeoutEnabled)
             {
-                int timeoutSeqNr = ++_currTimeoutSeqNr;
-                _lastTimeoutId = _promiseApi.ScheduleTimeout(IdleTimeoutSecs * 1000L,
-                    () => ProcessTimeout(timeoutSeqNr, null));
+                // also interpret non positive value as disable idle timeout.
+                if (IdleTimeoutSecs > 0)
+                {
+                    int timeoutSeqNr = ++_currTimeoutSeqNr;
+                    _lastTimeoutId = _promiseApi.ScheduleTimeout(IdleTimeoutSecs * 1000L,
+                        () => ProcessTimeout(timeoutSeqNr, null));
+                }
             }
         }
 
