@@ -4,12 +4,13 @@ Defines and implements a network protocol suite to replace HTTP as IPC mechanism
 
 ## Features
 
-  * Based on UDP for IPC on single host machine, and TCP/TLS for use on the Internet.
+  * Based on UDP and TCP/TLS for IPC on single host machine and the Internet respectively.
   * Enables multiplexing by using application layer session ids.
-  * Eliminates unbounded build up of TCP TIME_WAIT states in HTTP, especially when HTTP connections are not being reused, which is the usual case.
+  * Places upper bound on HTTP/TCP TIME_WAIT state count. In contrast when HTTP connections are not being reused (which is the usual case), TIME_WAIT states just keep piling up and hogging ports per TCP design, for time period of MSL value of 1 minute or more.
+  * Exposes configuration parameters such as maximum window size, MTU, idle/ack timeout, and maximum retry attempts on a per application basis, and thus makes the protocol adaptable to a wide range of networking needs. In HTTP/TCP such parameters can only be configured globally for all operating system connections.
   * Makes streaming and duplex communication easier at application layer, by providing for idle timeout to be disabled without need for keep-alive packets, and also by leveraging UDP preservation of message boundaries.
-  * Optimized for communications within single host machine.
-  * Extensible for use on the Internet as a TCP alternative by using UDP and allowing for introduction of congestion control, transport security (DTLS), forward error correction, and whatever is possible with custom PDU types and options. Also exposes configuration parameters such as maximum window size, idle/ack timeout, and maximum retry attempts on a per application basis to cater for different communication needs. In TCP such parameters can only be configured globally for all operating system connections.
+  * Optimized for communications within single host machine, e.g. use of UDP eliminates head-of-line blocking issue in TCP.
+  * Extensible for use on the Internet as a TCP alternative by using UDP and allowing for introduction of congestion control, transport security (e.g. DTLS), forward error correction, and whatever is possible with custom PDU types and options.
 
 ## Roadmap
 
