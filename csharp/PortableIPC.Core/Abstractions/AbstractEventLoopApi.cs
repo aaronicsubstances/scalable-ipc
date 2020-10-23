@@ -10,12 +10,15 @@ namespace PortableIPC.Core.Abstractions
     /// 1. blocking I/O and multi-threaded
     /// 2. non-blocking I/O and single-threaded
     /// 3. non-blocking I/O and multi-threaded
-    /// Blocking I/O model however presumes that event loop will run in dedicated threads not shared with other parts of
-    /// an application using blocking I/O.
+    /// The only thing presumed however, is that the event loop should run in a single thread.
+    /// For multi-threaded environments, an additional requirement is that the rest of the application 
+    /// cannot share in using the event loop thread.
     /// </summary>
     public interface AbstractEventLoopApi
     {
         void PostCallback(ISessionHandler sessionHandler, Action cb);
         void PostCallbackSerially(ISessionHandler sessionHandler, Action cb);
+        object ScheduleTimeoutSerially(ISessionHandler sessionHandler, long millis, Action cb);
+        void CancelTimeout(object id);
     }
 }

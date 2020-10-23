@@ -52,5 +52,10 @@ during send open
 -validate options per ack pdu message.
 -validate received open ack immediately. open acks must echo back option value or empty string to mean rejection.
 
-
-
+Event Loop Libraries
+---------------------
+Java - Use ScheduledThreadPoolExecutor with 1 thread.
+C# - https://github.com/Deathspike/SharpEventLoop.
+NodeJS - setImmediate().
+*Consider Python since it has event loop, future, async sleep
+*Consider PHP too since it has event loop, guzzlehttp has promises, ReactPHP has setTimeout, so its implementation can proceed like NodeJS

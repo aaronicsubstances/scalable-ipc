@@ -17,7 +17,6 @@ namespace PortableIPC.Core
         private readonly AbstractPromiseApi _promiseApi;
         private readonly AbstractEventLoopApi _eventLoop;
         private object _lastTimeoutId;
-        private int _currTimeoutSeqNr; // used to enforce timeout cancellations.
 
         public ProtocolSessionHandler(IEndpointHandler endpointHandler, AbstractEventLoopApi eventLoop,
             IPEndPoint endPoint, string sessionId, bool isConfiguredForInitialSend)
@@ -222,9 +221,8 @@ namespace PortableIPC.Core
             // interpret non positive timeout as disable ack timeout.
             if (timeoutSecs > 0)
             {
-                int timeoutSeqNr = ++_currTimeoutSeqNr;
-                _lastTimeoutId = _promiseApi.ScheduleTimeout(timeoutSecs * 1000L,
-                    () => ProcessTimeout(timeoutSeqNr, cb));
+                _lastTimeoutId = _eventLoop.ScheduleTimeoutSerially(this, timeoutSecs * 1000L,
+                    () => ProcessTimeout(cb));
             }
         }
 
@@ -254,9 +252,8 @@ namespace PortableIPC.Core
                 // also interpret non positive value as disable idle timeout.
                 if (IdleTimeoutSecs > 0)
                 {
-                    int timeoutSeqNr = ++_currTimeoutSeqNr;
-                    _lastTimeoutId = _promiseApi.ScheduleTimeout(IdleTimeoutSecs * 1000L,
-                        () => ProcessTimeout(timeoutSeqNr, null));
+                    _lastTimeoutId = _eventLoop.ScheduleTimeoutSerially(this, IdleTimeoutSecs * 1000L,
+                        () => ProcessTimeout(null));
                 }
             }
         }
@@ -265,30 +262,28 @@ namespace PortableIPC.Core
         {
             if (_lastTimeoutId != null)
             {
-                _promiseApi.CancelTimeout(_lastTimeoutId);
+                _eventLoop.CancelTimeout(_lastTimeoutId);
                 _lastTimeoutId = null;
             }
         }
 
-        private void ProcessTimeout(int seqNr, Action cb)
+        private void ProcessTimeout(Action cb)
         {
-            PostSeriallyIfNotClosed(() =>
+            if (SessionState == SessionState.Closed)
             {
-                if (_lastTimeoutId != null && _currTimeoutSeqNr == seqNr)
-                {
-                    _lastTimeoutId = null;
-                    if (cb != null)
-                    {
-                        // reset timeout before calling timeout callback.
-                        ResetIdleTimeout();
-                        cb.Invoke();
-                    }
-                    else
-                    {
-                        ProcessShutdown(null, true);
-                    }
-                }
-            });
+                return;
+            }
+            _lastTimeoutId = null;
+            if (cb != null)
+            {
+                // reset timeout before calling timeout callback.
+                ResetIdleTimeout();
+                cb.Invoke();
+            }
+            else
+            {
+                ProcessShutdown(null, true);
+            }
         }
 
         public void DiscardReceivedMessage(ProtocolDatagram message)
