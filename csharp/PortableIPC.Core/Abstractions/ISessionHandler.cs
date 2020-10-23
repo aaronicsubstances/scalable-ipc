@@ -38,6 +38,8 @@ namespace PortableIPC.Core.Abstractions
         int LastWindowIdSent { get; set; }
         int LastWindowIdReceived { get; set; }
         int LastMaxSeqReceived { get; set; }
+        void IncrementNextWindowIdToSend();
+        bool IsSendInProgress();
 
         // timeout api assumes only 1 timeout can be outstanding at any time.
         // setting a timeout clears previous timeout.
@@ -53,8 +55,6 @@ namespace PortableIPC.Core.Abstractions
         void PostSerially(Action cb);
         void PostSeriallyIfNotClosed(Action cb);
         void PostNonSerially(Action cb);
-        void IncrementNextWindowIdToSend();
-        bool IsSendInProgress();
 
         // application layer interface. contract here is that these should be called from event loop.
         void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest);

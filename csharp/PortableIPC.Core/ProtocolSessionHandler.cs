@@ -71,6 +71,28 @@ namespace PortableIPC.Core
         public int LastMaxSeqReceived { get; set; }
         public bool IdleTimeoutEnabled { get; set; } = true;
 
+        public void IncrementNextWindowIdToSend()
+        {
+            LastWindowIdSent = NextWindowIdToSend;
+            NextWindowIdToSend++;
+            if (NextWindowIdToSend < 0)
+            {
+                NextWindowIdToSend = 0;
+            }
+        }
+
+        public bool IsSendInProgress()
+        {
+            foreach (var handler in StateHandlers)
+            {
+                if (handler.SendInProgress)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public List<ISessionStateHandler> StateHandlers { get; } = new List<ISessionStateHandler>();
 
         public AbstractPromise<VoidType> Shutdown(Exception error, bool timeout)
@@ -107,11 +129,6 @@ namespace PortableIPC.Core
                     DiscardReceivedMessage(message);
                 }
             });
-        }
-
-        public void DiscardReceivedMessage(ProtocolDatagram message)
-        {
-            // subclasses can log.
         }
 
         public AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message)
@@ -185,7 +202,7 @@ namespace PortableIPC.Core
 
         public void PostNonSerially(Action cb)
         {
-            _eventLoop.PostCallback(cb);
+            _eventLoop.PostCallback(this, cb);
         }
 
         public void PostSeriallyIfNotClosed(Action cb)
@@ -197,28 +214,6 @@ namespace PortableIPC.Core
                     cb.Invoke();
                 }
             });
-        }
-
-        public void IncrementNextWindowIdToSend()
-        {
-            LastWindowIdSent = NextWindowIdToSend;
-            NextWindowIdToSend++;
-            if (NextWindowIdToSend < 0)
-            {
-                NextWindowIdToSend = 0;
-            }
-        }
-
-        public bool IsSendInProgress()
-        {
-            foreach (var handler in StateHandlers)
-            {
-                if (handler.SendInProgress)
-                {
-                    return true;
-                }
-            }
-            return false;
         }
 
         public void ResetAckTimeout(int timeoutSecs, Action cb)
@@ -294,6 +289,11 @@ namespace PortableIPC.Core
                     }
                 }
             });
+        }
+
+        public void DiscardReceivedMessage(ProtocolDatagram message)
+        {
+            // subclasses can log.
         }
 
         public void ProcessShutdown(Exception error, bool timeout)
