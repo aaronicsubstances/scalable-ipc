@@ -49,7 +49,7 @@ namespace PortableIPC.Core.Session
             int windowIdSnapshot = _sessionHandler.NextWindowIdToSend;
             nextMessage.WindowId = windowIdSnapshot;
             nextMessage.SequenceNumber = _sentPduCount - PreviousSendCount;
-            _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, nextMessage)
+            _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, nextMessage)
                 .Then(_ => HandleSendSuccess(windowIdSnapshot), HandleSendError);
             _sentPduCount++;
         }

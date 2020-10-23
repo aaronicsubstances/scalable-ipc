@@ -12,7 +12,7 @@ namespace PortableIPC.Core
         private int _sessionIdSuffixCounter = 0;
         private readonly string _startTime = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
 
-        public IPEndPoint Endpoint { get; set; }
+        public IPEndPoint LocalEndpoint { get; set; }
         public int IdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
         public int MaxWindowSize { get; set; }

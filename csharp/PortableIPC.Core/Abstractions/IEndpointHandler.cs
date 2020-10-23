@@ -12,17 +12,17 @@ namespace PortableIPC.Core.Abstractions
         EndpointConfig EndpointConfig { get; }
         ProtocolDatagram ParseRawDatagram(byte[] rawBytes, int offset, int length);
         byte[] GenerateRawDatagram(ProtocolDatagram message);
-        AbstractPromise<VoidType> OpenSession(IPEndPoint endpoint, ISessionHandler sessionHandler,
+        AbstractPromise<VoidType> OpenSession(IPEndPoint remoteEndpoint, ISessionHandler sessionHandler,
             ProtocolDatagram message);
-        void HandleReceive(IPEndPoint endpoint, byte[] rawBytes, int offset, int length);
+        void HandleReceive(IPEndPoint remoteEndpoint, byte[] rawBytes, int offset, int length);
         AbstractPromise<VoidType> Shutdown();
 
         // internal api
-        void RemoveSessionHandler(IPEndPoint endpoint, string sessionId);
-        AbstractPromise<VoidType> HandleSend(IPEndPoint endpoint, ProtocolDatagram message);
+        void RemoveSessionHandler(IPEndPoint remoteEndpoint, string sessionId);
+        AbstractPromise<VoidType> HandleSend(IPEndPoint remoteEndpoint, ProtocolDatagram message);
         AbstractPromise<VoidType> HandleException(AbstractPromise<VoidType> promise);
 
         AbstractPromise<VoidType> SwallowException(AbstractPromise<VoidType> promise);
-        bool HandleReceiveProtocolControlMessage(IPEndPoint endpoint, ProtocolDatagram message);
+        bool HandleReceiveProtocolControlMessage(IPEndPoint remoteEndpoint, ProtocolDatagram message);
     }
 }

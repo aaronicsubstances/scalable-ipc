@@ -78,7 +78,7 @@ namespace PortableIPC.Core.Session
             // process termination message regardless of session state.
 
             // send but ignore errors.
-            _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, message)
+            _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, message)
                 .Then(_ => HandleSendSuccessOrError(promiseCb),
                     _ => HandleSendSuccessOrError(promiseCb));
         }

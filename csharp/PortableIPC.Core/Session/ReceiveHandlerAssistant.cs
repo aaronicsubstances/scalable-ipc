@@ -36,7 +36,7 @@ namespace PortableIPC.Core.Session
                     SequenceNumber = _sessionHandler.LastMaxSeqReceived,
                     IsWindowFull = true
                 };
-                _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
+                _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, ack)
                     .Then<VoidType>(null, HandleAckSendFailure);
                 return;
             }
@@ -70,7 +70,7 @@ namespace PortableIPC.Core.Session
                     SequenceNumber = lastEffectiveSeqNr,
                     IsWindowFull = isWindowFull
                 };
-                _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.ConnectedEndpoint, ack)
+                _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, ack)
                     .Then(HandleAckSendSuccess, HandleAckSendFailure);
             }
         }

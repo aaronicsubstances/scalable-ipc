@@ -14,7 +14,8 @@ namespace PortableIPC.Core
         private readonly object _disposeLock = new object();
         private bool _isDisposing = false;
 
-        public ProtocolEndpointHandler(AbstractNetworkApi networkSocket, EndpointConfig endpointConfig, AbstractPromiseApi promiseApi)
+        public ProtocolEndpointHandler(AbstractNetworkApi networkSocket, EndpointConfig endpointConfig,
+            AbstractPromiseApi promiseApi)
         {
             NetworkSocket = networkSocket;
             EndpointConfig = endpointConfig;
@@ -28,11 +29,11 @@ namespace PortableIPC.Core
 
         public AbstractPromiseApi PromiseApi { get; }
 
-        public AbstractPromise<VoidType> OpenSession(IPEndPoint endpoint, ISessionHandler sessionHandler,
+        public AbstractPromise<VoidType> OpenSession(IPEndPoint remoteEndpoint, ISessionHandler sessionHandler,
             ProtocolDatagram message)
         {
             sessionHandler.EndpointHandler = this;
-            sessionHandler.ConnectedEndpoint = endpoint;
+            sessionHandler.RemoteEndpoint = remoteEndpoint;
             if (sessionHandler.SessionId == null)
             {
                 sessionHandler.SessionId = EndpointConfig.GenerateSessionId();
@@ -44,21 +45,21 @@ namespace PortableIPC.Core
             lock (_sessionHandlerMap)
             {
                 Dictionary<string, ISessionHandler> subDict;
-                if (_sessionHandlerMap.ContainsKey(endpoint))
+                if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
                 {
-                    subDict = _sessionHandlerMap[endpoint];
+                    subDict = _sessionHandlerMap[remoteEndpoint];
                 }
                 else
                 {
                     subDict = new Dictionary<string, ISessionHandler>();
-                    _sessionHandlerMap.Add(endpoint, subDict);
+                    _sessionHandlerMap.Add(remoteEndpoint, subDict);
                 }
                 subDict.Add(sessionHandler.SessionId, sessionHandler);
             }
             return sessionHandler.ProcessSend(message);
         }
 
-        public void HandleReceive(IPEndPoint endpoint, byte[] rawBytes, int offset, int length)
+        public void HandleReceive(IPEndPoint remoteEndpoint, byte[] rawBytes, int offset, int length)
         {
             lock (_disposeLock)
             {
@@ -70,19 +71,19 @@ namespace PortableIPC.Core
 
             // process data from datagram socket.
             ProtocolDatagram message = ParseRawDatagram(rawBytes, offset, length);
-            var handled = HandleReceiveProtocolControlMessage(endpoint, message);
+            var handled = HandleReceiveProtocolControlMessage(remoteEndpoint, message);
             if (handled)
             {
                 return;
             }
-            ISessionHandler sessionHandler = GetOrCreateSessionHandler(endpoint, message.SessionId);
+            ISessionHandler sessionHandler = GetOrCreateSessionHandler(remoteEndpoint, message.SessionId);
             if (sessionHandler != null)
             {
                 sessionHandler.ProcessReceive(message);
             }
             else
             {
-                throw new Exception($"Could not allocate handler for session {message.SessionId} from {endpoint}");
+                throw new Exception($"Could not allocate handler for session {message.SessionId} from {remoteEndpoint}");
             }
         }
 
@@ -108,17 +109,17 @@ namespace PortableIPC.Core
             return message;
         }
 
-        public bool HandleReceiveProtocolControlMessage(IPEndPoint endpoint, ProtocolDatagram message)
+        public bool HandleReceiveProtocolControlMessage(IPEndPoint remoteEndpoint, ProtocolDatagram message)
         {
             if (message.OpCode == ProtocolDatagram.OpCodeCloseAll)
             {
-                HandleReceiveCloseAll(endpoint);
+                HandleReceiveCloseAll(remoteEndpoint);
                 return true;
             }
             return false;
         }
 
-        public AbstractPromise<VoidType> HandleSend(IPEndPoint endpoint, ProtocolDatagram message)
+        public AbstractPromise<VoidType> HandleSend(IPEndPoint remoteEndpoint, ProtocolDatagram message)
         {
             lock (_disposeLock)
             {
@@ -138,7 +139,7 @@ namespace PortableIPC.Core
                 return PromiseApi.Reject(ex);
             }
             // send through network.
-            return HandleException(NetworkSocket.HandleSend(endpoint, pdu, 0, pdu.Length));
+            return HandleException(NetworkSocket.HandleSend(remoteEndpoint, pdu, 0, pdu.Length));
         }
 
         public byte[] GenerateRawDatagram(ProtocolDatagram message)
@@ -148,7 +149,7 @@ namespace PortableIPC.Core
             return rawBytes;
         }
 
-        private AbstractPromise<VoidType> HandleSendCloseAll(IPEndPoint endpoint)
+        private AbstractPromise<VoidType> HandleSendCloseAll(IPEndPoint remoteEndpoint)
         {
             ProtocolDatagram pdu = new ProtocolDatagram
             {
@@ -156,8 +157,8 @@ namespace PortableIPC.Core
                 SessionId = EndpointConfig.GenerateNullSessionId(),
             };
             // swallow any send exception.
-            return HandleSend(endpoint, pdu).
-                ThenCompose(_ => { HandleReceiveCloseAll(endpoint); return _voidReturnPromise; }, 
+            return HandleSend(remoteEndpoint, pdu).
+                ThenCompose(_ => { HandleReceiveCloseAll(remoteEndpoint); return _voidReturnPromise; }, 
                             _ => _voidReturnPromise);
         }
 
@@ -191,15 +192,15 @@ namespace PortableIPC.Core
             return retVal;
         }
 
-        private void HandleReceiveCloseAll(IPEndPoint endpoint)
+        private void HandleReceiveCloseAll(IPEndPoint remoteEndpoint)
         {
             var sessionHandlersSubset = new List<ISessionHandler>();
             lock (_sessionHandlerMap)
             {
-                if (_sessionHandlerMap.ContainsKey(endpoint))
+                if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
                 {
-                    sessionHandlersSubset = _sessionHandlerMap[endpoint].Values.ToList();
-                    _sessionHandlerMap.Remove(endpoint);
+                    sessionHandlersSubset = _sessionHandlerMap[remoteEndpoint].Values.ToList();
+                    _sessionHandlerMap.Remove(remoteEndpoint);
                 }
             }
             foreach (var sessionHandler in sessionHandlersSubset)
@@ -225,35 +226,35 @@ namespace PortableIPC.Core
             });
         }
 
-        public void RemoveSessionHandler(IPEndPoint endpoint, string sessionId)
+        public void RemoveSessionHandler(IPEndPoint remoteEndpoint, string sessionId)
         {
             lock (_sessionHandlerMap)
             {
-                if (_sessionHandlerMap.ContainsKey(endpoint))
+                if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
                 {
-                    var subDict = _sessionHandlerMap[endpoint];
+                    var subDict = _sessionHandlerMap[remoteEndpoint];
                     if (subDict.ContainsKey(sessionId))
                     {
                         subDict.Remove(sessionId);
                         if (subDict.Count == 0)
                         {
-                            _sessionHandlerMap.Remove(endpoint);
+                            _sessionHandlerMap.Remove(remoteEndpoint);
                         }
                     }
                 }
             }
         }
 
-        private ISessionHandler GetOrCreateSessionHandler(IPEndPoint endpoint, string sessionId)
+        private ISessionHandler GetOrCreateSessionHandler(IPEndPoint remoteEndpoint, string sessionId)
         {
             lock (_sessionHandlerMap)
             {
                 // handle case in which session handlers must always be created externally,
                 // e.g. in client mode
                 Dictionary<string, ISessionHandler> subDict = null;
-                if (_sessionHandlerMap.ContainsKey(endpoint))
+                if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
                 {
-                    subDict = _sessionHandlerMap[endpoint];
+                    subDict = _sessionHandlerMap[remoteEndpoint];
                 }
                 ISessionHandler sessionHandler = null;
                 if (subDict != null && subDict.ContainsKey(sessionId))
@@ -264,14 +265,14 @@ namespace PortableIPC.Core
                 {
                     if (EndpointConfig.SessionHandlerFactory != null)
                     {
-                        sessionHandler = EndpointConfig.SessionHandlerFactory.Create(endpoint, sessionId);
+                        sessionHandler = EndpointConfig.SessionHandlerFactory.Create(remoteEndpoint, sessionId);
                     }
                     if (sessionHandler != null)
                     {
                         if (subDict == null)
                         {
                             subDict = new Dictionary<string, ISessionHandler>();
-                            _sessionHandlerMap.Add(endpoint, subDict);
+                            _sessionHandlerMap.Add(remoteEndpoint, subDict);
                         }
                         subDict.Add(sessionId, sessionHandler);
                     }

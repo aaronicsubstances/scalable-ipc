@@ -24,7 +24,7 @@ namespace PortableIPC.Core
         {
             EndpointHandler = endpointHandler;
             _eventLoop = eventLoop;
-            ConnectedEndpoint = endPoint;
+            RemoteEndpoint = endPoint;
             SessionId = sessionId;
 
             _promiseApi = endpointHandler.PromiseApi;
@@ -53,7 +53,7 @@ namespace PortableIPC.Core
         }
 
         public IEndpointHandler EndpointHandler { get; set; }
-        public IPEndPoint ConnectedEndpoint { get; set; }
+        public IPEndPoint RemoteEndpoint { get; set; }
         public string SessionId { get; set; }
 
         public SessionState SessionState { get; set; } = SessionState.Opening;
@@ -304,7 +304,7 @@ namespace PortableIPC.Core
             }
 
             CancelTimeout();
-            EndpointHandler.RemoveSessionHandler(ConnectedEndpoint, SessionId);
+            EndpointHandler.RemoveSessionHandler(RemoteEndpoint, SessionId);
 
             var unifiedError = error;
             if (unifiedError == null)
