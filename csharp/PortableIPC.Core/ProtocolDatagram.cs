@@ -16,12 +16,9 @@ namespace PortableIPC.Core
 
         private const byte NullTerminator = 0;
 
-        public const int SessionIdLength = 50;
-
         // expected length, sessionId, opCode, window id, 
         // sequence number, null separator are always present.
-        public const int MinDatagramSize = 4 + SessionIdLength + 1 + 4 + 
-            4 + 1;
+        public const int MinDatagramSize = 4 + 16 + 1 + 4 + 4 + 1;
 
         // Reserve s_ prefix for known options at session layer.
         // Also reserver a_ for known options at application layer.
@@ -35,7 +32,7 @@ namespace PortableIPC.Core
         public const string OptionNameIsLastInWindow = "s_last_in_window";
 
         public int ExpectedDatagramLength { get; set; }
-        public string SessionId { get; set; }
+        public Guid SessionId { get; set; }
         public byte OpCode { get; set; }
         public int WindowId { get; set; }
         public int SequenceNumber { get; set; }
@@ -75,8 +72,8 @@ namespace PortableIPC.Core
             parsedDatagram.ExpectedDatagramLength = expectedDatagramLength;
             offset += 4; // skip past expected data length;
 
-            parsedDatagram.SessionId = ConvertBytesToString(rawBytes, offset, SessionIdLength);
-            offset += SessionIdLength;
+            parsedDatagram.SessionId = ConvertBytesToGuid(rawBytes, offset);
+            offset += 16;
 
             parsedDatagram.OpCode = rawBytes[offset];
             offset += 1;
@@ -210,11 +207,7 @@ namespace PortableIPC.Core
                     writer.Write((byte)0);
                     writer.Write((byte)0);
 
-                    byte[] sessionId = ConvertStringToBytes(SessionId);
-                    if (sessionId.Length != SessionIdLength)
-                    {
-                        throw new Exception($"Received invalid session id: {SessionId} produces {sessionId.Length} bytes");
-                    }
+                    byte[] sessionId = ConvertGuidToBytes(SessionId);
                     writer.Write(sessionId);
 
                     writer.Write(OpCode);
@@ -323,6 +316,18 @@ namespace PortableIPC.Core
                     return false;
             }
             throw new Exception($"expected {true} or {false}");
+        }
+
+        internal static Guid ConvertBytesToGuid(byte[] data, int offset)
+        {
+            byte[] guidData = new byte[16];
+            Array.Copy(data, offset, guidData, 0, guidData.Length);
+            return new Guid(guidData);
+        }
+
+        internal static byte[] ConvertGuidToBytes(Guid g)
+        {
+            return g.ToByteArray();
         }
 
         internal static byte[] ConvertStringToBytes(string s)

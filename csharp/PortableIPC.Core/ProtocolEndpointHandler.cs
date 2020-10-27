@@ -9,7 +9,7 @@ namespace PortableIPC.Core
 {
     public class ProtocolEndpointHandler: IEndpointHandler
     {
-        private readonly Dictionary<IPEndPoint, Dictionary<string, ISessionHandler>> _sessionHandlerMap;
+        private readonly Dictionary<IPEndPoint, Dictionary<Guid, ISessionHandler>> _sessionHandlerMap;
         private readonly AbstractPromise<VoidType> _voidReturnPromise;
         private readonly object _disposeLock = new object();
         private bool _isDisposing = false;
@@ -20,7 +20,7 @@ namespace PortableIPC.Core
             NetworkSocket = networkSocket;
             EndpointConfig = endpointConfig;
             PromiseApi = promiseApi;
-            _sessionHandlerMap = new Dictionary<IPEndPoint, Dictionary<string, ISessionHandler>>();
+            _sessionHandlerMap = new Dictionary<IPEndPoint, Dictionary<Guid, ISessionHandler>>();
             _voidReturnPromise = PromiseApi.Resolve(VoidType.Instance);
         }
 
@@ -34,9 +34,9 @@ namespace PortableIPC.Core
         {
             sessionHandler.EndpointHandler = this;
             sessionHandler.RemoteEndpoint = remoteEndpoint;
-            if (sessionHandler.SessionId == null)
+            if (sessionHandler.SessionId == Guid.Empty)
             {
-                sessionHandler.SessionId = EndpointConfig.GenerateSessionId();
+                sessionHandler.SessionId = Guid.NewGuid();
             }
             if (message.SessionId == null)
             {
@@ -44,14 +44,14 @@ namespace PortableIPC.Core
             }
             lock (_sessionHandlerMap)
             {
-                Dictionary<string, ISessionHandler> subDict;
+                Dictionary<Guid, ISessionHandler> subDict;
                 if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
                 {
                     subDict = _sessionHandlerMap[remoteEndpoint];
                 }
                 else
                 {
-                    subDict = new Dictionary<string, ISessionHandler>();
+                    subDict = new Dictionary<Guid, ISessionHandler>();
                     _sessionHandlerMap.Add(remoteEndpoint, subDict);
                 }
                 subDict.Add(sessionHandler.SessionId, sessionHandler);
@@ -154,7 +154,7 @@ namespace PortableIPC.Core
             ProtocolDatagram pdu = new ProtocolDatagram
             {
                 OpCode = ProtocolDatagram.OpCodeCloseAll,
-                SessionId = EndpointConfig.GenerateNullSessionId(),
+                SessionId = Guid.Empty, // null session id.
             };
             // swallow any send exception.
             return HandleSend(remoteEndpoint, pdu).
@@ -226,7 +226,7 @@ namespace PortableIPC.Core
             });
         }
 
-        public void RemoveSessionHandler(IPEndPoint remoteEndpoint, string sessionId)
+        public void RemoveSessionHandler(IPEndPoint remoteEndpoint, Guid sessionId)
         {
             lock (_sessionHandlerMap)
             {
@@ -245,13 +245,13 @@ namespace PortableIPC.Core
             }
         }
 
-        private ISessionHandler GetOrCreateSessionHandler(IPEndPoint remoteEndpoint, string sessionId)
+        private ISessionHandler GetOrCreateSessionHandler(IPEndPoint remoteEndpoint, Guid sessionId)
         {
             lock (_sessionHandlerMap)
             {
                 // handle case in which session handlers must always be created externally,
                 // e.g. in client mode
-                Dictionary<string, ISessionHandler> subDict = null;
+                Dictionary<Guid, ISessionHandler> subDict = null;
                 if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
                 {
                     subDict = _sessionHandlerMap[remoteEndpoint];
@@ -271,7 +271,7 @@ namespace PortableIPC.Core
                     {
                         if (subDict == null)
                         {
-                            subDict = new Dictionary<string, ISessionHandler>();
+                            subDict = new Dictionary<Guid, ISessionHandler>();
                             _sessionHandlerMap.Add(remoteEndpoint, subDict);
                         }
                         subDict.Add(sessionId, sessionHandler);

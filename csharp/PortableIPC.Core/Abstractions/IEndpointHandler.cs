@@ -18,7 +18,7 @@ namespace PortableIPC.Core.Abstractions
         AbstractPromise<VoidType> Shutdown();
 
         // internal api
-        void RemoveSessionHandler(IPEndPoint remoteEndpoint, string sessionId);
+        void RemoveSessionHandler(IPEndPoint remoteEndpoint, Guid sessionId);
         AbstractPromise<VoidType> HandleSend(IPEndPoint remoteEndpoint, ProtocolDatagram message);
         AbstractPromise<VoidType> HandleException(AbstractPromise<VoidType> promise);
 

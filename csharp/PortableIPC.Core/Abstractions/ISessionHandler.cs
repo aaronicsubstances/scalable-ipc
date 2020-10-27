@@ -10,7 +10,7 @@ namespace PortableIPC.Core.Abstractions
         // beginning of public API.
         IEndpointHandler EndpointHandler { get; set; }
         IPEndPoint RemoteEndpoint { get; set; }
-        string SessionId { get; set; }
+        Guid SessionId { get; set; }
         List<ISessionStateHandler> StateHandlers { get; }
         void ProcessReceive(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);

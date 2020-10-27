@@ -19,7 +19,7 @@ namespace PortableIPC.Core
         private object _lastTimeoutId;
 
         public ProtocolSessionHandler(IEndpointHandler endpointHandler, AbstractEventLoopApi eventLoop,
-            IPEndPoint endPoint, string sessionId, bool isConfiguredForInitialSend)
+            IPEndPoint endPoint, Guid sessionId, bool isConfiguredForInitialSend)
         {
             EndpointHandler = endpointHandler;
             _eventLoop = eventLoop;
@@ -53,7 +53,7 @@ namespace PortableIPC.Core
 
         public IEndpointHandler EndpointHandler { get; set; }
         public IPEndPoint RemoteEndpoint { get; set; }
-        public string SessionId { get; set; }
+        public Guid SessionId { get; set; }
 
         public SessionState SessionState { get; set; } = SessionState.Opening;
 
