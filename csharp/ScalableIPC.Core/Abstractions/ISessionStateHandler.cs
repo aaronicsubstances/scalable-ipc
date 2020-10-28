@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace PortableIPC.Core.Abstractions
+namespace ScalableIPC.Core.Abstractions
 {
     public interface ISessionStateHandler
     {

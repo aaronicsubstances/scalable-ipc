@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text;
 
-namespace PortableIPC.Core.Abstractions
+namespace ScalableIPC.Core.Abstractions
 {
     /// <summary>
     /// Abstracting underlying network allows us to separately target different networks such as

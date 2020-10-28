@@ -1,8 +1,8 @@
-﻿using PortableIPC.Core.Abstractions;
+﻿using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
 
-namespace PortableIPC.Core.Session
+namespace ScalableIPC.Core.Session
 {
     public class SendHandlerAssistant
     {

@@ -1,8 +1,8 @@
-﻿using PortableIPC.Core.Abstractions;
+﻿using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
 
-namespace PortableIPC.Core.Session
+namespace ScalableIPC.Core.Session
 {
     public class ReceiveOpenHandler : ISessionStateHandler
     {
@@ -97,7 +97,7 @@ namespace PortableIPC.Core.Session
         {
             // All session layer options are single valued.
             // Also session layer options in later pdus override previous ones.
-            bool? disableIdleTimeout = null;
+            int? idleTimeoutSecs = null;
             int? maxSeqNr = null;
             for (int i = CurrentWindow.Count - 1; i >= 0; i--)
             {
@@ -110,17 +110,17 @@ namespace PortableIPC.Core.Session
                 {
                     maxSeqNr = i;
                 }
-                if (!disableIdleTimeout.HasValue && msg.DisableIdleTimeout != null)
+                if (!idleTimeoutSecs.HasValue && msg.IdleTimeoutSecs != null)
                 {
-                    disableIdleTimeout = msg.DisableIdleTimeout;
+                    idleTimeoutSecs = msg.IdleTimeoutSecs;
                 }
             }
 
             // NB: a break loop could be introduced in above loop to shorten execution time, 
             // but loop is left that way to document how to handle future additions to session layer options.
-            if (disableIdleTimeout.HasValue)
+            if (idleTimeoutSecs.HasValue)
             {
-                _sessionHandler.IdleTimeoutEnabled = !disableIdleTimeout.Value;
+                _sessionHandler.SessionIdleTimeoutSecs = idleTimeoutSecs.Value;
             }
 
             // last_open_request is only applicable when is_last_in_window is true. This ensures

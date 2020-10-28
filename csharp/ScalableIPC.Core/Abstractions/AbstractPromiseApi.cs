@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace PortableIPC.Core.Abstractions
+namespace ScalableIPC.Core.Abstractions
 {
     /// <summary>
     /// Promise API design is to take common functionality of NodeJS Promises, C#.NET Core Tasks, and

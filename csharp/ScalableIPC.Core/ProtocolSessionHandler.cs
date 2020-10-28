@@ -1,10 +1,10 @@
-﻿using PortableIPC.Core.Abstractions;
-using PortableIPC.Core.Session;
+﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Session;
 using System;
 using System.Collections.Generic;
 using System.Net;
 
-namespace PortableIPC.Core
+namespace ScalableIPC.Core
 {
     /// <summary>
     /// So design of session handler default implementation is to hide acks, retries, window ids and
@@ -68,7 +68,7 @@ namespace PortableIPC.Core
         public int LastWindowIdSent { get; set; } = -1;
         public int LastWindowIdReceived { get; set; } = -1;
         public int LastMaxSeqReceived { get; set; }
-        public bool IdleTimeoutEnabled { get; set; } = true;
+        public int? SessionIdleTimeoutSecs { get; set; }
 
         public void IncrementNextWindowIdToSend()
         {
@@ -246,15 +246,24 @@ namespace PortableIPC.Core
             {
                 return;
             }
-            // NB: disabling of idle timeout only applies to data exchange phase.
-            if (SessionState != SessionState.OpenedForData || IdleTimeoutEnabled)
+
+            // Interpret non positive default value as disable idle timeout AND ignore session idle timeout.
+            // On the other hand, let non negative session idle timeout override any positive default value.
+            // NB: use session idle timeout only in data exchange phase.
+            int effectiveIdleTimeoutSecs = IdleTimeoutSecs;
+            if (effectiveIdleTimeoutSecs > 0 && SessionState == SessionState.OpenedForData)
             {
-                // also interpret non positive value as disable idle timeout.
-                if (IdleTimeoutSecs > 0)
+                if (SessionIdleTimeoutSecs.HasValue && SessionIdleTimeoutSecs.Value >= 0)
                 {
-                    _lastTimeoutId = _eventLoop.ScheduleTimeoutSerially(this, IdleTimeoutSecs * 1000L,
-                        () => ProcessTimeout(null));
+                    effectiveIdleTimeoutSecs = SessionIdleTimeoutSecs.Value;
                 }
+            }
+
+            // In the end, only positive values result in idle timeouts.
+            if (effectiveIdleTimeoutSecs > 0)
+            {
+                _lastTimeoutId = _eventLoop.ScheduleTimeoutSerially(this, IdleTimeoutSecs * 1000L,
+                    () => ProcessTimeout(null));
             }
         }
 

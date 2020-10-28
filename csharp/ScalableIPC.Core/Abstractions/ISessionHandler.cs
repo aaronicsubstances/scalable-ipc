@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text;
 
-namespace PortableIPC.Core.Abstractions
+namespace ScalableIPC.Core.Abstractions
 {
     public interface ISessionHandler
     {
@@ -43,7 +43,8 @@ namespace PortableIPC.Core.Abstractions
 
         // timeout api assumes only 1 timeout can be outstanding at any time.
         // setting a timeout clears previous timeout.
-        bool IdleTimeoutEnabled { get; set; }
+        int? SessionIdleTimeoutSecs { get; set; }
+
         void EnsureIdleTimeout();
         void ResetIdleTimeout();
 

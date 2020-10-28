@@ -1,9 +1,9 @@
-﻿using PortableIPC.Core.Abstractions;
+﻿using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace PortableIPC.Core.Session
+namespace ScalableIPC.Core.Session
 {
     public class SendOpenHandler : ISessionStateHandler
     {
@@ -78,9 +78,9 @@ namespace PortableIPC.Core.Session
 
             // Process options.
             _isLastOpenRequest = message.IsLastOpenRequest == true;
-            if (message.DisableIdleTimeout != null)
+            if (message.IdleTimeoutSecs != null)
             {
-                _sessionHandler.IdleTimeoutEnabled = !message.DisableIdleTimeout.Value;
+                _sessionHandler.SessionIdleTimeoutSecs = message.IdleTimeoutSecs.Value;
             }
 
             // create current window to send. let assistant handlers handle assignment of window and sequence numbers.

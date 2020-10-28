@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace PortableIPC.Core
+namespace ScalableIPC.Core
 {
     public class ProtocolDatagram
     {
@@ -24,7 +24,7 @@ namespace PortableIPC.Core
         // Also reserver a_ for known options at application layer.
 
         // NB: only applies to data exchange phase.
-        public const string OptionNameDisableIdleTimeout = "s_no_idle_timeout";
+        public const string OptionNameIdleTimeout = "s_idle_timeout";
 
         public const string OptionNameErrorCode = "s_err_code";
         public const string OptionNameIsLastOpenRequest = "s_last_open";
@@ -44,7 +44,7 @@ namespace PortableIPC.Core
 
         // Known session layer options.
         public bool? IsLastInWindow { get; set; }
-        public bool? DisableIdleTimeout { get; set; }
+        public int? IdleTimeoutSecs { get; set; }
         public int? ErrorCode { get; set; }
         public bool? IsLastOpenRequest { get; set; }
         public bool? IsWindowFull { get; set; }
@@ -149,10 +149,10 @@ namespace PortableIPC.Core
                                     parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionNameOrValue);
                                 }
                                 break;
-                            case OptionNameDisableIdleTimeout:
-                                if (parsedDatagram.DisableIdleTimeout == null)
+                            case OptionNameIdleTimeout:
+                                if (parsedDatagram.IdleTimeoutSecs == null)
                                 {
-                                    parsedDatagram.DisableIdleTimeout = ParseOptionAsBoolean(optionNameOrValue);
+                                    parsedDatagram.IdleTimeoutSecs = ParseOptionAsInt32(optionNameOrValue);
                                 }
                                 break;
                             case OptionNameErrorCode:
@@ -272,9 +272,9 @@ namespace PortableIPC.Core
             {
                 knownOptions.Add(OptionNameIsLastInWindow, IsLastInWindow.ToString());
             }
-            if (DisableIdleTimeout != null)
+            if (IdleTimeoutSecs != null)
             {
-                knownOptions.Add(OptionNameDisableIdleTimeout, DisableIdleTimeout.ToString());
+                knownOptions.Add(OptionNameIdleTimeout, IdleTimeoutSecs.ToString());
             }
             if (ErrorCode != null)
             {

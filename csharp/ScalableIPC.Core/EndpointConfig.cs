@@ -1,11 +1,11 @@
-﻿using PortableIPC.Core.Abstractions;
+﻿using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using System.Threading;
 
-namespace PortableIPC.Core
+namespace ScalableIPC.Core
 {
     public class EndpointConfig
     {

@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace PortableIPC.Core.Session
+namespace ScalableIPC.Core.Session
 {
     public class DatagramChopper
     {

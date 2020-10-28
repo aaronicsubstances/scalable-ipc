@@ -1,6 +1,11 @@
-# PortableIPC Protocol
+# ScalableIPC Protocol
 
-Defines and implements a network protocol suite to replace HTTP as IPC mechanism of choice on a **single host machine** (localhost) and on "interconnects" (internal networks). *The initial motivation for this protocol is for IPC between microservice-based web applications.*
+Defines and implements an application layer network protocol to serve as 
+
+   1. OS-neutral IPC mechanism of choice on a single host machine (localhost).
+   2. Application layer protocol which is more efficient than HTTP for "interconnects" (i.e. internal networks).
+   
+The initial motivation for this protocol came from deliberations on IPC efficiency between microservice-based web applications.
 
 ## Features
 
@@ -14,7 +19,7 @@ Defines and implements a network protocol suite to replace HTTP as IPC mechanism
      * disabling idle timeout per session without need for keep-alive packets.
      * preserving transport message boundaries like in UDP.
 
-  * Optimized for networking within single host machine, e.g. use of UDP eliminates head-of-line blocking issue in TCP.
+  * Optimized for networking within single host machine, e.g. use of UDP eliminates head-of-line blocking issue in TCP. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale from single host networking to interhost networking.*
   * Extensible for use on the Internet without TCP by using UDP and allowing for congestion control, transport security (e.g. DTLS), forward error correction, and whatever is possible with custom PDU types, options and session state handlers.
 
 ## Roadmap

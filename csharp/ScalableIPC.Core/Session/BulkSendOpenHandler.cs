@@ -1,10 +1,10 @@
-﻿using PortableIPC.Core.Abstractions;
+﻿using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace PortableIPC.Core.Session
+namespace ScalableIPC.Core.Session
 {
     public class BulkSendOpenHandler : ISessionStateHandler
     {
@@ -94,12 +94,12 @@ namespace PortableIPC.Core.Session
         private void ProcessWindowOptions(Dictionary<string, List<string>> options)
         {
             // All session layer options are single valued. If multiple are specified, pick first.
-            if (options.ContainsKey(ProtocolDatagram.OptionNameDisableIdleTimeout))
+            if (options.ContainsKey(ProtocolDatagram.OptionNameIdleTimeout))
             {
-                var optionDisableTimeout = options[ProtocolDatagram.OptionNameDisableIdleTimeout].FirstOrDefault();
-                if (optionDisableTimeout != null)
+                var optionIdleTimeout = options[ProtocolDatagram.OptionNameIdleTimeout].FirstOrDefault();
+                if (optionIdleTimeout != null)
                 {
-                    _sessionHandler.IdleTimeoutEnabled = !ProtocolDatagram.ParseOptionAsBoolean(optionDisableTimeout);
+                    _sessionHandler.SessionIdleTimeoutSecs = ProtocolDatagram.ParseOptionAsInt32(optionIdleTimeout);
                 }
             }
         }
