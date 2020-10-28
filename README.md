@@ -9,7 +9,7 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
 ## Features
 
-  * Based on UDP and TCP/TLS for IPC on single host machine and the Internet respectively.
+  * Based on TCP/TLS by default. In general however, underlying network is an abstraction for the protocol, and hence it can be used on top of any transport layer protocol, even over unreliable ones.
   * Enables multiplexing by using application layer session ids.
   * Places upper bound on TCP TIME_WAIT state count. In contrast when HTTP connections are not being reused (which is the usual case), TIME_WAIT states just keep increasing and hogging ports per TCP design, for time period of MSL value of 1 minute or more.
   * Exposes configuration parameters such as maximum window size, MTU, idle/ack timeout, and maximum retry attempts on a per application basis, and thus makes the protocol adaptable to a wide range of networking needs. In HTTP/TCP such parameters can only be configured globally for all operating system connections.
@@ -19,8 +19,8 @@ The initial motivation for this protocol came from deliberations on IPC efficien
      * disabling idle timeout per session without need for keep-alive packets.
      * preserving transport message boundaries like in UDP.
 
-  * Optimized for networking within single host machine, e.g. use of UDP eliminates head-of-line blocking issue in TCP. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale from single host networking to interhost networking.*
-  * Extensible for use on the Internet without TCP by using UDP and allowing for congestion control, transport security (e.g. DTLS), forward error correction, and whatever is possible with custom PDU types, options and session state handlers.
+  * Optimized for networking within single host machine by using UDP. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale from single host networking to interhost networking.
+  * Extensible for use as a standalone transport layer protocol, by using UDP and allowing for congestion control, transport security (e.g. DTLS), forward error correction, and whatever is possible with custom PDU types, options and session state handlers.
 
 ## Roadmap
 
