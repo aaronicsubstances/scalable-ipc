@@ -15,14 +15,13 @@ namespace ScalableIPC.Core
     public class ProtocolSessionHandler : ISessionHandler
     {
         private readonly AbstractPromiseApi _promiseApi;
-        private readonly AbstractEventLoopApi _eventLoop;
         private object _lastTimeoutId;
 
         public ProtocolSessionHandler(IEndpointHandler endpointHandler, AbstractEventLoopApi eventLoop,
             IPEndPoint endPoint, Guid sessionId, bool isConfiguredForInitialSend)
         {
             EndpointHandler = endpointHandler;
-            _eventLoop = eventLoop;
+            EventLoop = eventLoop;
             RemoteEndpoint = endPoint;
             SessionId = sessionId;
 
@@ -57,6 +56,7 @@ namespace ScalableIPC.Core
         public Guid SessionId { get; set; }
 
         public SessionState SessionState { get; set; } = SessionState.Opening;
+        public AbstractEventLoopApi EventLoop { get; set; }
 
         public int MaxReceiveWindowSize { get; set; }
         public int MaxSendWindowSize { get; set; }
@@ -97,9 +97,9 @@ namespace ScalableIPC.Core
 
         public AbstractPromise<VoidType> Shutdown(Exception error, bool timeout)
         {
-            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
-            PostCallback(() =>
+            EventLoop.PostCallback(() =>
             {
                 ProcessShutdown(error, timeout);
                 promiseCb.CompleteSuccessfully(VoidType.Instance);
@@ -109,7 +109,7 @@ namespace ScalableIPC.Core
 
         public void ProcessReceive(ProtocolDatagram message)
         {
-            PostCallback(() =>
+            EventLoop.PostCallback(() =>
             {
                 bool handled = false;
                 if (SessionState != SessionState.Closed)
@@ -133,9 +133,9 @@ namespace ScalableIPC.Core
 
         public AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message)
         {
-            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
-            PostCallback(() =>
+            EventLoop.PostCallback(() =>
             {
                 if (SessionState == SessionState.Closed)
                 {
@@ -165,9 +165,9 @@ namespace ScalableIPC.Core
 
         public AbstractPromise<VoidType> ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options)
         {
-            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
-            PostCallback(() =>
+            EventLoop.PostCallback(() =>
             {
                 if (SessionState == SessionState.Closed)
                 {
@@ -195,14 +195,9 @@ namespace ScalableIPC.Core
             return returnPromise;
         }
 
-        public void PostCallback(Action cb)
-        {
-            _eventLoop.PostCallback(cb);
-        }
-
         public void PostIfNotClosed(Action cb)
         {
-            PostCallback(() =>
+            EventLoop.PostCallback(() =>
             {
                 if (SessionState != SessionState.Closed)
                 {
@@ -217,7 +212,7 @@ namespace ScalableIPC.Core
             // interpret non positive timeout as disable ack timeout.
             if (timeoutSecs > 0)
             {
-                _lastTimeoutId = _eventLoop.ScheduleTimeout(timeoutSecs,
+                _lastTimeoutId = EventLoop.ScheduleTimeout(timeoutSecs,
                     () => ProcessTimeout(cb));
             }
         }
@@ -258,7 +253,7 @@ namespace ScalableIPC.Core
             // In the end, only positive values result in idle timeouts.
             if (effectiveIdleTimeoutSecs > 0)
             {
-                _lastTimeoutId = _eventLoop.ScheduleTimeout(IdleTimeoutSecs,
+                _lastTimeoutId = EventLoop.ScheduleTimeout(IdleTimeoutSecs,
                     () => ProcessTimeout(null));
             }
         }
@@ -267,7 +262,7 @@ namespace ScalableIPC.Core
         {
             if (_lastTimeoutId != null)
             {
-                _eventLoop.CancelTimeout(_lastTimeoutId);
+                EventLoop.CancelTimeout(_lastTimeoutId);
                 _lastTimeoutId = null;
             }
         }
@@ -327,7 +322,7 @@ namespace ScalableIPC.Core
 
             // pass on to application layer. NB: all calls to application layer must go through
             // event loop.
-            PostCallback(() => OnClose(error, timeout));
+            EventLoop.PostCallback(() => OnClose(error, timeout));
         }
 
         // calls to application layer

@@ -19,6 +19,7 @@ namespace ScalableIPC.Core.Abstractions
 
         // beginning of internal API with state handlers.
         SessionState SessionState { get; set; }
+        AbstractEventLoopApi EventLoop { get; set; }
 
         // sesion parameters.
         int MaxReceiveWindowSize { get; set; }
@@ -40,6 +41,7 @@ namespace ScalableIPC.Core.Abstractions
         int LastMaxSeqReceived { get; set; }
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();
+        void PostIfNotClosed(Action cb);
 
         // timeout api assumes only 1 timeout can be outstanding at any time.
         // setting a timeout clears previous timeout.
@@ -51,10 +53,6 @@ namespace ScalableIPC.Core.Abstractions
         void ResetAckTimeout(int timeoutSecs, Action cb);
         void DiscardReceivedMessage(ProtocolDatagram message);
         void ProcessShutdown(Exception error, bool timeout);
-
-        // event loop interface
-        void PostCallback(Action cb);
-        void PostIfNotClosed(Action cb);
 
         // application layer interface. contract here is that these should be called from event loop.
         void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest);

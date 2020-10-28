@@ -111,7 +111,7 @@ namespace ScalableIPC.Core.Session
 
         private VoidType HandleSendSuccess(int windowIdSnapshot)
         {
-            _sessionHandler.PostCallback(() =>
+            _sessionHandler.EventLoop.PostCallback(() =>
             {
                 // check if not needed or arriving too late.
                 if (IsComplete || _sessionHandler.NextWindowIdToSend != windowIdSnapshot)
@@ -133,7 +133,7 @@ namespace ScalableIPC.Core.Session
 
         private void HandleSendError(Exception error)
         {
-            _sessionHandler.PostCallback(() =>
+            _sessionHandler.EventLoop.PostCallback(() =>
             {
                 if (!IsComplete)
                 {

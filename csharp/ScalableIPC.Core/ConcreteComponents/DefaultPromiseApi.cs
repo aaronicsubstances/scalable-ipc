@@ -8,16 +8,9 @@ namespace ScalableIPC.Core.ConcreteComponents
 {
     public class DefaultPromiseApi : AbstractPromiseApi
     {
-        public DefaultPromiseApi(AbstractEventLoopApi eventLoopApi)
+        public PromiseCompletionSource<T> CreateCallback<T>(ISessionHandler sessionHandler)
         {
-            EventLoopApi = eventLoopApi;
-        }
-
-        public AbstractEventLoopApi EventLoopApi { get; }
-
-        public PromiseCompletionSource<T> CreateCallback<T>()
-        {
-            return new DefaultPromiseCompletionSource<T>(EventLoopApi);
+            return new DefaultPromiseCompletionSource<T>(sessionHandler);
         }
 
         public AbstractPromise<VoidType> Reject(Exception reason)
@@ -79,17 +72,16 @@ namespace ScalableIPC.Core.ConcreteComponents
 
     public class DefaultPromiseCompletionSource<T> : PromiseCompletionSource<T>
     {
-        public DefaultPromiseCompletionSource(AbstractEventLoopApi eventLoopApi)
+        private readonly AbstractEventLoopApi _eventLoop;
+        public DefaultPromiseCompletionSource(ISessionHandler sessionHandler)
         {
-            EventLoopApi = eventLoopApi;
+            _eventLoop = sessionHandler.EventLoop;
             WrappedSource = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
             ExtractedPromise = new DefaultPromise<T>(WrappedSource.Task);
         }
 
         public TaskCompletionSource<T> WrappedSource { get; }
         public DefaultPromise<T> ExtractedPromise { get; }
-
-        public AbstractEventLoopApi EventLoopApi { get; }
 
         public AbstractPromise<T> Extract()
         {
@@ -100,12 +92,12 @@ namespace ScalableIPC.Core.ConcreteComponents
         // hence these should be called from event loop.
         public void CompleteSuccessfully(T value)
         {
-            EventLoopApi.PostCallback(() => WrappedSource.TrySetResult(value));
+            _eventLoop.PostCallback(() => WrappedSource.TrySetResult(value));
         }
 
         public void CompleteExceptionally(Exception error)
         {
-            EventLoopApi.PostCallback(() => WrappedSource.TrySetException(error));
+            _eventLoop.PostCallback(() => WrappedSource.TrySetException(error));
         }
     }
 }
