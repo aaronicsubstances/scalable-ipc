@@ -85,10 +85,9 @@ namespace ScalableIPC.Core.Session
 
         private VoidType HandleSendSuccessOrError(PromiseCompletionSource<VoidType> promiseCb)
         {            
-            _sessionHandler.PostSerially(() =>
+            _sessionHandler.PostCallback(() =>
             {
-                _sessionHandler.PostNonSerially(() =>
-                   promiseCb.CompleteSuccessfully(VoidType.Instance));
+                promiseCb.CompleteSuccessfully(VoidType.Instance);
                 _sessionHandler.ProcessShutdown(null, false);
             });
 

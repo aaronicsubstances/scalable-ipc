@@ -52,7 +52,6 @@ namespace ScalableIPC.Core.Session
             };
 
             reserveSpaceByteCount += ProtocolDatagram.MinDatagramSize;
-            const int nullByteCountNeededPerOption = 2;
 
             var subOptions = new Dictionary<string, List<string>>();
             int spaceUsed = 0;
@@ -72,7 +71,7 @@ namespace ScalableIPC.Core.Session
                         {
                             var v = optionValues[_usedOptionValueCount];
                             int vLength = ProtocolDatagram.ConvertStringToBytes(v).Length;
-                            int extraSpaceNeeded = kLength + vLength + nullByteCountNeededPerOption;
+                            int extraSpaceNeeded = kLength + vLength + 2; // 2 for null terminator count.
 
                             if (spaceUsed + extraSpaceNeeded > _maxPduSize - reserveSpaceByteCount)
                             {
@@ -129,7 +128,7 @@ namespace ScalableIPC.Core.Session
                 }
             }
 
-            // return null to indicate end of iteration, except if we are not
+            // return null to indicate end of iteration, except if we have not
             // started, in which case something (possibly empty) has to be returned.
             ProtocolDatagram nextPdu = null;
             if (spaceUsed > 0)

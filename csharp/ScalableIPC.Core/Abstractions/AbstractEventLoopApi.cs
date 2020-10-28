@@ -16,9 +16,8 @@ namespace ScalableIPC.Core.Abstractions
     /// </summary>
     public interface AbstractEventLoopApi
     {
-        void PostCallback(ISessionHandler sessionHandler, Action cb);
-        void PostCallbackSerially(ISessionHandler sessionHandler, Action cb);
-        object ScheduleTimeoutSerially(ISessionHandler sessionHandler, long millis, Action cb);
+        void PostCallback(Action cb);
+        object ScheduleTimeout(int secs, Action cb);
         void CancelTimeout(object id);
     }
 }

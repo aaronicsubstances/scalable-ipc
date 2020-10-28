@@ -25,9 +25,8 @@ namespace ScalableIPC.Core.Session
             SendInProgress = false;
             if (_pendingPromiseCallback != null)
             {
-                var cb = _pendingPromiseCallback;
+                _pendingPromiseCallback.CompleteExceptionally(error);
                 _pendingPromiseCallback = null;
-                _sessionHandler.PostNonSerially(() => cb.CompleteExceptionally(error));
             }
         }
 
@@ -70,19 +69,17 @@ namespace ScalableIPC.Core.Session
         {
             if (_sessionHandler.SessionState != SessionState.OpenedForData)
             {
-                _sessionHandler.PostNonSerially(() =>
-                    promiseCb.CompleteExceptionally(new Exception("Invalid session state for send data")));
+                promiseCb.CompleteExceptionally(new Exception("Invalid session state for send data"));
                 return;
             }
 
             if (_sessionHandler.IsSendInProgress())
             {
-                _sessionHandler.PostNonSerially(() =>
-                    promiseCb.CompleteExceptionally(new Exception("Send in progress")));
+                promiseCb.CompleteExceptionally(new Exception("Send in progress"));
                 return;
             }
 
-            _datagramChopper = new DatagramChopper(rawData, options, _sessionHandler.MaxSendDatagramLength);
+            _datagramChopper = new DatagramChopper(rawData, options, _sessionHandler.MaximumTransferUnitSize);
             _pendingPromiseCallback = promiseCb;
             SendInProgress = ContinueBulkSend();
         }
@@ -126,12 +123,8 @@ namespace ScalableIPC.Core.Session
             SendInProgress = false;
 
             // complete pending promise.
-            var cb = _pendingPromiseCallback;
+            _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
             _pendingPromiseCallback = null;
-            _sessionHandler.PostNonSerially(() =>
-            {
-                cb.CompleteSuccessfully(VoidType.Instance);
-            });
         }
     }
 }

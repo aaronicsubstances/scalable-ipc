@@ -23,7 +23,7 @@ namespace ScalableIPC.Core.Abstractions
         // sesion parameters.
         int MaxReceiveWindowSize { get; set; }
         int MaxSendWindowSize { get; set; }
-        int MaxSendDatagramLength { get; set; }
+        int MaximumTransferUnitSize { get; set; }
         int MaxRetryCount { get; set; }
         int AckTimeoutSecs { get; set; }
         int IdleTimeoutSecs { get; set; }
@@ -53,9 +53,8 @@ namespace ScalableIPC.Core.Abstractions
         void ProcessShutdown(Exception error, bool timeout);
 
         // event loop interface
-        void PostSerially(Action cb);
-        void PostSeriallyIfNotClosed(Action cb);
-        void PostNonSerially(Action cb);
+        void PostCallback(Action cb);
+        void PostIfNotClosed(Action cb);
 
         // application layer interface. contract here is that these should be called from event loop.
         void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest);

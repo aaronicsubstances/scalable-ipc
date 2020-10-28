@@ -77,7 +77,7 @@ namespace ScalableIPC.Core.Session
 
         private void HandleAckSendFailure(Exception error)
         {
-            _sessionHandler.PostSeriallyIfNotClosed(() =>
+            _sessionHandler.PostIfNotClosed(() =>
             {
                 if (!_isComplete)
                 {
@@ -89,7 +89,7 @@ namespace ScalableIPC.Core.Session
 
         private VoidType HandleAckSendSuccess(VoidType _)
         {
-            _sessionHandler.PostSeriallyIfNotClosed(() =>
+            _sessionHandler.PostIfNotClosed(() =>
             {
                 // check if ack send callback is coming in too late.
                 if (_isComplete)

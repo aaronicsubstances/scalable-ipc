@@ -77,7 +77,7 @@ namespace ScalableIPC.Core.Session
             // ready to pass on to application layer.
             var windowOptions = new Dictionary<string, List<string>>();
             byte[] windowData = ProtocolDatagram.RetrieveData(currentWindow, windowOptions);
-            _sessionHandler.PostNonSerially(() => _sessionHandler.OnDataReceived(windowData,
+            _sessionHandler.PostCallback(() => _sessionHandler.OnDataReceived(windowData,
                 windowOptions));
         }
     }

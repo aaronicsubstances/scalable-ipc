@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 namespace ScalableIPC.Core.ConcreteComponents
 {
     // Taken from https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler?view=netcore-3.1
+    // on 2020-10-28
 
     // Provides a task scheduler that ensures a maximum concurrency level while
     // running on top of the thread pool.
