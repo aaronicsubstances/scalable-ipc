@@ -55,7 +55,7 @@ during send open
 Event Loop Libraries
 ---------------------
 Java - Use ScheduledThreadPoolExecutor with 1 thread.
-C# - https://github.com/Deathspike/SharpEventLoop.
+C# - Custom task scheduler with 1 thread, and CancellationToken for cancelTimeout
 NodeJS - setImmediate().
 *Consider Python since it has event loop, future, async sleep
 *Consider PHP too since it has event loop, guzzlehttp has promises, ReactPHP has setTimeout, so its implementation can proceed like NodeJS
