@@ -7,6 +7,8 @@ namespace ScalableIPC.Core.Session
     public class ReceiveHandlerAssistant
     {
         private readonly ISessionHandler _sessionHandler;
+        private readonly AbstractPromise<VoidType> _voidReturnPromise;
+
         private readonly List<ProtocolDatagram> _currentWindow;
         private int? _currentWindowId;
         private bool _isComplete;
@@ -14,6 +16,8 @@ namespace ScalableIPC.Core.Session
         public ReceiveHandlerAssistant(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
+            _voidReturnPromise = _sessionHandler.EndpointHandler.PromiseApi.Resolve(VoidType.Instance);
+
             _currentWindow = new List<ProtocolDatagram>();
             _currentWindowId = null;
             _isComplete = false;
@@ -36,8 +40,9 @@ namespace ScalableIPC.Core.Session
                     SequenceNumber = _sessionHandler.LastMaxSeqReceived,
                     IsWindowFull = true
                 };
+                // ignore success and care only about failure.
                 _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, ack)
-                    .Then<VoidType>(null, HandleAckSendFailure);
+                    .CatchCompose(HandleAckSendFailure);
                 return;
             }
             else if (message.WindowId < _sessionHandler.LastWindowIdReceived)
@@ -71,11 +76,11 @@ namespace ScalableIPC.Core.Session
                     IsWindowFull = isWindowFull
                 };
                 _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, ack)
-                    .Then(HandleAckSendSuccess, HandleAckSendFailure);
+                    .ThenOrCatchCompose(HandleAckSendSuccess, HandleAckSendFailure);
             }
         }
 
-        private void HandleAckSendFailure(Exception error)
+        private AbstractPromise<VoidType> HandleAckSendFailure(Exception error)
         {
             _sessionHandler.PostIfNotClosed(() =>
             {
@@ -85,9 +90,10 @@ namespace ScalableIPC.Core.Session
                     _sessionHandler.ProcessShutdown(error, false);
                 }
             });
+            return _voidReturnPromise;
         }
 
-        private VoidType HandleAckSendSuccess(VoidType _)
+        private AbstractPromise<VoidType> HandleAckSendSuccess(VoidType _)
         {
             _sessionHandler.PostIfNotClosed(() =>
             {
@@ -114,7 +120,7 @@ namespace ScalableIPC.Core.Session
 
                 SuccessCallback.Invoke(_currentWindow);
             });
-            return VoidType.Instance;
+            return _voidReturnPromise;
         }
 
         private bool AddToCurrentWindow(ProtocolDatagram message)

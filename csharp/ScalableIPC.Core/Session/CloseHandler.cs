@@ -8,10 +8,12 @@ namespace ScalableIPC.Core.Session
     public class CloseHandler : ISessionStateHandler
     {
         private readonly ISessionHandler _sessionHandler;
+        private readonly AbstractPromise<VoidType> _voidReturnPromise;
 
         public CloseHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
+            _voidReturnPromise = _sessionHandler.EndpointHandler.PromiseApi.Resolve(VoidType.Instance);
         }
 
         public bool SendInProgress
@@ -79,8 +81,8 @@ namespace ScalableIPC.Core.Session
 
             // send but ignore errors.
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, message)
-                .Then(_ => HandleSendSuccessOrError(promiseCb),
-                    _ => HandleSendSuccessOrError(promiseCb));
+                .CatchCompose(_ => _voidReturnPromise)
+                .Then(_ => HandleSendSuccessOrError(promiseCb));
         }
 
         private VoidType HandleSendSuccessOrError(PromiseCompletionSource<VoidType> promiseCb)

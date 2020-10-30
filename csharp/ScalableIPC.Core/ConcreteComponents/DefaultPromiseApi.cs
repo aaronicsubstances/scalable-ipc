@@ -33,30 +33,52 @@ namespace ScalableIPC.Core.ConcreteComponents
 
         public Task<T> WrappedTask { get; }
 
-        public AbstractPromise<U> Then<U>(Func<T, U> onFulfilled, Action<Exception> onRejected = null)
+        public AbstractPromise<U> Then<U>(Func<T, U> onFulfilled)
         {
             var continuationTask = WrappedTask.ContinueWith(task =>
             {
-                if (task.IsCompletedSuccessfully)
-                {
-                    return onFulfilled(task.Result);
-                }
-                else
-                {
-                    onRejected(task.Exception);
-                    throw task.Exception;
-                }
-            });
+                return onFulfilled(task.Result);
+            }, TaskContinuationOptions.OnlyOnRanToCompletion);
             return new DefaultPromise<U>(continuationTask);
         }
 
-        public AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
-            Func<Exception, AbstractPromise<U>> onRejected = null)
+        public AbstractPromise<T> Catch(Action<Exception> onRejected)
+        {
+            var continuationTask = WrappedTask.ContinueWith<T>(task =>
+            {
+                onRejected.Invoke(task.Exception);
+                throw task.Exception;
+            }, TaskContinuationOptions.NotOnRanToCompletion);
+            return new DefaultPromise<T>(continuationTask);
+        }
+
+        public AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled)
+        {
+            var continuationTask = WrappedTask.ContinueWith(task =>
+            {
+                AbstractPromise<U> continuationPromise = onFulfilled(task.Result);
+                return ((DefaultPromise<U>) continuationPromise).WrappedTask;
+            }, TaskContinuationOptions.OnlyOnRanToCompletion);
+            return new DefaultPromise<U>(continuationTask.Unwrap());
+        }
+
+        public AbstractPromise<U> CatchCompose<U>(Func<Exception, AbstractPromise<U>> onRejected)
+        {
+            var continuationTask = WrappedTask.ContinueWith(task =>
+            {
+                AbstractPromise<U> continuationPromise = onRejected(task.Exception);
+                return ((DefaultPromise<U>)continuationPromise).WrappedTask;
+            }, TaskContinuationOptions.NotOnRanToCompletion);
+            return new DefaultPromise<U>(continuationTask.Unwrap());
+        }
+
+        public AbstractPromise<U> ThenOrCatchCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
+            Func<Exception, AbstractPromise<U>> onRejected)
         {
             var continuationTask = WrappedTask.ContinueWith(task =>
             {
                 AbstractPromise<U> continuationPromise;
-                if (task.IsCompletedSuccessfully)
+                if (task.Status == TaskStatus.RanToCompletion)
                 {
                     continuationPromise = onFulfilled(task.Result);
                 }
@@ -64,7 +86,7 @@ namespace ScalableIPC.Core.ConcreteComponents
                 {
                     continuationPromise = onRejected(task.Exception);
                 }
-                return ((DefaultPromise<U>) continuationPromise).WrappedTask;
+                return ((DefaultPromise<U>)continuationPromise).WrappedTask;
             });
             return new DefaultPromise<U>(continuationTask.Unwrap());
         }

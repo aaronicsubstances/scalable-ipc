@@ -7,11 +7,14 @@ namespace ScalableIPC.Core.Session
     public class SendHandlerAssistant
     {
         private readonly ISessionHandler _sessionHandler;
+        private readonly AbstractPromise<VoidType> _voidReturnPromise;
+
         private int _sentPduCount;
 
         public SendHandlerAssistant(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
+            _voidReturnPromise = _sessionHandler.EndpointHandler.PromiseApi.Resolve(VoidType.Instance);
         }
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
@@ -50,7 +53,7 @@ namespace ScalableIPC.Core.Session
             nextMessage.WindowId = windowIdSnapshot;
             nextMessage.SequenceNumber = _sentPduCount - PreviousSendCount;
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, nextMessage)
-                .Then(_ => HandleSendSuccess(windowIdSnapshot), HandleSendError);
+                .ThenOrCatchCompose(_ => HandleSendSuccess(windowIdSnapshot), HandleSendError);
             _sentPduCount++;
         }
 
@@ -109,7 +112,7 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        private VoidType HandleSendSuccess(int windowIdSnapshot)
+        private AbstractPromise<VoidType> HandleSendSuccess(int windowIdSnapshot)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {
@@ -128,10 +131,10 @@ namespace ScalableIPC.Core.Session
                     ContinueSending();
                 }
             });
-            return VoidType.Instance;
+            return _voidReturnPromise;
         }
 
-        private void HandleSendError(Exception error)
+        private AbstractPromise<VoidType> HandleSendError(Exception error)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {
@@ -141,6 +144,7 @@ namespace ScalableIPC.Core.Session
                     _sessionHandler.ProcessShutdown(error, false);
                 }
             });
+            return _voidReturnPromise;
         }
 
         private void ProcessAckTimeout()

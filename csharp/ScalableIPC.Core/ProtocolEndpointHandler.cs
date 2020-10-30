@@ -113,7 +113,7 @@ namespace ScalableIPC.Core
         {
             if (message.OpCode == ProtocolDatagram.OpCodeCloseAll)
             {
-                HandleReceiveCloseAll(remoteEndpoint);
+                CloseAllEndpointSessions(remoteEndpoint);
                 return true;
             }
             return false;
@@ -157,9 +157,9 @@ namespace ScalableIPC.Core
                 SessionId = Guid.Empty, // null session id.
             };
             // swallow any send exception.
-            return HandleSend(remoteEndpoint, pdu).
-                ThenCompose(_ => { HandleReceiveCloseAll(remoteEndpoint); return _voidReturnPromise; }, 
-                            _ => _voidReturnPromise);
+            return HandleSend(remoteEndpoint, pdu)
+                .CatchCompose(_ => _voidReturnPromise)
+                .Then(_ => { CloseAllEndpointSessions(remoteEndpoint); return VoidType.Instance; });
         }
 
         public AbstractPromise<VoidType> Shutdown()
@@ -192,7 +192,7 @@ namespace ScalableIPC.Core
             return retVal;
         }
 
-        private void HandleReceiveCloseAll(IPEndPoint remoteEndpoint)
+        private void CloseAllEndpointSessions(IPEndPoint remoteEndpoint)
         {
             var sessionHandlersSubset = new List<ISessionHandler>();
             lock (_sessionHandlerMap)
@@ -211,7 +211,7 @@ namespace ScalableIPC.Core
 
         public AbstractPromise<VoidType> HandleException(AbstractPromise<VoidType> promise)
         {
-            return promise.Then<VoidType>(null, err =>
+            return promise.Catch(err =>
             {
                 // log.
             });
@@ -219,7 +219,7 @@ namespace ScalableIPC.Core
 
         public AbstractPromise<VoidType> SwallowException(AbstractPromise<VoidType> promise)
         {
-            return promise.ThenCompose(null, err =>
+            return promise.CatchCompose(err =>
             {
                 // log.
                 return _voidReturnPromise;

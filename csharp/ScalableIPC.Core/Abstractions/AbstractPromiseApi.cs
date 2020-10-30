@@ -13,7 +13,7 @@ namespace ScalableIPC.Core.Abstractions
     ///  
     /// 2. Task cancellation. NodeJS Promises doesn't have Cancel API, but Java and C# do
     ///  - fortunately cancellation is needed only for timeout
-    ///  Conclusion: Have a Cancel API which works only for timeouts
+    ///  Conclusion: Don't expose a Cancel API.
     /// 
     /// 3. Rejection handlers in NodeJS can return values and continue like no error happened.
     ///  - not so in C#. an error in async-await keyword usage results in an exception 
@@ -28,9 +28,12 @@ namespace ScalableIPC.Core.Abstractions
 
     public interface AbstractPromise<out T>
     {
-        AbstractPromise<U> Then<U>(Func<T, U> onFulfilled, Action<Exception> onRejected = null);
-        AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
-            Func<Exception, AbstractPromise<U>> onRejected = null);
+        AbstractPromise<U> Then<U>(Func<T, U> onFulfilled);
+        AbstractPromise<T> Catch(Action<Exception> onRejected);
+        AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled);
+        AbstractPromise<U> CatchCompose<U>(Func<Exception, AbstractPromise<U>> onRejected);
+        AbstractPromise<U> ThenOrCatchCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
+            Func<Exception, AbstractPromise<U>> onRejected);
     }
 
     public interface PromiseCompletionSource<T>
