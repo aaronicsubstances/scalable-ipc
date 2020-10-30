@@ -67,7 +67,7 @@ namespace ScalableIPC.Core.Session
         private void ProcessSendRequest(byte[] rawData, Dictionary<string, List<string>> options,
            PromiseCompletionSource<VoidType> promiseCb)
         {
-            if (_sessionHandler.SessionState != SessionState.OpenedForData)
+            if (_sessionHandler.SessionState != ProtocolSessionHandler.StateOpenedForData)
             {
                 promiseCb.CompleteExceptionally(new Exception("Invalid session state for send data"));
                 return;

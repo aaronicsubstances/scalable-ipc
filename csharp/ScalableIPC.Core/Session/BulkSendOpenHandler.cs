@@ -68,7 +68,7 @@ namespace ScalableIPC.Core.Session
         private void ProcessSendRequest(byte[] rawData, Dictionary<string, List<string>> options,
            PromiseCompletionSource<VoidType> promiseCb)
         {
-            if (_sessionHandler.SessionState != SessionState.Opening)
+            if (_sessionHandler.SessionState != ProtocolSessionHandler.StateOpening)
             {
                 promiseCb.CompleteExceptionally(new Exception("Invalid session state for send open"));
                 return;
@@ -141,7 +141,7 @@ namespace ScalableIPC.Core.Session
             }
 
             SendInProgress = false;
-            _sessionHandler.SessionState = SessionState.OpenedForData;
+            _sessionHandler.SessionState = ProtocolSessionHandler.StateOpenedForData;
 
             // complete pending promise.
             _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);

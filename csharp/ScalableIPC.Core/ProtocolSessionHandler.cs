@@ -14,6 +14,10 @@ namespace ScalableIPC.Core
     /// </summary>
     public class ProtocolSessionHandler : ISessionHandler
     {
+        public static readonly int StateOpening = 0;
+        public static readonly int StateOpenedForData = 8;
+        public static readonly int StateClosed = 20;
+
         private readonly AbstractPromiseApi _promiseApi;
         private object _lastTimeoutId;
 
@@ -55,7 +59,7 @@ namespace ScalableIPC.Core
         public IPEndPoint RemoteEndpoint { get; set; }
         public Guid SessionId { get; set; }
 
-        public SessionState SessionState { get; set; } = SessionState.Opening;
+        public int SessionState { get; set; } = StateOpening;
         public AbstractEventLoopApi EventLoop { get; set; }
 
         public int MaxReceiveWindowSize { get; set; }
@@ -112,7 +116,7 @@ namespace ScalableIPC.Core
             EventLoop.PostCallback(() =>
             {
                 bool handled = false;
-                if (SessionState != SessionState.Closed)
+                if (SessionState != ProtocolSessionHandler.StateClosed)
                 {
                     EnsureIdleTimeout();
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
@@ -137,10 +141,9 @@ namespace ScalableIPC.Core
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             EventLoop.PostCallback(() =>
             {
-                if (SessionState == SessionState.Closed)
+                if (SessionState == StateClosed)
                 {
-                    promiseCb.CompleteExceptionally(new Exception(
-                        SessionState == SessionState.Closed ? "Session handler is closed" : "Session handler is closing"));
+                    promiseCb.CompleteExceptionally(new Exception("Session handler is closed"));
                 }
                 else
                 {
@@ -169,10 +172,9 @@ namespace ScalableIPC.Core
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             EventLoop.PostCallback(() =>
             {
-                if (SessionState == SessionState.Closed)
+                if (SessionState == StateClosed)
                 {
-                    promiseCb.CompleteExceptionally(new Exception(
-                        SessionState == SessionState.Closed ? "Session handler is closed" : "Session handler is closing"));
+                    promiseCb.CompleteExceptionally(new Exception("Session handler is closed"));
                 }
                 else
                 {
@@ -199,7 +201,7 @@ namespace ScalableIPC.Core
         {
             EventLoop.PostCallback(() =>
             {
-                if (SessionState != SessionState.Closed)
+                if (SessionState != StateClosed)
                 {
                     cb.Invoke();
                 }
@@ -242,7 +244,7 @@ namespace ScalableIPC.Core
             // On the other hand, let non negative session idle timeout override any positive default value.
             // NB: use session idle timeout only in data exchange phase.
             int effectiveIdleTimeoutSecs = IdleTimeoutSecs;
-            if (effectiveIdleTimeoutSecs > 0 && SessionState == SessionState.OpenedForData)
+            if (effectiveIdleTimeoutSecs > 0 && SessionState == StateOpenedForData)
             {
                 if (SessionIdleTimeoutSecs.HasValue && SessionIdleTimeoutSecs.Value >= 0)
                 {
@@ -269,7 +271,7 @@ namespace ScalableIPC.Core
 
         private void ProcessTimeout(Action cb)
         {
-            if (SessionState == SessionState.Closed)
+            if (SessionState == StateClosed)
             {
                 return;
             }
@@ -293,7 +295,7 @@ namespace ScalableIPC.Core
 
         public void ProcessShutdown(Exception error, bool timeout)
         {
-            if (SessionState == SessionState.Closed)
+            if (SessionState == ProtocolSessionHandler.StateClosed)
             {
                 return;
             }
@@ -318,7 +320,7 @@ namespace ScalableIPC.Core
                 stateHandler.Shutdown(unifiedError);
             }
 
-            SessionState = SessionState.Closed;
+            SessionState = StateClosed;
 
             // pass on to application layer. NB: all calls to application layer must go through
             // event loop.

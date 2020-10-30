@@ -60,7 +60,7 @@ namespace ScalableIPC.Core.Session
             {
                 // skip validation.
             }
-            else if (_isLastOpenRequest || _sessionHandler.SessionState != SessionState.Opening)
+            else if (_isLastOpenRequest || _sessionHandler.SessionState != ProtocolSessionHandler.StateOpening)
             {
                 _sessionHandler.DiscardReceivedMessage(message);
                 return;
@@ -83,7 +83,7 @@ namespace ScalableIPC.Core.Session
             ProcessCurrentWindowOptions(currentWindow);
             if (_isLastOpenRequest)
             {
-                _sessionHandler.SessionState = SessionState.OpenedForData;
+                _sessionHandler.SessionState = ProtocolSessionHandler.StateOpenedForData;
             }
 
             // ready to pass on to application layer.

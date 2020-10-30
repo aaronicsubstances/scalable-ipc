@@ -53,7 +53,7 @@ namespace ScalableIPC.Core.Session
         private void OnReceiveData(ProtocolDatagram message)
         {
             // validate state
-            if (_sessionHandler.SessionState != SessionState.OpenedForData)
+            if (_sessionHandler.SessionState != ProtocolSessionHandler.StateOpenedForData)
             {
                 _sessionHandler.DiscardReceivedMessage(message);
                 return;

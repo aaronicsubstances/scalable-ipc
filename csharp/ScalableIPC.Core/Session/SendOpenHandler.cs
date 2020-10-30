@@ -61,7 +61,7 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessSendRequest(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
-            if (_sessionHandler.SessionState != SessionState.Opening)
+            if (_sessionHandler.SessionState != ProtocolSessionHandler.StateOpening)
             {
                 promiseCb.CompleteExceptionally(new Exception("Invalid session state for send open"));
                 return;
@@ -112,7 +112,7 @@ namespace ScalableIPC.Core.Session
 
             if (_isLastOpenRequest)
             {
-                _sessionHandler.SessionState = SessionState.OpenedForData;
+                _sessionHandler.SessionState = ProtocolSessionHandler.StateOpenedForData;
             }
 
             // complete pending promise.

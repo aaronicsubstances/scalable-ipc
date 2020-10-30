@@ -18,7 +18,7 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> Shutdown(Exception error, bool timeout);
 
         // beginning of internal API with state handlers.
-        SessionState SessionState { get; set; }
+        int SessionState { get; set; }
         AbstractEventLoopApi EventLoop { get; set; }
 
         // sesion parameters.
