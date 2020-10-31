@@ -9,7 +9,7 @@ namespace ScalableIPC.Core
 {
     public class ProtocolEndpointHandler: IEndpointHandler
     {
-        private readonly Dictionary<IPEndPoint, Dictionary<Guid, ISessionHandler>> _sessionHandlerMap;
+        private readonly Dictionary<IPEndPoint, Dictionary<string, ISessionHandler>> _sessionHandlerMap;
         private readonly AbstractPromise<VoidType> _voidReturnPromise;
         private readonly object _disposeLock = new object();
         private bool _isDisposing = false;
@@ -20,7 +20,7 @@ namespace ScalableIPC.Core
             NetworkSocket = networkSocket;
             EndpointConfig = endpointConfig;
             PromiseApi = promiseApi;
-            _sessionHandlerMap = new Dictionary<IPEndPoint, Dictionary<Guid, ISessionHandler>>();
+            _sessionHandlerMap = new Dictionary<IPEndPoint, Dictionary<string, ISessionHandler>>();
             _voidReturnPromise = PromiseApi.Resolve(VoidType.Instance);
         }
 
@@ -29,34 +29,34 @@ namespace ScalableIPC.Core
 
         public AbstractPromiseApi PromiseApi { get; }
 
-        public AbstractPromise<VoidType> OpenSession(IPEndPoint remoteEndpoint, ISessionHandler sessionHandler,
-            ProtocolDatagram message)
+        public AbstractPromise<VoidType> OpenSession(IPEndPoint remoteEndpoint, ISessionHandler sessionHandler)
         {
             sessionHandler.EndpointHandler = this;
             sessionHandler.RemoteEndpoint = remoteEndpoint;
-            if (sessionHandler.SessionId == Guid.Empty)
+            if (sessionHandler.SessionId == null)
             {
-                sessionHandler.SessionId = Guid.NewGuid();
-            }
-            if (message.SessionId == null)
-            {
-                message.SessionId = sessionHandler.SessionId;
+                sessionHandler.SessionId = GenerateSessionId();
             }
             lock (_sessionHandlerMap)
             {
-                Dictionary<Guid, ISessionHandler> subDict;
+                Dictionary<string, ISessionHandler> subDict;
                 if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
                 {
                     subDict = _sessionHandlerMap[remoteEndpoint];
                 }
                 else
                 {
-                    subDict = new Dictionary<Guid, ISessionHandler>();
+                    subDict = new Dictionary<string, ISessionHandler>();
                     _sessionHandlerMap.Add(remoteEndpoint, subDict);
                 }
                 subDict.Add(sessionHandler.SessionId, sessionHandler);
             }
-            return sessionHandler.ProcessSend(message);
+            return _voidReturnPromise;
+        }
+
+        public string GenerateSessionId()
+        {
+            return DateTime.UtcNow.ToString("yyyMMddHHmmssfff") + Guid.NewGuid().ToString("n");
         }
 
         public void HandleReceive(IPEndPoint remoteEndpoint, byte[] rawBytes, int offset, int length)
@@ -154,7 +154,7 @@ namespace ScalableIPC.Core
             ProtocolDatagram pdu = new ProtocolDatagram
             {
                 OpCode = ProtocolDatagram.OpCodeCloseAll,
-                SessionId = Guid.Empty, // null session id.
+                SessionId = GenerateSessionId()
             };
             // swallow any send exception.
             return HandleSend(remoteEndpoint, pdu)
@@ -226,7 +226,7 @@ namespace ScalableIPC.Core
             });
         }
 
-        public void RemoveSessionHandler(IPEndPoint remoteEndpoint, Guid sessionId)
+        public void RemoveSessionHandler(IPEndPoint remoteEndpoint, string sessionId)
         {
             lock (_sessionHandlerMap)
             {
@@ -245,13 +245,13 @@ namespace ScalableIPC.Core
             }
         }
 
-        private ISessionHandler GetOrCreateSessionHandler(IPEndPoint remoteEndpoint, Guid sessionId)
+        private ISessionHandler GetOrCreateSessionHandler(IPEndPoint remoteEndpoint, string sessionId)
         {
             lock (_sessionHandlerMap)
             {
                 // handle case in which session handlers must always be created externally,
                 // e.g. in client mode
-                Dictionary<Guid, ISessionHandler> subDict = null;
+                Dictionary<string, ISessionHandler> subDict = null;
                 if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
                 {
                     subDict = _sessionHandlerMap[remoteEndpoint];
@@ -271,7 +271,7 @@ namespace ScalableIPC.Core
                     {
                         if (subDict == null)
                         {
-                            subDict = new Dictionary<Guid, ISessionHandler>();
+                            subDict = new Dictionary<string, ISessionHandler>();
                             _sessionHandlerMap.Add(remoteEndpoint, subDict);
                         }
                         subDict.Add(sessionId, sessionHandler);

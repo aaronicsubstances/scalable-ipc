@@ -22,7 +22,7 @@ namespace ScalableIPC.Core
         private object _lastTimeoutId;
 
         public ProtocolSessionHandler(IEndpointHandler endpointHandler, AbstractEventLoopApi eventLoop,
-            IPEndPoint endPoint, Guid sessionId, bool isConfiguredForInitialSend)
+            IPEndPoint endPoint, string sessionId, bool isConfiguredForInitialSend)
         {
             EndpointHandler = endpointHandler;
             EventLoop = eventLoop;
@@ -57,7 +57,7 @@ namespace ScalableIPC.Core
 
         public IEndpointHandler EndpointHandler { get; set; }
         public IPEndPoint RemoteEndpoint { get; set; }
-        public Guid SessionId { get; set; }
+        public string SessionId { get; set; }
 
         public int SessionState { get; set; } = StateOpening;
         public AbstractEventLoopApi EventLoop { get; set; }
@@ -69,20 +69,16 @@ namespace ScalableIPC.Core
         public int IdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
 
-        public int NextWindowIdToSend { get; set; } = 0;
-        public int LastWindowIdSent { get; set; } = -1;
-        public int LastWindowIdReceived { get; set; } = -1;
+        public long NextWindowIdToSend { get; set; } = 0;
+        public long LastWindowIdSent { get; set; } = -1;
+        public long LastWindowIdReceived { get; set; } = -1;
         public int LastMaxSeqReceived { get; set; }
         public int? SessionIdleTimeoutSecs { get; set; }
 
         public void IncrementNextWindowIdToSend()
         {
             LastWindowIdSent = NextWindowIdToSend;
-            NextWindowIdToSend++;
-            if (NextWindowIdToSend < 0)
-            {
-                NextWindowIdToSend = 0;
-            }
+            NextWindowIdToSend = ProtocolDatagram.ComputeNextWindowIdToSend(NextWindowIdToSend);
         }
 
         public bool IsSendInProgress()

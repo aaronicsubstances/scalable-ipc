@@ -7,6 +7,6 @@ namespace ScalableIPC.Core.Abstractions
 {
     public interface ISessionHandlerFactory
     {
-        ISessionHandler Create(IPEndPoint endpoint, Guid sessionId);
+        ISessionHandler Create(IPEndPoint endpoint, string sessionId);
     }
 }

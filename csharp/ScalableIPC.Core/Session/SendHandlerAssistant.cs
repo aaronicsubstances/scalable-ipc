@@ -49,7 +49,7 @@ namespace ScalableIPC.Core.Session
         private void ContinueSending()
         {
             var nextMessage = CurrentWindow[_sentPduCount];
-            int windowIdSnapshot = _sessionHandler.NextWindowIdToSend;
+            long windowIdSnapshot = _sessionHandler.NextWindowIdToSend;
             nextMessage.WindowId = windowIdSnapshot;
             nextMessage.SequenceNumber = _sentPduCount - PreviousSendCount;
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, nextMessage)
@@ -112,7 +112,7 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        private AbstractPromise<VoidType> HandleSendSuccess(int windowIdSnapshot)
+        private AbstractPromise<VoidType> HandleSendSuccess(long windowIdSnapshot)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {

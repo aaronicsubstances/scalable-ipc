@@ -5,6 +5,16 @@ using System.Text;
 
 namespace ScalableIPC.Core
 {
+    /// <summary>
+    /// Protocol PDU structure was formed with the following in mind:
+    /// 1. use of sessionid removes the need for TIME_WAIT state used by TCP. by default 32-byte session ids are generated
+    ///    by combining random uuid with current timestamp. Option has been made in structure to use 16-byte session id.
+    /// 2. use of 32-bit sequence number separate from window id, allows a maximum bandwidth of 512 * 2G = 1024 GB, more 
+    ///    than enough for networks with large bandwidth-delay product.
+    /// 3. use of 64-bit window id is for ensuring that by the time 64-bit numbers are exhausted if they are being
+    ///    consumed at a speed of even 512 terabytes per second (ie 2^49 bytes/s), it will take 4.5 hours (ie 2^14 seconds)
+    ///    to exhaust ids and wrap around. That's more than enough for networks to discard traces of any lingering packet.
+    /// </summary>
     public class ProtocolDatagram
     {
         public const byte OpCodeOpen = 1;
@@ -15,13 +25,20 @@ namespace ScalableIPC.Core
         public const byte OpCodeCloseAll = 11;
 
         private const byte NullTerminator = 0;
+        private const byte FalseIndicatorByte = 0;
+        private const byte TrueIndicatorByte = 0xff;
 
-        // expected length, sessionId, opCode, window id, 
+        public const int MinSessionIdLength = 16;
+        public const int MaxSessionIdLength = 32;
+
+        public const long MinWindowIdCrossOverLimit = 1_000_000;
+        public const long MaxWindowIdCrossOverLimit = 9_000_000_000_000_000_000L;
+
+        // the 2 length indicator booleans, expected length, sessionId, opCode, window id, 
         // sequence number, null separator are always present.
-        public const int MinDatagramSize = 4 + 16 + 1 + 4 + 4 + 1;
+        public const int MinDatagramSize = 2 + 4 + MinSessionIdLength + 1 + 4 + 4 + 1;
 
         // Reserve s_ prefix for known options at session layer.
-        // Also reserver a_ for known options at application layer.
 
         // NB: only applies to data exchange phase.
         public const string OptionNameIdleTimeout = "s_idle_timeout";
@@ -32,9 +49,9 @@ namespace ScalableIPC.Core
         public const string OptionNameIsLastInWindow = "s_last_in_window";
 
         public int ExpectedDatagramLength { get; set; }
-        public Guid SessionId { get; set; }
+        public string SessionId { get; set; }
         public byte OpCode { get; set; }
-        public int WindowId { get; set; }
+        public long WindowId { get; set; }
         public int SequenceNumber { get; set; }
         public Dictionary<string, List<string>> Options { get; set; }
 
@@ -51,7 +68,8 @@ namespace ScalableIPC.Core
 
         public static ProtocolDatagram Parse(byte[] rawBytes, int offset, int length)
         {
-            if (length < MinDatagramSize)
+            int effectiveMinDatagramSize = MinDatagramSize;
+            if (length < effectiveMinDatagramSize)
             {
                 throw new Exception("datagram too small to be valid");
             }
@@ -72,18 +90,57 @@ namespace ScalableIPC.Core
             parsedDatagram.ExpectedDatagramLength = expectedDatagramLength;
             offset += 4; // skip past expected data length;
 
-            parsedDatagram.SessionId = ConvertBytesToGuid(rawBytes, offset);
-            offset += 16;
-
-            parsedDatagram.OpCode = rawBytes[offset];
+            byte lenIndicator = rawBytes[offset];
             offset += 1;
 
-            parsedDatagram.WindowId = ReadInt32BigEndian(rawBytes, offset);
+            int sessionIdLen;
+            switch (lenIndicator)
+            {
+                case FalseIndicatorByte:
+                    sessionIdLen = MinSessionIdLength;
+                    break;
+                case TrueIndicatorByte:
+                    effectiveMinDatagramSize += MaxSessionIdLength - MinSessionIdLength;
+                    if (length < effectiveMinDatagramSize)
+                    {
+                        throw new Exception("datagram too small to be valid for extended session id");
+                    }
+                    sessionIdLen = MaxSessionIdLength;
+                    break;
+                default:
+                    throw new Exception("invalid session id length indicator");
+            }
+
+            parsedDatagram.SessionId = ConvertSessionIdBytesToHex(rawBytes, offset, sessionIdLen);
+            offset += sessionIdLen;
+
+            lenIndicator = rawBytes[offset];
+            offset += 1;
+
+            int windowIdLen;
+            switch (lenIndicator)
+            {
+                case FalseIndicatorByte:
+                    parsedDatagram.WindowId = ReadInt32BigEndian(rawBytes, offset);
+                    windowIdLen = 4;
+                    break;
+                case TrueIndicatorByte:
+                    effectiveMinDatagramSize += 4;
+                    if (length < effectiveMinDatagramSize)
+                    {
+                        throw new Exception("datagram too small to be valid for extended window id");
+                    }
+                    parsedDatagram.WindowId = ReadInt64BigEndian(rawBytes, offset);
+                    windowIdLen = 8;
+                    break;
+                default:
+                    throw new Exception("invalid window id length indicator");
+            }
             if (parsedDatagram.WindowId < 0)
             {
                 throw new Exception("Negative window id not allowed");
             }
-            offset += 4;
+            offset += windowIdLen;
 
             parsedDatagram.SequenceNumber = ReadInt32BigEndian(rawBytes, offset);
             if (parsedDatagram.SequenceNumber < 0)
@@ -91,6 +148,9 @@ namespace ScalableIPC.Core
                 throw new Exception("Negative sequence number not allowed");
             }
             offset += 4;
+
+            parsedDatagram.OpCode = rawBytes[offset];
+            offset += 1;
 
             // Now read options until we encounter null terminator for all options, 
             // which is equivalent to empty string option name 
@@ -207,13 +267,37 @@ namespace ScalableIPC.Core
                     writer.Write((byte)0);
                     writer.Write((byte)0);
 
-                    byte[] sessionId = ConvertGuidToBytes(SessionId);
+                    // write out session id.
+                    byte[] sessionId = ConvertSessionIdHexToBytes(SessionId);
+                    if (sessionId.Length == MinSessionIdLength)
+                    {
+                        writer.Write(FalseIndicatorByte);
+                    }
+                    else if (sessionId.Length == MaxSessionIdLength)
+                    {
+                        writer.Write(TrueIndicatorByte);
+                    }
+                    else
+                    {
+                        throw new Exception($"Invalid session id length in bytes: {sessionId.Length}");
+                    }
                     writer.Write(sessionId);
 
-                    writer.Write(OpCode);
+                    // write out window id.
+                    if (WindowId <= int.MaxValue)
+                    {
+                        writer.Write(FalseIndicatorByte);
+                        WriteInt32BigEndian(writer, (int)WindowId);
+                    }
+                    else
+                    {
+                        writer.Write(TrueIndicatorByte);
+                        WriteInt64BigEndian(writer, WindowId);
+                    }
 
-                    WriteInt32BigEndian(writer, WindowId);
                     WriteInt32BigEndian(writer, SequenceNumber);
+
+                    writer.Write(OpCode);
 
                     // write out all options, starting with known ones.
                     if (includeKnownOptions)
@@ -318,16 +402,24 @@ namespace ScalableIPC.Core
             throw new Exception($"expected {true} or {false}");
         }
 
-        internal static Guid ConvertBytesToGuid(byte[] data, int offset)
+        internal static string ConvertSessionIdBytesToHex(byte[] data, int offset, int len)
         {
-            byte[] guidData = new byte[16];
-            Array.Copy(data, offset, guidData, 0, guidData.Length);
-            return new Guid(guidData);
+            return BitConverter.ToString(data, offset, len).Replace("-", "");
         }
 
-        internal static byte[] ConvertGuidToBytes(Guid g)
+        internal static byte[] ConvertSessionIdHexToBytes(string hex)
         {
-            return g.ToByteArray();
+            int charCount = hex.Length;
+            if (charCount % 2 != 0)
+            {
+                throw new Exception("arg must have even length");
+            }
+            byte[] bytes = new byte[charCount / 2];
+            for (int i = 0; i < charCount; i += 2)
+            {
+                bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+            }
+            return bytes;
         }
 
         internal static byte[] ConvertStringToBytes(string s)
@@ -362,6 +454,18 @@ namespace ScalableIPC.Core
             writer.Write((byte)(0xff & v));
         }
 
+        internal static void WriteInt64BigEndian(BinaryWriter writer, long v)
+        {
+            writer.Write((byte)(0xff & (v >> 56)));
+            writer.Write((byte)(0xff & (v >> 48)));
+            writer.Write((byte)(0xff & (v >> 40)));
+            writer.Write((byte)(0xff & (v >> 32)));
+            writer.Write((byte)(0xff & (v >> 24)));
+            writer.Write((byte)(0xff & (v >> 16)));
+            writer.Write((byte)(0xff & (v >> 8)));
+            writer.Write((byte)(0xff & v));
+        }
+
         internal static short ReadInt16BigEndian(byte[] rawBytes, int offset)
         {
             byte a = rawBytes[offset];
@@ -379,6 +483,41 @@ namespace ScalableIPC.Core
             int v = ((a & 0xff) << 24) | ((b & 0xff) << 16) |
                 ((c & 0xff) << 8) | (d & 0xff);
             return v;
+        }
+
+        internal static long ReadInt64BigEndian(byte[] rawBytes, int offset)
+        {
+            byte a = rawBytes[offset];
+            byte b = rawBytes[offset + 1];
+            byte c = rawBytes[offset + 2];
+            byte d = rawBytes[offset + 3];
+            byte e = rawBytes[offset + 4];
+            byte f = rawBytes[offset + 5];
+            byte g = rawBytes[offset + 6];
+            byte h = rawBytes[offset + 7];
+            long v = ((a & 0xff) << 56) | ((b & 0xff) << 48) |
+                ((c & 0xff) << 40) | ((d & 0xff) << 32) |
+                ((e & 0xff) << 24) | ((f & 0xff) << 16) |
+                ((g & 0xff) << 8) | (h & 0xff);
+            return v;
+        }
+
+        public static long ComputeNextWindowIdToSend(long nextWindowIdToSend)
+        {
+            // Perform simple predicatable computation of increasing and wrapping around.
+            // max crossover limit.
+            // ANY alternate computations is allowed with these 2 requirements:
+            // 1. if current value has crossed max crossover limit,
+            //    then next value must be less than min crossover limit.
+            // 2. else next value must be larger than current value.
+            if (nextWindowIdToSend >= MaxWindowIdCrossOverLimit)
+            {
+                return 0;
+            }
+            else
+            {
+                return nextWindowIdToSend + 1;
+            }
         }
 
         public static byte[] RetrieveData(List<ProtocolDatagram> messages, Dictionary<string, List<string>> optionsReceiver)

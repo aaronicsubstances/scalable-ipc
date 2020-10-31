@@ -10,7 +10,7 @@ namespace ScalableIPC.Core.Abstractions
         // beginning of public API.
         IEndpointHandler EndpointHandler { get; set; }
         IPEndPoint RemoteEndpoint { get; set; }
-        Guid SessionId { get; set; }
+        string SessionId { get; set; }
         List<ISessionStateHandler> StateHandlers { get; }
         void ProcessReceive(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);
@@ -35,9 +35,9 @@ namespace ScalableIPC.Core.Abstractions
         //    last received id is larger than 0.
         // By so doing receiver can be conservative, and sender can have 
         // freedom in varying trend of window ids.
-        int NextWindowIdToSend { get; set; }
-        int LastWindowIdSent { get; set; }
-        int LastWindowIdReceived { get; set; }
+        long NextWindowIdToSend { get; set; }
+        long LastWindowIdSent { get; set; }
+        long LastWindowIdReceived { get; set; }
         int LastMaxSeqReceived { get; set; }
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();

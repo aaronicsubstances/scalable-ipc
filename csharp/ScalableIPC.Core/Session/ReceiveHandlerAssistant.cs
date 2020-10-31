@@ -10,7 +10,7 @@ namespace ScalableIPC.Core.Session
         private readonly AbstractPromise<VoidType> _voidReturnPromise;
 
         private readonly List<ProtocolDatagram> _currentWindow;
-        private int? _currentWindowId;
+        private long? _currentWindowId;
         private bool _isComplete;
 
         public ReceiveHandlerAssistant(ISessionHandler sessionHandler)
@@ -47,8 +47,9 @@ namespace ScalableIPC.Core.Session
             }
             else if (message.WindowId < _sessionHandler.LastWindowIdReceived)
             {
-                // allow 0 if last is not 0.
-                if (message.WindowId != 0 || _sessionHandler.LastWindowIdReceived == 0)
+                // allow any value less than min cross over limit if last has crossed max cross over limit.
+                if (_sessionHandler.LastWindowIdReceived < ProtocolDatagram.MaxWindowIdCrossOverLimit ||
+                    message.WindowId >= ProtocolDatagram.MinWindowIdCrossOverLimit)
                 {
                     _sessionHandler.DiscardReceivedMessage(message);
                     return;
