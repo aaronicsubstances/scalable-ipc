@@ -36,7 +36,6 @@ namespace ScalableIPC.Core.Abstractions
         // By so doing receiver can be conservative, and sender can have 
         // freedom in varying trend of window ids.
         long NextWindowIdToSend { get; set; }
-        long LastWindowIdSent { get; set; }
         long LastWindowIdReceived { get; set; }
         int LastMaxSeqReceived { get; set; }
         void IncrementNextWindowIdToSend();

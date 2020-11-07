@@ -45,15 +45,10 @@ namespace ScalableIPC.Core.Session
                     .CatchCompose(HandleAckSendFailure);
                 return;
             }
-            else if (message.WindowId < _sessionHandler.LastWindowIdReceived)
+            else if (!ProtocolDatagram.IsReceivedWindowIdValid(message.WindowId, _sessionHandler.LastWindowIdReceived))
             {
-                // allow any value less than min cross over limit if last has crossed max cross over limit.
-                if (_sessionHandler.LastWindowIdReceived < ProtocolDatagram.MaxWindowIdCrossOverLimit ||
-                    message.WindowId >= ProtocolDatagram.MinWindowIdCrossOverLimit)
-                {
-                    _sessionHandler.DiscardReceivedMessage(message);
-                    return;
-                }
+                _sessionHandler.DiscardReceivedMessage(message);
+                return;
             }
 
             // save message.

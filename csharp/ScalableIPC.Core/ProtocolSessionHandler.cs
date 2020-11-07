@@ -70,14 +70,12 @@ namespace ScalableIPC.Core
         public int AckTimeoutSecs { get; set; }
 
         public long NextWindowIdToSend { get; set; } = 0;
-        public long LastWindowIdSent { get; set; } = -1;
         public long LastWindowIdReceived { get; set; } = -1;
         public int LastMaxSeqReceived { get; set; }
         public int? SessionIdleTimeoutSecs { get; set; }
 
         public void IncrementNextWindowIdToSend()
         {
-            LastWindowIdSent = NextWindowIdToSend;
             NextWindowIdToSend = ProtocolDatagram.ComputeNextWindowIdToSend(NextWindowIdToSend);
         }
 

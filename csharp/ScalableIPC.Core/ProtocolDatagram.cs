@@ -9,10 +9,10 @@ namespace ScalableIPC.Core
     /// Protocol PDU structure was formed with the following in mind:
     /// 1. use of sessionid removes the need for TIME_WAIT state used by TCP. by default 32-byte session ids are generated
     ///    by combining random uuid with current timestamp. Option has been made in structure to use 16-byte session id.
-    /// 2. use of 32-bit sequence number separate from window id, allows a maximum bandwidth of 512 * 2G = 1024 GB, more 
-    ///    than enough for networks with large bandwidth-delay product.
-    /// 3. use of 64-bit window id is for ensuring that by the time 64-bit numbers are exhausted if they are being
-    ///    consumed at a speed of even 512 terabytes per second (ie 2^49 bytes/s), it will take 4.5 hours (ie 2^14 seconds)
+    /// 2. use of 32-bit sequence number separate from window id, allows a maximum bandwidth of 512 * 2G = 1TB (1024 GB), 
+    ///    more than enough for networks with large bandwidth-delay product (assuming packet size of 512 bytes).
+    /// 3. use of 64-bit window id is for ensuring that by the time 64-bit numbers are exhausted in max increments of 1000,
+    ///    at a speed of 512 terabytes per second (ie 2^49 bytes/s), it will take 34 minutes (ie 2^11 seconds)
     ///    to exhaust ids and wrap around. That's more than enough for networks to discard traces of any lingering packet.
     /// </summary>
     public class ProtocolDatagram
@@ -31,7 +31,7 @@ namespace ScalableIPC.Core
         public const int MinSessionIdLength = 16;
         public const int MaxSessionIdLength = 32;
 
-        public const long MinWindowIdCrossOverLimit = 1_000_000;
+        public const long MinWindowIdCrossOverLimit = 1_000;
         public const long MaxWindowIdCrossOverLimit = 9_000_000_000_000_000_000L;
 
         // the 2 length indicator booleans, expected length, sessionId, opCode, window id, 
@@ -283,16 +283,18 @@ namespace ScalableIPC.Core
                     }
                     writer.Write(sessionId);
 
-                    // write out window id.
-                    if (WindowId <= int.MaxValue)
-                    {
-                        writer.Write(FalseIndicatorByte);
-                        WriteInt32BigEndian(writer, (int)WindowId);
-                    }
-                    else
+                    // Write out window id.
+                    // the rule is all window ids >= 2^31 MUST be written out as 8 bytes.
+                    if (WindowId > int.MaxValue)
                     {
                         writer.Write(TrueIndicatorByte);
                         WriteInt64BigEndian(writer, WindowId);
+                    }
+                    else
+                    {
+                        // those less than 2^31 may be written as 4 or 8 bytes
+                        writer.Write(FalseIndicatorByte);
+                        WriteInt32BigEndian(writer, (int)WindowId);
                     }
 
                     WriteInt32BigEndian(writer, SequenceNumber);
@@ -506,17 +508,32 @@ namespace ScalableIPC.Core
         {
             // Perform simple predicatable computation of increasing and wrapping around.
             // max crossover limit.
-            // ANY alternate computations is allowed with these 2 requirements:
-            // 1. if current value has crossed max crossover limit,
-            //    then next value must be less than min crossover limit.
-            // 2. else next value must be larger than current value.
             if (nextWindowIdToSend >= MaxWindowIdCrossOverLimit)
             {
+                // return any value not exceeding min crossover limit.
                 return 0;
             }
             else
             {
+                // increase by any positive amount not exceeding min crossover limit.
                 return nextWindowIdToSend + 1;
+            }
+        }
+
+        public static bool IsReceivedWindowIdValid(long v, long lastWindowIdProcessed)
+        {
+            // ANY alternate computations is allowed with these 2 requirements:
+            // 1. if current value has crossed max crossover limit,
+            //    then next value must be less than or equal to min crossover limit.
+            // 2. else next value must be larger than current value by a difference which is 
+            //    less than or equal to min crossover limit.
+            if (lastWindowIdProcessed < 0 || lastWindowIdProcessed >= MaxWindowIdCrossOverLimit)
+            {
+                return v >= 0 && v <= MinWindowIdCrossOverLimit;
+            }
+            else
+            {
+                return v > lastWindowIdProcessed && (v - lastWindowIdProcessed) <= MinWindowIdCrossOverLimit;
             }
         }
 
