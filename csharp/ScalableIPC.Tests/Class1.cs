@@ -1,6 +1,8 @@
-﻿using NLog;
+﻿using Dapper;
+using NLog;
 using NLog.Fluent;
 using System;
+using System.Linq;
 using Xunit;
 
 namespace ScalableIPC.Tests
@@ -12,20 +14,20 @@ namespace ScalableIPC.Tests
         [Fact]
         public void PassingTest()
         {
-            Core.CustomLoggerFacade.Log("e079bb21-0c66-435c-81ce-75a455497971", "InSIDE PASING test", "shul", "work");
-            Assert.Equal(4, Add(2, 2));
-        }
+            _logger.Info()
+                .Message("InSIDE PASING test")
+                .Property("LogPosition", "e079bb21-0c66-435c-81ce-75a455497971")
+                .Property("AllProps", "work")
+                .Write();
+            var results = TestAssemblyEntryPoint.AccessDb(conn =>
+            {
+                return conn.Query<TestLogRecord>("SELECT * FROM NLog ORDER BY Id").ToList();
+            });
 
-        [Fact]
-        public void FailingTest()
-        {
-            _logger.Info("In failing test...");
-            //Assert.Equal(5, Add(2, 2));
-        }
-
-        int Add(int x, int y)
-        {
-            return x + y;
+            Assert.Single(results);
+            Assert.Equal("e079bb21-0c66-435c-81ce-75a455497971", results[0].LogPosition);
+            Assert.NotNull(results[0].Properties);
+            Assert.Contains("work", results[0].Properties);
         }
     }
 }

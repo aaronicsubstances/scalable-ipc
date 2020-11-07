@@ -204,6 +204,8 @@ namespace ScalableIPC.Core
 
         public void ResetAckTimeout(int timeoutSecs, Action cb)
         {
+            Log("54c44637-3efe-4a35-a674-22e8e12c48cc", "About to set ack timeout");
+
             CancelTimeout();
             // interpret non positive timeout as disable ack timeout.
             if (timeoutSecs > 0)
@@ -215,11 +217,13 @@ namespace ScalableIPC.Core
 
         public void ResetIdleTimeout()
         {
+            Log("41f243a1-db75-4c08-82fa-b2c7ff7dfda6", "About to reset idle timeout");
             SetIdleTimeout(true);
         }
 
         public void EnsureIdleTimeout()
         {
+            Log("07fa532e-f45c-4acb-91b7-3e4d7ad9408c", "About to set idle timeout if not set already");
             SetIdleTimeout(false);
         }
 
@@ -284,12 +288,30 @@ namespace ScalableIPC.Core
 
         public void DiscardReceivedMessage(ProtocolDatagram message)
         {
-            // subclasses can log.
+            // subclasses can log more.
+
+            Log("ee37084b-2201-4591-b681-25b0398aba40", message, "Discarding message");
+        }
+        
+        public void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args)
+        {
+            CustomLoggerFacade.Log(() =>
+            {
+                return new CustomLogEvent(logPosition, pdu, message, args);
+            });
+        }
+
+        public void Log(string logPosition, string message, params object[] args)
+        {
+            CustomLoggerFacade.Log(() =>
+            {
+                return new CustomLogEvent(logPosition, SessionId, message, args);
+            });
         }
 
         public void ProcessShutdown(Exception error, bool timeout)
         {
-            if (SessionState == ProtocolSessionHandler.StateClosed)
+            if (SessionState == StateClosed)
             {
                 return;
             }

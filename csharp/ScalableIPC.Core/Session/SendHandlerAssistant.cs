@@ -43,17 +43,22 @@ namespace ScalableIPC.Core.Session
         public void Start()
         {
             _sentPduCount = PreviousSendCount;
+
+            _sessionHandler.Log("dcbcfdb9-d486-41ca-834e-ca35db609921", "Starting another round of sending", 
+                "sentPduCount", _sentPduCount, "windowId", _sessionHandler.NextWindowIdToSend);
             ContinueSending();
         }
 
         private void ContinueSending()
         {
             var nextMessage = CurrentWindow[_sentPduCount];
-            long windowIdSnapshot = _sessionHandler.NextWindowIdToSend;
-            nextMessage.WindowId = windowIdSnapshot;
+            nextMessage.WindowId = _sessionHandler.NextWindowIdToSend;
             nextMessage.SequenceNumber = _sentPduCount - PreviousSendCount;
+
+            _sessionHandler.Log("e289253e-bc8b-4d84-b337-8e3627b2759c", nextMessage, "Sending next message", 
+                "sentPduCount", _sentPduCount);
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, nextMessage)
-                .ThenOrCatchCompose(_ => HandleSendSuccess(windowIdSnapshot), HandleSendError);
+                .ThenOrCatchCompose(_ => HandleSendSuccess(nextMessage), e => HandleSendError(nextMessage, e));
             _sentPduCount++;
         }
 
@@ -71,6 +76,11 @@ namespace ScalableIPC.Core.Session
 
             var minExpectedReceiveCount = StopAndWait ? (_sentPduCount - PreviousSendCount) : 1;
             var maxExpectedReceiveCount = CurrentWindow.Count - PreviousSendCount;
+
+            _sessionHandler.Log("5fa0a2e6-b650-41b0-9d11-b8dba8ebcc70", ack,
+                "About to validate ack",
+                "receiveCount", receiveCount, "stopAndWait", StopAndWait,
+                "min", minExpectedReceiveCount, "max", maxExpectedReceiveCount);
             if (receiveCount < minExpectedReceiveCount || receiveCount > maxExpectedReceiveCount)
             {
                 // reject.
@@ -80,6 +90,9 @@ namespace ScalableIPC.Core.Session
 
             if (receiveCount == maxExpectedReceiveCount)
             {
+                _sessionHandler.Log("420af144-e772-444d-ab2d-57da89ad38b6",
+                    "All messages in window have been successfully received");
+
                 // indirectly cancel ack timeout.
                 _sessionHandler.ResetIdleTimeout();
 
@@ -89,6 +102,9 @@ namespace ScalableIPC.Core.Session
             }
             else if (ack.IsWindowFull == true)
             {
+                _sessionHandler.Log("049b8b41-49ce-4ffd-8f34-8f0ffb084626",
+                    "Overflow detected in receiver window");
+
                 // indirectly cancel ack timeout.
                 _sessionHandler.ResetIdleTimeout();
 
@@ -99,6 +115,9 @@ namespace ScalableIPC.Core.Session
             }
             else if (StopAndWait)
             {
+                _sessionHandler.Log("905ae2a9-a867-4d76-bda0-c8db15a153dc",
+                    "Ack received for stop and wait mode to continue");
+
                 // indirectly cancel ack timeout.
                 _sessionHandler.ResetIdleTimeout();
 
@@ -108,19 +127,26 @@ namespace ScalableIPC.Core.Session
             }
             else
             {
+                _sessionHandler.Log("9c763f83-c9fe-463d-ab6f-5d939264c822", "Ack is not needed");
+
                 // ignore but don't discard.
             }
         }
 
-        private AbstractPromise<VoidType> HandleSendSuccess(long windowIdSnapshot)
+        private AbstractPromise<VoidType> HandleSendSuccess(ProtocolDatagram message)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {
                 // check if not needed or arriving too late.
-                if (IsComplete || _sessionHandler.NextWindowIdToSend != windowIdSnapshot)
+                if (IsComplete || _sessionHandler.NextWindowIdToSend != message.WindowId)
                 {
+                    _sessionHandler.Log("664de60b-154f-4902-85cf-5eeaee13ea59", message, 
+                        "send success callback received too late");
                     return;
                 }
+
+                _sessionHandler.Log("bbf832bb-63b7-4366-8b9d-2b4faab4e5fc", message,
+                    "send success callback received in time");
 
                 if (StopAndWait || _sentPduCount >= CurrentWindow.Count)
                 {
@@ -134,12 +160,19 @@ namespace ScalableIPC.Core.Session
             return _voidReturnPromise;
         }
 
-        private AbstractPromise<VoidType> HandleSendError(Exception error)
+        private AbstractPromise<VoidType> HandleSendError(ProtocolDatagram message, Exception error)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {
-                if (!IsComplete)
+                if (IsComplete)
                 {
+                    _sessionHandler.Log("867cfd5e-fec9-45c5-a8f8-1475ee7f9a63", message,
+                        "Ignoring send failure", "error", error);
+                }
+                else
+                {
+                    _sessionHandler.Log("c57b8654-7c31-499d-b89b-52d1d5d7dd8d", message,
+                        "Sending failed. Shutting down...", "error", error);
                     Cancel();
                     _sessionHandler.ProcessShutdown(error, false);
                 }
@@ -149,8 +182,15 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessAckTimeout()
         {
-            if (!IsComplete)
+            if (IsComplete)
             {
+                _sessionHandler.Log("37c3d8d1-06f3-44ec-b060-e622c9198ff5",
+                    "Ignoring ack timeout");
+            }
+            else
+            {
+                _sessionHandler.Log("3b2ebb8c-15fe-49cb-a657-55df547806eb",
+                    "Ack receipt wait timed out");
                 Cancel();
                 TimeoutCallback.Invoke();
             }

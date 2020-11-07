@@ -18,7 +18,17 @@ namespace ScalableIPC.Core.ConcreteComponents
 
         public void PostCallback(Action cb)
         {
-            Task.Factory.StartNew(cb, CancellationToken.None, TaskCreationOptions.None, SingleThreadTaskScheduler);
+            Task.Factory.StartNew(() => {
+                try
+                {
+                    cb();
+                }
+                catch (Exception ex)
+                {
+                    CustomLoggerFacade.Log(() => new CustomLogEvent("5394ab18-fb91-4ea3-b07a-e9a1aa150dd6", 
+                        "Error occured on event loop", ex));
+                }
+            }, CancellationToken.None, TaskCreationOptions.None, SingleThreadTaskScheduler);
         }
 
         public object ScheduleTimeout(int secs, Action cb)
@@ -26,7 +36,17 @@ namespace ScalableIPC.Core.ConcreteComponents
             var cts = new CancellationTokenSource();
             Task.Delay(TimeSpan.FromSeconds(secs), cts.Token).ContinueWith(t =>
             {
-                Task.Factory.StartNew(cb, cts.Token, TaskCreationOptions.None, SingleThreadTaskScheduler);
+                Task.Factory.StartNew(() => {
+                    try
+                    {
+                        cb();
+                    }
+                    catch (Exception ex)
+                    {
+                        CustomLoggerFacade.Log(() => new CustomLogEvent("6357ee7d-eb9c-461a-a4d6-7285bae06823",
+                            "Error occured on event loop during timeout processing", ex));
+                    }
+                }, cts.Token, TaskCreationOptions.None, SingleThreadTaskScheduler);
             }, TaskContinuationOptions.OnlyOnRanToCompletion);
             return cts;
         }

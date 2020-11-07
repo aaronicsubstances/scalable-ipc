@@ -86,6 +86,13 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.SessionState = ProtocolSessionHandler.StateOpenedForData;
             }
 
+            _sessionHandler.Log("85b3284a-7787-4949-a8de-84211f91e154",
+                "Successfully received full window of open requests",
+                "count", currentWindow.Count, "sessionState", _sessionHandler.SessionState,
+                "lastOpenRequest", _isLastOpenRequest, 
+                "sessionState", _sessionHandler.SessionState,
+                "idleTimeout", _sessionHandler.SessionIdleTimeoutSecs);
+
             // ready to pass on to application layer.
             var windowOptions = new Dictionary<string, List<string>>();
             byte[] windowData = ProtocolDatagram.RetrieveData(currentWindow, windowOptions);

@@ -26,6 +26,8 @@ namespace ScalableIPC.Core.Session
             SendInProgress = false;
             if (_pendingPromiseCallback != null)
             {
+                _sessionHandler.Log("e08bd369-8c55-4e6b-aa04-ce7c00858a7c", "Bulk send open failed");
+
                 _pendingPromiseCallback.CompleteExceptionally(error);
                 _pendingPromiseCallback = null;
             }
@@ -85,7 +87,7 @@ namespace ScalableIPC.Core.Session
 
             _datagramChopper = new DatagramChopper(rawData, options, _sessionHandler.MaximumTransferUnitSize);
             _pendingPromiseCallback = promiseCb;
-            SendInProgress = ContinueBulkSend();
+            SendInProgress = ContinueBulkSend(false);
         }
 
         private void ProcessWindowOptions(Dictionary<string, List<string>> options)
@@ -101,8 +103,11 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        private bool ContinueBulkSend()
+        private bool ContinueBulkSend(bool haveSentBefore)
         {
+            _sessionHandler.Log("ee9a4cef-b691-4288-a2b0-f148aaba0295",
+                (haveSentBefore ? "Attempting to continue" : "About to start") + " sending open requests");
+
             var reserveSpace = ProtocolDatagram.OptionNameIsLastInWindow.Length +
                 ProtocolDatagram.OptionNameIsLastOpenRequest.Length +
                 Math.Max(true.ToString().Length, false.ToString().Length) * 2;
@@ -112,12 +117,16 @@ namespace ScalableIPC.Core.Session
                 var nextPdu = _datagramChopper.Next(reserveSpace, false);
                 if (nextPdu == null)
                 {
+                    _sessionHandler.Log("5a86e127-c9c2-4a07-a21a-36b5d3058bae",
+                        "No more open request chunking possible");
                     break;
                 }
                 nextWindow.Add(nextPdu);
             }
             if (nextWindow.Count == 0)
             {
+                _sessionHandler.Log("a530b2b6-4e9a-4059-8f2a-f70d9bff43c3",
+                    "No open request chunks found for send window.");
                 return false;
             }
             nextWindow[nextWindow.Count - 1].IsLastInWindow = true;
@@ -129,19 +138,28 @@ namespace ScalableIPC.Core.Session
                 CurrentWindow = nextWindow,
                 SuccessCallback = OnWindowSendSuccess
             };
+
+            _sessionHandler.Log("0af17085-c3d5-416d-8bc0-8ff4932d6e32",
+                $"Found {nextWindow.Count} open request chunks to send in next window.",
+                "count", nextWindow.Count);
             _sendWindowHandler.Start();
             return true;
         }
 
         private void OnWindowSendSuccess()
         {
-            if (ContinueBulkSend())
+            if (ContinueBulkSend(true))
             {
                 return;
             }
 
             SendInProgress = false;
             _sessionHandler.SessionState = ProtocolSessionHandler.StateOpenedForData;
+
+            _sessionHandler.Log("edeafec4-5596-4931-9f2a-5876e1241d89", "Bulk send open succeeded",
+                "sendInProgress", _sessionHandler.IsSendInProgress(),
+                "idleTimeout", _sessionHandler.SessionIdleTimeoutSecs,
+                "sessionState", _sessionHandler.SessionState);
 
             // complete pending promise.
             _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);

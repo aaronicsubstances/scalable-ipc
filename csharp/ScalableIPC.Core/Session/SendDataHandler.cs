@@ -25,6 +25,8 @@ namespace ScalableIPC.Core.Session
             SendInProgress = false;
             if (_pendingPromiseCallback != null)
             {
+                _sessionHandler.Log("203353f3-0f82-4920-a634-170502f1b646", "Send data failed");
+
                 _pendingPromiseCallback.CompleteExceptionally(error);
                 _pendingPromiseCallback = null;
             }
@@ -96,6 +98,9 @@ namespace ScalableIPC.Core.Session
         private void OnWindowSendSuccess()
         {
             SendInProgress = false;
+
+            _sessionHandler.Log("46201233-56dc-4bf9-8128-8be2f8cbcdb4", "Send data succeeded",
+                "sendInProgress", SendInProgress, "sessionState", _sessionHandler.SessionState);
 
             // complete pending promise.
             _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);

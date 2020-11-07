@@ -52,6 +52,8 @@ namespace ScalableIPC.Core.Abstractions
         void ResetAckTimeout(int timeoutSecs, Action cb);
         void DiscardReceivedMessage(ProtocolDatagram message);
         void ProcessShutdown(Exception error, bool timeout);
+        void Log(string logPosition, string message, params object[] args);
+        void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args);
 
         // application layer interface. contract here is that these should be called from event loop.
         void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest);

@@ -23,6 +23,8 @@ namespace ScalableIPC.Core.Session
         {
             if (RetryCount >= _sessionHandler.MaxRetryCount)
             {
+                _sessionHandler.Log("28a90da5-1113-42e5-9894-881e3e2876f5", 
+                    "Maximum retry count reached. Shutting down...", "retryCount", RetryCount);
                 _sessionHandler.ProcessShutdown(null, true);
             }
             else
@@ -67,6 +69,11 @@ namespace ScalableIPC.Core.Session
                 PreviousSendCount = previousSendCount,
                 StopAndWait = stopAndWait
             };
+            _sessionHandler.Log("ea2d46d1-8baf-4e31-9c1a-5740ad5529cd", 
+                RetryCount > 0 ? "Retry sending window" : "Start sending window",
+                "retryCount", RetryCount, "prevSendCount", _currentWindowHandler.PreviousSendCount,
+                "lastOpenRequest", CurrentWindow[CurrentWindow.Count - 1].IsLastOpenRequest,
+                "lastInWindow", CurrentWindow[CurrentWindow.Count - 1].IsLastInWindow);
             _currentWindowHandler.Start();
         }
     }

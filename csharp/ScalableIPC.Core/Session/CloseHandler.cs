@@ -78,6 +78,7 @@ namespace ScalableIPC.Core.Session
         private void ProcessSendClose(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
             // process termination message regardless of session state.
+            _sessionHandler.Log("6e462e36-a9b9-4ea3-8735-c389e3dd0d36", "Sending closing message");
 
             // send but ignore errors.
             _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, message)
@@ -89,6 +90,9 @@ namespace ScalableIPC.Core.Session
         {            
             _sessionHandler.EventLoop.PostCallback(() =>
             {
+                _sessionHandler.Log("63a2eff5-d376-44c9-8d98-fd752f4a0c7b", 
+                    "Shutting down after sending closing message");
+
                 promiseCb.CompleteSuccessfully(VoidType.Instance);
                 _sessionHandler.ProcessShutdown(null, false);
             });

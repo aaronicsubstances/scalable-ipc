@@ -8,6 +8,7 @@ using ScalableIPC.Core;
 using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Text;
 
 // Picked from: https://github.com/xunit/samples.xunit/blob/main/AssemblyFixtureExample/Samples.cs
@@ -41,6 +42,15 @@ namespace ScalableIPC.Tests
                 }
             }
         }
+
+        internal static T AccessDb<T>(Func<IDbConnection, T> dbProc)
+        {
+            using (IDbConnection conn = new SqlConnection(Config.ConnectionString))
+            {
+                conn.Open();
+                return dbProc.Invoke(conn);
+            }
+        }
     }
 
     class TestLogger : ICustomLogger
@@ -58,10 +68,11 @@ namespace ScalableIPC.Tests
                     logger = logger.Property(k.Key, k.Value);
                 }
             }
-            logger = logger.Property("LogPosition", logEvent.Id);
+            logger = logger.Property("LogPosition", logEvent.LogPosition);
             var allProps = JObject.FromObject(logEvent.Data ?? new Dictionary<string, object>());
-            allProps.Add("LogPosition", logEvent.Id);
+            allProps.Add("LogPosition", logEvent.LogPosition);
             logger = logger.Property("AllProps", allProps.ToString(Formatting.None));
+            logger = logger.Exception(logEvent.Error);
             logger.Write();
         }
     }

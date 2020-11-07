@@ -26,6 +26,8 @@ namespace ScalableIPC.Core.Session
             SendInProgress = false;
             if (_pendingPromiseCallback != null)
             {
+                _sessionHandler.Log("c2f9a95a-17ca-4fc9-ac65-08bfd8060517", "Send open failed");
+
                 _pendingPromiseCallback.CompleteExceptionally(error);
                 _pendingPromiseCallback = null;
             }
@@ -114,6 +116,12 @@ namespace ScalableIPC.Core.Session
             {
                 _sessionHandler.SessionState = ProtocolSessionHandler.StateOpenedForData;
             }
+
+            _sessionHandler.Log("5e573074-e830-4f05-a9cb-72be78ab9943", "Send open succeeded", 
+                "sendInProgress", _sessionHandler.IsSendInProgress(), 
+                "lastOpenRequest", _isLastOpenRequest,
+                "idleTimeout", _sessionHandler.SessionIdleTimeoutSecs,
+                "sessionState", _sessionHandler.SessionState);
 
             // complete pending promise.
             _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
