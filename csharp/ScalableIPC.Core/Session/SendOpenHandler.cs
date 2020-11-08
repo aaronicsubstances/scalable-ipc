@@ -40,9 +40,15 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
+            // to prevent clashes with other send handlers, check that specific send in progress is on.
+            if (!SendInProgress)
+            {
+                return false;
+            }
+
             _sessionHandler.Log("abd38766-8116-4123-b5ab-8313fef91f5e", message,
-                "Ack pdu accepted for processing in send open handler");
-            ProcessAckReceipt(message);
+                "OpenAck pdu accepted for processing in send open handler");
+            _sendWindowHandler.OnAckReceived(message);
             return true;
         }
 
@@ -99,17 +105,6 @@ namespace ScalableIPC.Core.Session
 
             _pendingPromiseCallback = promiseCb;
             SendInProgress = true;
-        }
-
-        private void ProcessAckReceipt(ProtocolDatagram ack)
-        {
-            if (!SendInProgress)
-            {
-                _sessionHandler.DiscardReceivedMessage(ack);
-                return;
-            }
-
-            _sendWindowHandler.OnAckReceived(ack);
         }
 
         private void OnWindowSendSuccess()

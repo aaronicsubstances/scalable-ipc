@@ -137,7 +137,7 @@ namespace ScalableIPC.Core
                 return PromiseApi.Reject(ex);
             }
             // send through network.
-            return HandleException(NetworkSocket.HandleSend(remoteEndpoint, pdu, 0, pdu.Length));
+            return NetworkSocket.HandleSend(this, remoteEndpoint, pdu, 0, pdu.Length);
         }
 
         public byte[] GenerateRawDatagram(ProtocolDatagram message)
@@ -207,19 +207,12 @@ namespace ScalableIPC.Core
             }
         }
 
-        public AbstractPromise<VoidType> HandleException(AbstractPromise<VoidType> promise)
-        {
-            return promise.Catch(err =>
-            {
-                // log.
-            });
-        }
-
         public AbstractPromise<VoidType> SwallowException(AbstractPromise<VoidType> promise)
         {
             return promise.CatchCompose(err =>
             {
-                // log.
+                CustomLoggerFacade.Log(() => new CustomLogEvent("27d232da-f4e4-4f25-baeb-56bd53ed49fa", 
+                    "Exception ignored here", err));
                 return _voidReturnPromise;
             });
         }

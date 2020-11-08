@@ -16,6 +16,8 @@ namespace ScalableIPC.Core.Abstractions
         string SessionId { get; }
         List<ISessionStateHandler> StateHandlers { get; }
         void ProcessReceive(ProtocolDatagram message);
+        // Accepting single message instead of list due to possibility of message opcodes being
+        // set up differently. Custom session state handler can handle that.
         AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options);
         AbstractPromise<VoidType> Shutdown(Exception error, bool timeout);

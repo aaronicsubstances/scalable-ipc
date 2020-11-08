@@ -14,12 +14,11 @@ namespace ScalableIPC.Tests.ConcreteComponents
         public TestNetworkApi()
         {
             PromiseApi = new DefaultPromiseApi();
-            EventLoop = new DefaultEventLoopApi();
-            RemoteEndpointHandlers = new Dictionary<IPEndPoint, ProtocolEndpointHandler>();
+            RemoteEndpointHandlers = new Dictionary<IPEndPoint, IEndpointHandler>();
             CommonEndpointConfig = new EndpointConfig
             {
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(ProtocolSessionHandler)),
-                IdleTimeoutSecs = 1,
+                IdleTimeoutSecs = 5,
                 AckTimeoutSecs = 3,
                 MaxRetryCount = 0,
                 MaximumTransferUnitSize = 512,
@@ -30,8 +29,7 @@ namespace ScalableIPC.Tests.ConcreteComponents
         }
 
         public DefaultPromiseApi PromiseApi { get;}
-        public DefaultEventLoopApi EventLoop { get; }
-        public Dictionary<IPEndPoint, ProtocolEndpointHandler> RemoteEndpointHandlers { get; }
+        public Dictionary<IPEndPoint, IEndpointHandler> RemoteEndpointHandlers { get; }
         public EndpointConfig CommonEndpointConfig { get; }
         public Dictionary<IPEndPoint, ExtraEndpointConfig> ExtraEndpointConfigs { get; }
 
@@ -66,7 +64,8 @@ namespace ScalableIPC.Tests.ConcreteComponents
             }
         }
 
-        public AbstractPromise<VoidType> HandleSend(IPEndPoint remoteEndpoint, byte[] data, int offset, int length)
+        public AbstractPromise<VoidType> HandleSend(IEndpointHandler sender, IPEndPoint remoteEndpoint, 
+            byte[] data, int offset, int length)
         {
             if (RemoteEndpointHandlers.ContainsKey(remoteEndpoint))
             {
@@ -83,7 +82,7 @@ namespace ScalableIPC.Tests.ConcreteComponents
                     try
                     {
                         var remoteEndpointHandler = RemoteEndpointHandlers[remoteEndpoint];
-                        remoteEndpointHandler.HandleReceive(remoteEndpoint, data, offset, length);
+                        remoteEndpointHandler.HandleReceive(sender.EndpointConfig.LocalEndpoint, data, offset, length);
                     }
                     catch (Exception ex)
                     {

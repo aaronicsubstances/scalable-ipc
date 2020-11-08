@@ -64,6 +64,9 @@ namespace ScalableIPC.Core.Session
             }
             else if (_isLastOpenRequest || _sessionHandler.SessionState != ProtocolSessionHandler.StateOpening)
             {
+                _sessionHandler.Log("cb0169b9-f283-48dd-99f5-fe62b6e52468", message,
+                    "Received open request in unexpected state",
+                    "sessionState", _sessionHandler.SessionState);
                 _sessionHandler.DiscardReceivedMessage(message);
                 return;
             }

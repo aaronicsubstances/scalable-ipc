@@ -22,7 +22,6 @@ namespace ScalableIPC.Core.Abstractions
         // internal api
         void RemoveSessionHandler(IPEndPoint remoteEndpoint, string sessionId);
         AbstractPromise<VoidType> HandleSend(IPEndPoint remoteEndpoint, ProtocolDatagram message);
-        AbstractPromise<VoidType> HandleException(AbstractPromise<VoidType> promise);
 
         AbstractPromise<VoidType> SwallowException(AbstractPromise<VoidType> promise);
         bool HandleReceiveProtocolControlMessage(IPEndPoint remoteEndpoint, ProtocolDatagram message);

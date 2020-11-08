@@ -75,7 +75,7 @@ namespace ScalableIPC.Core.Session
         {
             if (_sessionHandler.SessionState != ProtocolSessionHandler.StateOpenedForData)
             {
-                promiseCb.CompleteExceptionally(new Exception("Invalid session state for send data"));
+                promiseCb.CompleteExceptionally(new Exception("Invalid session state for bulk send data"));
                 return;
             }
 
@@ -107,6 +107,8 @@ namespace ScalableIPC.Core.Session
                         "No more data chunking possible");
                     break;
                 }
+                nextPdu.SessionId = _sessionHandler.SessionId;
+                nextPdu.OpCode = ProtocolDatagram.OpCodeData;
                 nextWindow.Add(nextPdu);
             }
             if (nextWindow.Count == 0)

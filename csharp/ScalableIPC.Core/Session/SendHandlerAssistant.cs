@@ -66,6 +66,9 @@ namespace ScalableIPC.Core.Session
         {
             if (_sessionHandler.NextWindowIdToSend != ack.WindowId)
             {
+                _sessionHandler.Log("945a983c-7f71-4739-993f-7091ab158eb9", ack,
+                    "Received ack with unexpected window id",
+                    "windowId", _sessionHandler.NextWindowIdToSend);
                 _sessionHandler.DiscardReceivedMessage(ack);
                 return;
             }
@@ -84,6 +87,8 @@ namespace ScalableIPC.Core.Session
             if (receiveCount < minExpectedReceiveCount || receiveCount > maxExpectedReceiveCount)
             {
                 // reject.
+                _sessionHandler.Log("e813e703-cd79-4872-a536-4af3ac20f158", ack,
+                    "Received ack with unexpected sequence number");
                 _sessionHandler.DiscardReceivedMessage(ack);
                 return;
             }

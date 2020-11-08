@@ -14,6 +14,7 @@ namespace ScalableIPC.Core.Abstractions
     /// </summary>
     public interface AbstractNetworkApi
     {
-        AbstractPromise<VoidType> HandleSend(IPEndPoint remoteEndpoint, byte[] data, int offset, int length);
+        AbstractPromise<VoidType> HandleSend(IEndpointHandler sender, 
+            IPEndPoint remoteEndpoint, byte[] data, int offset, int length);
     }
 }

@@ -172,7 +172,7 @@ namespace ScalableIPC.Core
                     throw new Exception("null terminator for all options not found");
                 }
 
-                var optionNameOrValue = ConvertBytesToString(rawBytes, offset, nullTerminatorIndex);
+                var optionNameOrValue = ConvertBytesToString(rawBytes, offset, nullTerminatorIndex - offset);
                 offset = nullTerminatorIndex + 1;
 
                 if (optionName == null)

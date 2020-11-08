@@ -57,6 +57,9 @@ namespace ScalableIPC.Core.Session
             // validate state
             if (_sessionHandler.SessionState != ProtocolSessionHandler.StateOpenedForData)
             {
+                _sessionHandler.Log("81c89fff-cffc-41ac-ab85-6edcf350f3af", message,
+                    "Received data in unexpected state", 
+                    "sessionState", _sessionHandler.SessionState);
                 _sessionHandler.DiscardReceivedMessage(message);
                 return;
             }

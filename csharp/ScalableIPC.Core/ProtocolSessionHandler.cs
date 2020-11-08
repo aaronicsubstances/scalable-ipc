@@ -139,6 +139,7 @@ namespace ScalableIPC.Core
 
         public AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message)
         {
+            message.SessionId = SessionId;
             Log("5abd8c58-4f14-499c-ad0e-788d59c5f7e2", message, "Session ProcessSend");
 
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
@@ -156,7 +157,7 @@ namespace ScalableIPC.Core
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
                         handled = stateHandler.ProcessSend(message, promiseCb);
-                        if (!handled)
+                        if (handled)
                         {
                             break;
                         }
@@ -189,7 +190,7 @@ namespace ScalableIPC.Core
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
                         handled = stateHandler.ProcessSend(opCode, data, options, promiseCb);
-                        if (!handled)
+                        if (handled)
                         {
                             break;
                         }
@@ -287,8 +288,12 @@ namespace ScalableIPC.Core
         {
             if (SessionState == StateClosed)
             {
+                Log("06a8dca3-56a4-4121-ad2d-e63bf7bfb34d", "Ignoring timeout since session is closed");
                 return;
             }
+
+            Log("33b0e81b-c4fa-4a78-9cb7-0900e60afe3e", "A timeout has occured on session");
+
             _lastTimeoutId = null;
             if (cb != null)
             {
@@ -313,7 +318,12 @@ namespace ScalableIPC.Core
         {
             CustomLoggerFacade.Log(() =>
             {
-                return new CustomLogEvent(logPosition, pdu, message, args);
+                var customEvent = new CustomLogEvent(logPosition, message, null);
+                customEvent.FillData("localEndpoint", EndpointHandler.EndpointConfig.LocalEndpoint.ToString());
+                customEvent.FillData("sessionId", SessionId);
+                customEvent.FillData(pdu);
+                customEvent.FillData(args);
+                return customEvent;
             });
         }
 
@@ -321,7 +331,11 @@ namespace ScalableIPC.Core
         {
             CustomLoggerFacade.Log(() =>
             {
-                return new CustomLogEvent(logPosition, SessionId, message, args);
+                var customEvent = new CustomLogEvent(logPosition, message, null);
+                customEvent.FillData("localEndpoint", EndpointHandler.EndpointConfig.LocalEndpoint.ToString());
+                customEvent.FillData("sessionId", SessionId);
+                customEvent.FillData(args);
+                return customEvent;
             });
         }
 
@@ -366,15 +380,15 @@ namespace ScalableIPC.Core
 
         // calls to application layer
 
-        public void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest)
+        public virtual void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest)
         {
             Log("93be5fa4-20ca-4bca-94da-760549096d27", "OnOpenRequest");
         }
-        public void OnDataReceived(byte[] data, Dictionary<string, List<string>> options)
+        public virtual void OnDataReceived(byte[] data, Dictionary<string, List<string>> options)
         {
             Log("ec6784dd-895e-4c13-a973-fa4733909f4e", "OnDataReceived");
         }
-        public void OnClose(Exception error, bool timeout)
+        public virtual void OnClose(Exception error, bool timeout)
         {
             Log("7fdb5b22-4a76-4ab3-9dc3-7a5bf1863709", "OnClose");
         }

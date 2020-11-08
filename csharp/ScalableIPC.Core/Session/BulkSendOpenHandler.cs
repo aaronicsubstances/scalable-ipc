@@ -47,7 +47,7 @@ namespace ScalableIPC.Core.Session
             }
 
             _sessionHandler.Log("44557edb-3334-4ff3-b4c0-d4e9f12205e1", message,
-                "Ack pdu accepted for processing in bulk send open handler");
+                "OpenAck pdu accepted for processing in bulk send open handler");
             _sendWindowHandler.OnAckReceived(message);
             return true;
         }
@@ -76,7 +76,7 @@ namespace ScalableIPC.Core.Session
         {
             if (_sessionHandler.SessionState != ProtocolSessionHandler.StateOpening)
             {
-                promiseCb.CompleteExceptionally(new Exception("Invalid session state for send open"));
+                promiseCb.CompleteExceptionally(new Exception("Invalid session state for bulk send open"));
                 return;
             }
 
@@ -125,6 +125,8 @@ namespace ScalableIPC.Core.Session
                         "No more open request chunking possible");
                     break;
                 }
+                nextPdu.SessionId = _sessionHandler.SessionId;
+                nextPdu.OpCode = ProtocolDatagram.OpCodeOpen;
                 nextWindow.Add(nextPdu);
             }
             if (nextWindow.Count == 0)

@@ -9,23 +9,6 @@ namespace ScalableIPC.Core.Abstractions
     {
         public const string PduOptionTraceId = "sx_traceId";
 
-        public CustomLogEvent(string logPosition, ProtocolDatagram pdu, string message, params object[] args)
-        {
-            LogPosition = logPosition;
-            Message = message;
-            FillData(pdu?.SessionId);
-            FillData(pdu);
-            FillData(args);
-        }
-
-        public CustomLogEvent(string logPosition, string sessionId, string message, params object[] args)
-        {
-            LogPosition = logPosition;
-            Message = message;
-            FillData(sessionId);
-            FillData(args);
-        }
-
         public CustomLogEvent(string logPosition, string message, Exception ex)
         {
             LogPosition = logPosition;
@@ -38,18 +21,13 @@ namespace ScalableIPC.Core.Abstractions
         public Exception Error { get; set; }
         public IDictionary<string, object> Data { get; set; }
 
-        private void FillData(string sessionId)
+        internal void FillData(string key, object value)
         {
-            if (sessionId == null)
-            {
-                return;
-            }
-
             if (Data == null)
             {
                 Data = new Dictionary<string, object>();
             }
-            Data.Add("sessionId", sessionId);
+            Data.Add(key, value);
         }
 
         internal void FillData(object[] args)
