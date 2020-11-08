@@ -11,6 +11,7 @@ namespace ScalableIPC.Core.ConcreteComponents
     {
         public DefaultEventLoopApi()
         {
+            // limit parallelism to one to eliminate thread inteference errors.
             SingleThreadTaskScheduler = new LimitedConcurrencyLevelTaskScheduler(1);
         }
 
@@ -21,7 +22,10 @@ namespace ScalableIPC.Core.ConcreteComponents
             Task.Factory.StartNew(() => {
                 try
                 {
-                    cb();
+                    // Although parallelism is limited to 1 thread, more than 1 thread pool
+                    // can still take turns to run task.
+                    // So use lock to cater for memory consistency.
+                    RunUnderLock(cb);
                 }
                 catch (Exception ex)
                 {
@@ -29,6 +33,21 @@ namespace ScalableIPC.Core.ConcreteComponents
                         "Error occured on event loop", ex));
                 }
             }, CancellationToken.None, TaskCreationOptions.None, SingleThreadTaskScheduler);
+        }
+
+        private void RunUnderLock(Action cb)
+        {
+            bool lockTaken = false;
+            try
+            {
+                Monitor.Enter(this, ref lockTaken);
+                if (lockTaken) cb();
+                else throw new NotSupportedException();
+            }
+            finally
+            {
+                if (lockTaken) Monitor.Exit(this);
+            }
         }
 
         public object ScheduleTimeout(int secs, Action cb)
@@ -39,7 +58,9 @@ namespace ScalableIPC.Core.ConcreteComponents
                 Task.Factory.StartNew(() => {
                     try
                     {
-                        cb();
+                        // use lock to get equivalent of single threaded behaviour in terms of
+                        // memory consistency.
+                        RunUnderLock(cb);
                     }
                     catch (Exception ex)
                     {

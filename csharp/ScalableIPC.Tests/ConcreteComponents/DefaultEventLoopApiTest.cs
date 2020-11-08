@@ -12,27 +12,6 @@ namespace ScalableIPC.Tests.ConcreteComponents
 {
     public class DefaultEventLoopApiTest
     {
-        [Fact]
-        public async Task TestUsedThreadCount()
-        {
-            var eventLoop = new DefaultEventLoopApi();
-            var threadSafeList = new ConcurrentQueue<Thread>();
-            const int cbCount = 1_000_000;
-            for (int i = 0; i < cbCount; i++)
-            {
-                eventLoop.PostCallback(() =>
-                {
-                    threadSafeList.Enqueue(Thread.CurrentThread);
-                });
-            }
-            // wait for 1 sec for callbacks to be executed.
-            await Task.Delay(TimeSpan.FromSeconds(1));
-
-            Assert.Equal(cbCount, threadSafeList.Count);
-            Assert.Single(threadSafeList.Distinct());
-            Assert.NotEqual(Thread.CurrentThread, threadSafeList.ElementAt(0));
-        }
-
         [Theory]
         [MemberData(nameof(CreateTestTimeoutData))]
         public async Task TestTimeout(int delaySecs, bool cancel)
@@ -61,8 +40,8 @@ namespace ScalableIPC.Tests.ConcreteComponents
             {
                 Assert.NotNull(stopTime);
                 var expectedStopTime = startTime.AddSeconds(delaySecs);
-                // allow 1 sec precision in comparison.
-                Assert.InRange(stopTime.Value, expectedStopTime, expectedStopTime.AddSeconds(1));
+                // allow half sec precision in comparison.
+                Assert.InRange(stopTime.Value, expectedStopTime.AddSeconds(-0.5), expectedStopTime.AddSeconds(0.5));
             }
         }
 

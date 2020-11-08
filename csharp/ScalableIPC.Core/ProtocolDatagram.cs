@@ -24,9 +24,9 @@ namespace ScalableIPC.Core
         public const byte OpCodeClose = 5;
         public const byte OpCodeCloseAll = 11;
 
-        private const byte NullTerminator = 0;
-        private const byte FalseIndicatorByte = 0;
-        private const byte TrueIndicatorByte = 0xff;
+        public const byte NullTerminator = 0;
+        public const byte FalseIndicatorByte = 0;
+        public const byte TrueIndicatorByte = 0xff;
 
         public const int MinSessionIdLength = 16;
         public const int MaxSessionIdLength = 32;
@@ -288,16 +288,16 @@ namespace ScalableIPC.Core
                     if (WindowId > int.MaxValue)
                     {
                         writer.Write(TrueIndicatorByte);
-                        WriteInt64BigEndian(writer, WindowId);
+                        writer.Write(WriteInt64BigEndian(WindowId));
                     }
                     else
                     {
                         // those less than 2^31 may be written as 4 or 8 bytes
                         writer.Write(FalseIndicatorByte);
-                        WriteInt32BigEndian(writer, (int)WindowId);
+                        writer.Write(WriteInt32BigEndian((int)WindowId));
                     }
 
-                    WriteInt32BigEndian(writer, SequenceNumber);
+                    writer.Write(WriteInt32BigEndian(SequenceNumber));
 
                     writer.Write(OpCode);
 
@@ -377,14 +377,13 @@ namespace ScalableIPC.Core
             return knownOptions;
         }
 
-        internal static void InsertExpectedDataLength(byte[] rawBytes)
+        private static void InsertExpectedDataLength(byte[] rawBytes)
         {
-            WriteInt32BigEndian(rawBytes, 0, rawBytes.Length);
-        }
-
-        internal static short ParseOptionAsInt16(string optionValue)
-        {
-            return short.Parse(optionValue);
+            byte[] intBytes = WriteInt32BigEndian(rawBytes.Length);
+            rawBytes[0] = intBytes[0];
+            rawBytes[1] = intBytes[1];
+            rawBytes[2] = intBytes[2];
+            rawBytes[3] = intBytes[3];
         }
 
         internal static int ParseOptionAsInt32(string optionValue)
@@ -404,9 +403,20 @@ namespace ScalableIPC.Core
             throw new Exception($"expected {true} or {false}");
         }
 
+        internal static byte[] ConvertStringToBytes(string s)
+        {
+            return Encoding.UTF8.GetBytes(s);
+        }
+
+        internal static string ConvertBytesToString(byte[] data, int offset, int length)
+        {
+            return Encoding.UTF8.GetString(data, offset, length);
+        }
+
         internal static string ConvertSessionIdBytesToHex(byte[] data, int offset, int len)
         {
-            return BitConverter.ToString(data, offset, len).Replace("-", "");
+            // send out lower case for similarity with other platforms (Java, Python, NodeJS, etc)
+            return BitConverter.ToString(data, offset, len).Replace("-", "").ToLower();
         }
 
         internal static byte[] ConvertSessionIdHexToBytes(string hex)
@@ -419,53 +429,42 @@ namespace ScalableIPC.Core
             byte[] bytes = new byte[charCount / 2];
             for (int i = 0; i < charCount; i += 2)
             {
+                // accept both upper and lower case hex chars.
                 bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
             }
             return bytes;
         }
 
-        internal static byte[] ConvertStringToBytes(string s)
+        internal static byte[] WriteInt16BigEndian(short v)
         {
-            return Encoding.UTF8.GetBytes(s);
+            byte[] intBytes = new byte[2];
+            intBytes[0] = (byte)(0xff & (v >> 8));
+            intBytes[1] = (byte)(0xff & v);
+            return intBytes;
         }
 
-        internal static string ConvertBytesToString(byte[] data, int offset, int length)
+        internal static byte[] WriteInt32BigEndian(int v)
         {
-            return Encoding.UTF8.GetString(data, offset, length);
+            byte[] intBytes = new byte[4];
+            intBytes[0] = (byte)(0xff & (v >> 24));
+            intBytes[1] = (byte)(0xff & (v >> 16));
+            intBytes[2] = (byte)(0xff & (v >> 8));
+            intBytes[3] = (byte)(0xff & v);
+            return intBytes;
         }
 
-        internal static void WriteInt16BigEndian(BinaryWriter writer, short v)
+        internal static byte[] WriteInt64BigEndian(long v)
         {
-            writer.Write((byte)(0xff & (v >> 8)));
-            writer.Write((byte)(0xff & v));
-        }
-
-        internal static void WriteInt32BigEndian(byte[] rawBytes, int offset, int v)
-        {
-            rawBytes[offset] = (byte)(0xff & (v >> 24));
-            rawBytes[offset + 1] = (byte)(0xff & (v >> 16));
-            rawBytes[offset + 2] = (byte)(0xff & (v >> 8));
-            rawBytes[offset + 3] = (byte)(0xff & v);
-        }
-
-        internal static void WriteInt32BigEndian(BinaryWriter writer, int v)
-        {
-            writer.Write((byte)(0xff & (v >> 24)));
-            writer.Write((byte)(0xff & (v >> 16)));
-            writer.Write((byte)(0xff & (v >> 8)));
-            writer.Write((byte)(0xff & v));
-        }
-
-        internal static void WriteInt64BigEndian(BinaryWriter writer, long v)
-        {
-            writer.Write((byte)(0xff & (v >> 56)));
-            writer.Write((byte)(0xff & (v >> 48)));
-            writer.Write((byte)(0xff & (v >> 40)));
-            writer.Write((byte)(0xff & (v >> 32)));
-            writer.Write((byte)(0xff & (v >> 24)));
-            writer.Write((byte)(0xff & (v >> 16)));
-            writer.Write((byte)(0xff & (v >> 8)));
-            writer.Write((byte)(0xff & v));
+            byte[] intBytes = new byte[8];
+            intBytes[0] = (byte)(0xff & (v >> 56));
+            intBytes[1] = (byte)(0xff & (v >> 48));
+            intBytes[2] = (byte)(0xff & (v >> 40));
+            intBytes[3] = (byte)(0xff & (v >> 32));
+            intBytes[4] = (byte)(0xff & (v >> 24));
+            intBytes[5] = (byte)(0xff & (v >> 16));
+            intBytes[6] = (byte)(0xff & (v >> 8));
+            intBytes[7] = (byte)(0xff & v);
+            return intBytes;
         }
 
         internal static short ReadInt16BigEndian(byte[] rawBytes, int offset)
@@ -497,10 +496,10 @@ namespace ScalableIPC.Core
             byte f = rawBytes[offset + 5];
             byte g = rawBytes[offset + 6];
             byte h = rawBytes[offset + 7];
-            long v = ((a & 0xff) << 56) | ((b & 0xff) << 48) |
-                ((c & 0xff) << 40) | ((d & 0xff) << 32) |
-                ((e & 0xff) << 24) | ((f & 0xff) << 16) |
-                ((g & 0xff) << 8) | (h & 0xff);
+            long v = ((long)(a & 0xff) << 56) | ((long)(b & 0xff) << 48) |
+                ((long)(c & 0xff) << 40) | ((long)(d & 0xff) << 32) |
+                ((long)(e & 0xff) << 24) | ((long)(f & 0xff) << 16) |
+                ((long)(g & 0xff) << 8) | ((long)h & 0xff);
             return v;
         }
 
