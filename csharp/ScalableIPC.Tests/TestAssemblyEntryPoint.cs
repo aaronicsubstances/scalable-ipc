@@ -68,9 +68,12 @@ namespace ScalableIPC.Tests
                     logger = logger.Property(k.Key, k.Value);
                 }
             }
-            logger = logger.Property("LogPosition", logEvent.LogPosition);
             var allProps = JObject.FromObject(logEvent.Data ?? new Dictionary<string, object>());
-            allProps.Add("LogPosition", logEvent.LogPosition);
+            if (logEvent.LogPosition != null)
+            {
+                logger = logger.Property("LogPosition", logEvent.LogPosition);
+                allProps.Add("LogPosition", logEvent.LogPosition);
+            }
             logger = logger.Property("AllProps", allProps.ToString(Formatting.None));
             logger = logger.Exception(logEvent.Error);
             logger.Write();
