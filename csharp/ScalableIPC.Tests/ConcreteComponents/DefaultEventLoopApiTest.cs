@@ -25,8 +25,8 @@ namespace ScalableIPC.Tests.ConcreteComponents
                     threadSafeList.Enqueue(Thread.CurrentThread);
                 });
             }
-            // wait for 20ms for callbacks to be executed.
-            await Task.Delay(20);
+            // wait for 1 sec for callbacks to be executed.
+            await Task.Delay(TimeSpan.FromSeconds(1));
 
             Assert.Equal(cbCount, threadSafeList.Count);
             Assert.Single(threadSafeList.Distinct());
@@ -61,8 +61,8 @@ namespace ScalableIPC.Tests.ConcreteComponents
             {
                 Assert.NotNull(stopTime);
                 var expectedStopTime = startTime.AddSeconds(delaySecs);
-                // allow 50ms precision in comparison.
-                Assert.InRange(stopTime.Value, expectedStopTime, expectedStopTime.AddMilliseconds(50));
+                // allow 1 sec precision in comparison.
+                Assert.InRange(stopTime.Value, expectedStopTime, expectedStopTime.AddSeconds(1));
             }
         }
 
@@ -71,6 +71,7 @@ namespace ScalableIPC.Tests.ConcreteComponents
             return new List<object[]>
             {
                 new object[]{ 0, false },
+                new object[]{ 0, true },
                 new object[]{ 1, false },
                 new object[]{ 1, true },
                 new object[]{ 2, false },
