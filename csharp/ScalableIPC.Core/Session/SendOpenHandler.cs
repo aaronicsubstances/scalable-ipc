@@ -40,6 +40,8 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
+            _sessionHandler.Log("abd38766-8116-4123-b5ab-8313fef91f5e", message,
+                "Ack pdu accepted for processing in send open handler");
             ProcessAckReceipt(message);
             return true;
         }
@@ -51,6 +53,8 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
+            _sessionHandler.Log("75cb01ea-3901-40da-b104-dfc3914e2edd", message,
+                "Pdu accepted for processing in send open handler");
             ProcessSendRequest(message, promiseCb);
             return true;
         }

@@ -36,6 +36,8 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
+            _sessionHandler.Log("cdd5a60c-239d-440d-b7cb-03516c9ed818", message,
+                "Pdu accepted for processing in receive open handler");
             OnReceiveOpenRequest(message);
             return true;
         }

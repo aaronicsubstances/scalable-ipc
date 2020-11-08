@@ -22,7 +22,7 @@ namespace ScalableIPC.Core.ConcreteComponents
             Task.Factory.StartNew(() => {
                 try
                 {
-                    // Although parallelism is limited to 1 thread, more than 1 thread pool
+                    // Although parallelism is limited to 1 thread, more than 1 pool thread
                     // can still take turns to run task.
                     // So use lock to cater for memory consistency.
                     RunUnderLock(cb);

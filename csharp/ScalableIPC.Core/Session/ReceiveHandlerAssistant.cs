@@ -10,7 +10,6 @@ namespace ScalableIPC.Core.Session
         private readonly AbstractPromise<VoidType> _voidReturnPromise;
 
         private readonly List<ProtocolDatagram> _currentWindow;
-        private long? _currentWindowId;
         private bool _isComplete;
 
         public ReceiveHandlerAssistant(ISessionHandler sessionHandler)
@@ -19,7 +18,6 @@ namespace ScalableIPC.Core.Session
             _voidReturnPromise = _sessionHandler.EndpointHandler.PromiseApi.Resolve(VoidType.Instance);
 
             _currentWindow = new List<ProtocolDatagram>();
-            _currentWindowId = null;
             _isComplete = false;
         }
 
@@ -58,7 +56,7 @@ namespace ScalableIPC.Core.Session
             }
 
             // save message.
-            if (!AddToCurrentWindow(message))
+            if (!AddToCurrentWindow(_currentWindow, _sessionHandler.MaxReceiveWindowSize, message))
             {
                 _sessionHandler.Log("2524f51b-7afe-402f-a214-9a82f955b6fb", message,
                     "Rejecting unexpected sequence number.");
@@ -71,8 +69,9 @@ namespace ScalableIPC.Core.Session
                 "count", _currentWindow.Count);
 
             // send back ack
-            var lastEffectiveSeqNr = GetLastPositionInSlidingWindow();
-            var isWindowFull = IsCurrentWindowFull(lastEffectiveSeqNr);
+            var lastEffectiveSeqNr = GetLastPositionInSlidingWindow(_currentWindow);
+            var isWindowFull = IsCurrentWindowFull(_currentWindow, _sessionHandler.MaxReceiveWindowSize,
+                lastEffectiveSeqNr);
             if (lastEffectiveSeqNr == -1)
             {
                 _sessionHandler.Log("ee88b93c-c31d-4161-a75e-aa0522062905", message,
@@ -134,8 +133,9 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.Log("fefce993-238f-499f-88a0-dff73e0bc5b7", message,
                     "About to process ack send success callback");
 
-                int lastEffectiveSeqNr = GetLastPositionInSlidingWindow();
-                if (!IsCurrentWindowFull(lastEffectiveSeqNr))
+                int lastEffectiveSeqNr = GetLastPositionInSlidingWindow(_currentWindow);
+                if (!IsCurrentWindowFull(_currentWindow, _sessionHandler.MaxReceiveWindowSize,
+                    lastEffectiveSeqNr))
                 {
                     _sessionHandler.Log("aca0970d-6032-4c9e-ab18-c89586cd6d2b", message,
                         "Window is not full so nothing to process");
@@ -159,77 +159,87 @@ namespace ScalableIPC.Core.Session
             return _voidReturnPromise;
         }
 
-        private bool AddToCurrentWindow(ProtocolDatagram message)
+        internal static bool AddToCurrentWindow(List<ProtocolDatagram> currentWindow, int maxReceiveWindowSize,
+            ProtocolDatagram message)
         {
-            // if window id is different, clear all entries.
-            if (_currentWindowId != null && _currentWindowId != message.WindowId)
-            {
-                _currentWindow.Clear();
-            }
-
             // ensure enough capacity of current window for new message.
-            if (message.SequenceNumber >= _sessionHandler.MaxReceiveWindowSize)
+            if (message.SequenceNumber >= maxReceiveWindowSize)
             {
                 return false;
             }
-            while (_currentWindow.Count <= message.SequenceNumber)
+
+            // if window id is different, clear all entries if newer is greater.
+            long? currentWindowId = currentWindow.Find(x => x != null)?.WindowId;
+            if (currentWindowId != null)
             {
-                _currentWindow.Add(null);
+                if (message.WindowId > currentWindowId)
+                {
+                    currentWindow.Clear();
+                }
+                else if (message.WindowId < currentWindowId)
+                {
+                    // only accept greater window ids
+                    return false;
+                }
+            }
+            while (currentWindow.Count <= message.SequenceNumber)
+            {
+                currentWindow.Add(null);
             }
 
             // before inserting new message, clear any existing message with set last_in_window option
             // and its effects.
             if (message.IsLastInWindow == true)
             {
-                for (int i = 0; i < _currentWindow.Count; i++)
+                for (int i = 0; i < currentWindow.Count; i++)
                 {
-                    if (_currentWindow[i] != null)
+                    if (currentWindow[i] != null)
                     {
-                        if (_currentWindow[i].IsLastInWindow == true)
+                        if (currentWindow[i].IsLastInWindow == true)
                         {
-                            _currentWindow[i] = null;
+                            currentWindow[i] = null;
                         }
                         else if (i > message.SequenceNumber)
                         {
-                            _currentWindow[i] = null;
+                            currentWindow[i] = null;
                         }
                     }
                 }
             }
 
-            _currentWindow[message.SequenceNumber] = message;
-            _currentWindowId = message.WindowId;
+            currentWindow[message.SequenceNumber] = message;
             return true;
         }
 
-        private int GetLastPositionInSlidingWindow()
+        internal static int GetLastPositionInSlidingWindow(List<ProtocolDatagram> currentWindow)
         {
             // sliding window here means the contiguous filled window starting at index 0.
-            if (_currentWindow.Count == 0 || _currentWindow[0] == null)
+            if (currentWindow.Count == 0 || currentWindow[0] == null)
             {
                 // meaning sliding window is empty.
                 return -1;
             }
-            int firstNullIndex = _currentWindow.FindIndex(x => x == null);
+            int firstNullIndex = currentWindow.FindIndex(x => x == null);
             if (firstNullIndex == -1)
             {
                 // meaning sliding window equal to window size.
-                return _currentWindow.Count - 1;
+                return currentWindow.Count - 1;
             }
             return firstNullIndex - 1;
         }
 
-        private bool IsCurrentWindowFull(int lastPosInSlidingWindow)
+        internal static bool IsCurrentWindowFull(List<ProtocolDatagram> currentWindow, int maxReceiveWindowSize,
+            int lastPosInSlidingWindow)
         {
             if (lastPosInSlidingWindow < 0)
             {
                 return false;
             }
-            if (_currentWindow[lastPosInSlidingWindow].IsLastInWindow == true)
+            if (currentWindow[lastPosInSlidingWindow].IsLastInWindow == true)
             {
                 return true;
             }
-            if (lastPosInSlidingWindow == _sessionHandler.MaxReceiveWindowSize - 1)
+            if (lastPosInSlidingWindow == maxReceiveWindowSize - 1)
             {
                 return true;
             }

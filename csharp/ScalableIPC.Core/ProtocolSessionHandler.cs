@@ -95,6 +95,9 @@ namespace ScalableIPC.Core
 
         public AbstractPromise<VoidType> Shutdown(Exception error, bool timeout)
         {
+            Log("e9d228bb-e00d-4002-8fe8-81df4a21dc41", "Session Shutdown", "error", error,
+                "timeout", timeout);
+
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             EventLoop.PostCallback(() =>
@@ -107,10 +110,12 @@ namespace ScalableIPC.Core
 
         public void ProcessReceive(ProtocolDatagram message)
         {
+            Log("163c3ed3-0e9d-40a7-abff-b95310bfe200", message, "Session ProcessReceive");
+
             EventLoop.PostCallback(() =>
             {
                 bool handled = false;
-                if (SessionState != ProtocolSessionHandler.StateClosed)
+                if (SessionState != StateClosed)
                 {
                     EnsureIdleTimeout();
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
@@ -131,6 +136,8 @@ namespace ScalableIPC.Core
 
         public AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message)
         {
+            Log("5abd8c58-4f14-499c-ad0e-788d59c5f7e2", message, "Session ProcessSend");
+
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             EventLoop.PostCallback(() =>
@@ -162,6 +169,8 @@ namespace ScalableIPC.Core
 
         public AbstractPromise<VoidType> ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options)
         {
+            Log("082f5b3f-c1fa-4d70-b224-0bf09d47ef84", "Session ProcessBulkSend");
+
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             EventLoop.PostCallback(() =>
@@ -198,6 +207,10 @@ namespace ScalableIPC.Core
                 if (SessionState != StateClosed)
                 {
                     cb.Invoke();
+                }
+                else
+                {
+                    Log("49678d2f-518b-4cf1-b29f-4d3ceb74f3ec", "Skipping callback processing because session is closed");
                 }
             });
         }
@@ -313,8 +326,11 @@ namespace ScalableIPC.Core
         {
             if (SessionState == StateClosed)
             {
+                Log("3f2b1897-7c52-4693-95e6-413c6de47915", "Session already closed, so skipping shutdown");
                 return;
             }
+
+            Log("890ef817-b90c-45fc-9243-b809c684c730", "Session shutdown started");
 
             CancelTimeout();
             EndpointHandler.RemoveSessionHandler(RemoteEndpoint, SessionId);
@@ -338,6 +354,8 @@ namespace ScalableIPC.Core
 
             SessionState = StateClosed;
 
+            Log("bd25f41a-32b0-4f5d-bd93-d8f348bd3e83", "Session shutdown completed");
+
             // pass on to application layer. NB: all calls to application layer must go through
             // event loop.
             EventLoop.PostCallback(() => OnClose(error, timeout));
@@ -347,12 +365,15 @@ namespace ScalableIPC.Core
 
         public void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest)
         {
+            Log("93be5fa4-20ca-4bca-94da-760549096d27", "OnOpenRequest");
         }
         public void OnDataReceived(byte[] data, Dictionary<string, List<string>> options)
         {
+            Log("ec6784dd-895e-4c13-a973-fa4733909f4e", "OnDataReceived");
         }
         public void OnClose(Exception error, bool timeout)
         {
+            Log("7fdb5b22-4a76-4ab3-9dc3-7a5bf1863709", "OnClose");
         }
     }
 }

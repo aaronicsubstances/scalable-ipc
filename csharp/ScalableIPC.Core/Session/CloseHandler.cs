@@ -35,6 +35,9 @@ namespace ScalableIPC.Core.Session
             {
                 return false;
             }
+
+            _sessionHandler.Log("7b79fdc3-e704-4dba-8e92-1621b78c4e18", message,
+                "Pdu received for processing in close handler");
             ProcessReceiveClose(message);
             return true;
         }
@@ -45,6 +48,9 @@ namespace ScalableIPC.Core.Session
             {
                 return false;
             }
+
+            _sessionHandler.Log("1469844c-255b-4b44-bd54-0578310798c8", message,
+                "Pdu accepted for sending in close handler");
             ProcessSendClose(message, promiseCb);
             return true;
         }

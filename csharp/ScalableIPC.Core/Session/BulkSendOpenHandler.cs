@@ -46,6 +46,8 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
+            _sessionHandler.Log("44557edb-3334-4ff3-b4c0-d4e9f12205e1", message,
+                "Ack pdu accepted for processing in bulk send open handler");
             _sendWindowHandler.OnAckReceived(message);
             return true;
         }
@@ -63,6 +65,8 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
+            _sessionHandler.Log("b6831a63-210c-4baf-95bd-34d96a295313",
+                "Pdu accepted for processing in bulk send open handler");
             ProcessSendRequest(rawData, options, promiseCb);
             return true;
         }
