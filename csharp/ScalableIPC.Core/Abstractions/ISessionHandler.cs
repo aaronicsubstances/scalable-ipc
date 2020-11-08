@@ -8,9 +8,12 @@ namespace ScalableIPC.Core.Abstractions
     public interface ISessionHandler
     {
         // beginning of public API.
-        IEndpointHandler EndpointHandler { get; set; }
-        IPEndPoint RemoteEndpoint { get; set; }
-        string SessionId { get; set; }
+        void CompleteInit(string sessionId, bool configureForInitialSend,
+            IEndpointHandler endpointHandler, IPEndPoint remoteEndpoint);
+        IEndpointHandler EndpointHandler { get; }
+        IPEndPoint RemoteEndpoint { get; }
+        AbstractEventLoopApi EventLoop { get; }
+        string SessionId { get; }
         List<ISessionStateHandler> StateHandlers { get; }
         void ProcessReceive(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);
@@ -19,7 +22,6 @@ namespace ScalableIPC.Core.Abstractions
 
         // beginning of internal API with state handlers.
         int SessionState { get; set; }
-        AbstractEventLoopApi EventLoop { get; set; }
 
         // sesion parameters.
         int MaxReceiveWindowSize { get; set; }

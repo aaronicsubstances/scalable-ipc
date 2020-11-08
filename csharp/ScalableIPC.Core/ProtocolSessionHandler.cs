@@ -18,15 +18,18 @@ namespace ScalableIPC.Core
         public static readonly int StateOpenedForData = 8;
         public static readonly int StateClosed = 20;
 
-        private readonly AbstractPromiseApi _promiseApi;
+        private AbstractPromiseApi _promiseApi;
         private object _lastTimeoutId;
 
-        public ProtocolSessionHandler(IEndpointHandler endpointHandler, AbstractEventLoopApi eventLoop,
-            IPEndPoint endPoint, string sessionId, bool isConfiguredForInitialSend)
+        public ProtocolSessionHandler()
+        { }
+
+        public void CompleteInit(string sessionId, bool configureForInitialSend,
+            IEndpointHandler endpointHandler, IPEndPoint remoteEndpoint)
         {
             EndpointHandler = endpointHandler;
-            EventLoop = eventLoop;
-            RemoteEndpoint = endPoint;
+            EventLoop = endpointHandler.EventLoop;
+            RemoteEndpoint = remoteEndpoint;
             SessionId = sessionId;
 
             _promiseApi = endpointHandler.PromiseApi;
@@ -36,7 +39,7 @@ namespace ScalableIPC.Core
             StateHandlers.Add(new BulkSendDataHandler(this));
             StateHandlers.Add(new CloseHandler(this));
 
-            if (isConfiguredForInitialSend)
+            if (configureForInitialSend)
             {
                 StateHandlers.Add(new SendOpenHandler(this));
                 StateHandlers.Add(new BulkSendOpenHandler(this));
@@ -55,12 +58,12 @@ namespace ScalableIPC.Core
             MaxReceiveWindowSize = endpointHandler.EndpointConfig.MaxReceiveWindowSize;
         }
 
-        public IEndpointHandler EndpointHandler { get; set; }
-        public IPEndPoint RemoteEndpoint { get; set; }
-        public string SessionId { get; set; }
+        public IEndpointHandler EndpointHandler { get; private set; }
+        public IPEndPoint RemoteEndpoint { get; private set; }
+        public string SessionId { get; private set; }
+        public AbstractEventLoopApi EventLoop { get; private set; }
 
         public int SessionState { get; set; } = StateOpening;
-        public AbstractEventLoopApi EventLoop { get; set; }
 
         public int MaxReceiveWindowSize { get; set; }
         public int MaxSendWindowSize { get; set; }

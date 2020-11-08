@@ -14,29 +14,27 @@ namespace ScalableIPC.Core
         private readonly object _disposeLock = new object();
         private bool _isDisposing = false;
 
-        public ProtocolEndpointHandler(AbstractNetworkApi networkSocket, EndpointConfig endpointConfig,
-            AbstractPromiseApi promiseApi)
-        {
-            NetworkSocket = networkSocket;
-            EndpointConfig = endpointConfig;
+        public ProtocolEndpointHandler(AbstractPromiseApi promiseApi, AbstractEventLoopApi eventLoop)
+        {            
             PromiseApi = promiseApi;
+            EventLoop = eventLoop;
             _sessionHandlerMap = new Dictionary<IPEndPoint, Dictionary<string, ISessionHandler>>();
             _voidReturnPromise = PromiseApi.Resolve(VoidType.Instance);
         }
 
-        public AbstractNetworkApi NetworkSocket { get; }
-        public EndpointConfig EndpointConfig { get; }
+        public AbstractNetworkApi NetworkSocket { get; set; }
+        public EndpointConfig EndpointConfig { get; set; }
 
         public AbstractPromiseApi PromiseApi { get; }
+        public AbstractEventLoopApi EventLoop { get; }
 
-        public AbstractPromise<VoidType> OpenSession(IPEndPoint remoteEndpoint, ISessionHandler sessionHandler)
+        public AbstractPromise<VoidType> OpenSession(IPEndPoint remoteEndpoint, string sessionId, ISessionHandler sessionHandler)
         {
-            sessionHandler.EndpointHandler = this;
-            sessionHandler.RemoteEndpoint = remoteEndpoint;
-            if (sessionHandler.SessionId == null)
+            if (sessionId == null)
             {
-                sessionHandler.SessionId = GenerateSessionId();
+                sessionId = GenerateSessionId();
             }
+            sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
             lock (_sessionHandlerMap)
             {
                 Dictionary<string, ISessionHandler> subDict;
@@ -265,7 +263,8 @@ namespace ScalableIPC.Core
                 {
                     if (EndpointConfig.SessionHandlerFactory != null)
                     {
-                        sessionHandler = EndpointConfig.SessionHandlerFactory.Create(remoteEndpoint, sessionId);
+                        sessionHandler = EndpointConfig.SessionHandlerFactory.Create(sessionId, false, this,
+                            remoteEndpoint);
                     }
                     if (sessionHandler != null)
                     {

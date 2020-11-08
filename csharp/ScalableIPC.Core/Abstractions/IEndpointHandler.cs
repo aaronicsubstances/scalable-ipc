@@ -7,13 +7,15 @@ namespace ScalableIPC.Core.Abstractions
 {
     public interface IEndpointHandler
     {
-        AbstractNetworkApi NetworkSocket { get; }
+        AbstractNetworkApi NetworkSocket { get; set; }
+        EndpointConfig EndpointConfig { get; set; }
         AbstractPromiseApi PromiseApi { get; }
-        EndpointConfig EndpointConfig { get; }
+        AbstractEventLoopApi EventLoop { get; }
+
         ProtocolDatagram ParseRawDatagram(byte[] rawBytes, int offset, int length);
         byte[] GenerateRawDatagram(ProtocolDatagram message);
         string GenerateSessionId();
-        AbstractPromise<VoidType> OpenSession(IPEndPoint remoteEndpoint, ISessionHandler sessionHandler);
+        AbstractPromise<VoidType> OpenSession(IPEndPoint remoteEndpoint, string sessionId, ISessionHandler sessionHandler);
         void HandleReceive(IPEndPoint remoteEndpoint, byte[] rawBytes, int offset, int length);
         AbstractPromise<VoidType> Shutdown();
 
