@@ -1,6 +1,7 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace ScalableIPC.Core.Session
@@ -56,14 +57,9 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
-        public bool ProcessSend(int opCode, byte[] rawData, Dictionary<string, List<string>> options,
+        public bool ProcessSend(byte[] rawData, Dictionary<string, List<string>> options,
             PromiseCompletionSource<VoidType> promiseCb)
         {
-            if (opCode != ProtocolDatagram.OpCodeData)
-            {
-                return false;
-            }
-
             _sessionHandler.Log("ab33803c-2eb4-4525-b566-0baa3e1f51ff",
                 "Pdu accepted for processing in bulk send data handler");
             ProcessSendRequest(rawData, options, promiseCb);
@@ -73,21 +69,38 @@ namespace ScalableIPC.Core.Session
         private void ProcessSendRequest(byte[] rawData, Dictionary<string, List<string>> options,
            PromiseCompletionSource<VoidType> promiseCb)
         {
-            if (_sessionHandler.SessionState != ProtocolSessionHandler.StateOpenedForData)
-            {
-                promiseCb.CompleteExceptionally(new Exception("Invalid session state for bulk send data"));
-                return;
-            }
-
-            if (_sessionHandler.IsSendInProgress())
-            {
-                promiseCb.CompleteExceptionally(new Exception("Send in progress"));
-                return;
-            }
+            ProcessWindowOptions(options);
 
             _datagramChopper = new DatagramChopper(rawData, options, _sessionHandler.MaximumTransferUnitSize);
             _pendingPromiseCallback = promiseCb;
             SendInProgress = ContinueBulkSend(false);
+        }
+
+        private void ProcessWindowOptions(Dictionary<string, List<string>> options)
+        {
+            if (options == null)
+            {
+                return;
+            }
+
+            // All session layer options are single valued. If multiple are specified, pick last.
+            if (options.ContainsKey(ProtocolDatagram.OptionNameIdleTimeout))
+            {
+                var optionIdleTimeout = options[ProtocolDatagram.OptionNameIdleTimeout].LastOrDefault();
+                if (optionIdleTimeout != null)
+                {
+                    _sessionHandler.SessionIdleTimeoutSecs = ProtocolDatagram.ParseOptionAsInt32(optionIdleTimeout);
+                }
+            }
+
+            if (options.ContainsKey(ProtocolDatagram.OptionNameCloseReceiver))
+            {
+                var optionCloseReceiver = options[ProtocolDatagram.OptionNameCloseReceiver].LastOrDefault();
+                if (optionCloseReceiver != null)
+                {
+                    _sessionHandler.SessionCloseReceiverOption = ProtocolDatagram.ParseOptionAsBoolean(optionCloseReceiver);
+                }
+            }
         }
 
         private bool ContinueBulkSend(bool haveSentBefore)
@@ -143,9 +156,15 @@ namespace ScalableIPC.Core.Session
             }
 
             SendInProgress = false;
+            if (_sessionHandler.SessionCloseReceiverOption == true)
+            {
+                _sessionHandler.SessionState = ProtocolSessionHandler.StateClosing;
+            }
 
-            _sessionHandler.Log("4e0cc536-c662-4859-b933-8f0d41917832", "Bulk send data succeeded",
-                "sendInProgress", _sessionHandler.IsSendInProgress(), 
+            _sessionHandler.Log("edeafec4-5596-4931-9f2a-5876e1241d89", "Bulk send succeeded",
+                "sendInProgress", _sessionHandler.IsSendInProgress(),
+                "idleTimeout", _sessionHandler.SessionIdleTimeoutSecs,
+                "closeReceiver", _sessionHandler.SessionCloseReceiverOption,
                 "sessionState", _sessionHandler.SessionState);
 
             // complete pending promise.

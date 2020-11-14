@@ -14,56 +14,47 @@ namespace ScalableIPC.Core
     /// </summary>
     public class ProtocolSessionHandler : ISessionHandler
     {
-        public static readonly int StateOpening = 0;
-        public static readonly int StateOpenedForData = 8;
+        public static readonly int StateDataExchange = 1;
+        public static readonly int StateClosing = 10;
         public static readonly int StateClosed = 20;
 
         private AbstractPromiseApi _promiseApi;
-        private object _lastTimeoutId;
+        private object _lastIdleTimeoutId;
+        private object _lastAckTimeoutId;
 
         public ProtocolSessionHandler()
         { }
 
         public void CompleteInit(string sessionId, bool configureForInitialSend,
-            IEndpointHandler endpointHandler, IPEndPoint remoteEndpoint)
+            INetworkTransportInterface networkInterface, IPEndPoint remoteEndpoint)
         {
-            EndpointHandler = endpointHandler;
-            EventLoop = endpointHandler.EventLoop;
+            NetworkInterface = networkInterface;
+            EventLoop = networkInterface.EventLoop;
             RemoteEndpoint = remoteEndpoint;
             SessionId = sessionId;
 
-            _promiseApi = endpointHandler.PromiseApi;
+            _promiseApi = networkInterface.PromiseApi;
 
             StateHandlers.Add(new ReceiveDataHandler(this));
             StateHandlers.Add(new SendDataHandler(this));
             StateHandlers.Add(new BulkSendDataHandler(this));
             StateHandlers.Add(new CloseHandler(this));
 
-            if (configureForInitialSend)
-            {
-                StateHandlers.Add(new SendOpenHandler(this));
-                StateHandlers.Add(new BulkSendOpenHandler(this));
-            }
-            else
-            {
-                StateHandlers.Add(new ReceiveOpenHandler(this));
-            }
-
             // initialize session management parameters from endpoint config.
-            IdleTimeoutSecs = endpointHandler.EndpointConfig.IdleTimeoutSecs;
-            AckTimeoutSecs = endpointHandler.EndpointConfig.AckTimeoutSecs;
-            MaxRetryCount = endpointHandler.EndpointConfig.MaxRetryCount;
-            MaximumTransferUnitSize = endpointHandler.EndpointConfig.MaximumTransferUnitSize;
-            MaxSendWindowSize = endpointHandler.EndpointConfig.MaxSendWindowSize;
-            MaxReceiveWindowSize = endpointHandler.EndpointConfig.MaxReceiveWindowSize;
+            IdleTimeoutSecs = networkInterface.IdleTimeoutSecs;
+            AckTimeoutSecs = networkInterface.AckTimeoutSecs;
+            MaxRetryCount = networkInterface.MaxRetryCount;
+            MaximumTransferUnitSize = networkInterface.MaximumTransferUnitSize;
+            MaxSendWindowSize = networkInterface.MaxSendWindowSize;
+            MaxReceiveWindowSize = networkInterface.MaxReceiveWindowSize;
         }
 
-        public IEndpointHandler EndpointHandler { get; private set; }
+        public INetworkTransportInterface NetworkInterface { get; private set; }
         public IPEndPoint RemoteEndpoint { get; private set; }
         public string SessionId { get; private set; }
         public AbstractEventLoopApi EventLoop { get; private set; }
 
-        public int SessionState { get; set; } = StateOpening;
+        public int SessionState { get; set; } = StateDataExchange;
 
         public int MaxReceiveWindowSize { get; set; }
         public int MaxSendWindowSize { get; set; }
@@ -72,17 +63,22 @@ namespace ScalableIPC.Core
         public int IdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
 
+        // Protocol requires initial value for window id to be 0,
+        // and hence last window id should be negative to trigger
+        // validation logic to expect 0.
         public long NextWindowIdToSend { get; set; } = 0;
         public long LastWindowIdReceived { get; set; } = -1;
+
         public int LastMaxSeqReceived { get; set; }
         public int? SessionIdleTimeoutSecs { get; set; }
+        public bool? SessionCloseReceiverOption { get; set; }
 
         public void IncrementNextWindowIdToSend()
         {
             NextWindowIdToSend = ProtocolDatagram.ComputeNextWindowIdToSend(NextWindowIdToSend);
         }
 
-        public bool IsSendInProgress()
+        public virtual bool IsSendInProgress()
         {
             foreach (var handler in StateHandlers)
             {
@@ -96,7 +92,7 @@ namespace ScalableIPC.Core
 
         public List<ISessionStateHandler> StateHandlers { get; } = new List<ISessionStateHandler>();
 
-        public AbstractPromise<VoidType> Shutdown(Exception error, bool timeout)
+        public virtual AbstractPromise<VoidType> Shutdown(Exception error, bool timeout)
         {
             Log("e9d228bb-e00d-4002-8fe8-81df4a21dc41", "Session Shutdown", "error", error,
                 "timeout", timeout);
@@ -111,7 +107,7 @@ namespace ScalableIPC.Core
             return returnPromise;
         }
 
-        public void ProcessReceive(ProtocolDatagram message)
+        public virtual AbstractPromise<VoidType> ProcessReceive(ProtocolDatagram message)
         {
             Log("163c3ed3-0e9d-40a7-abff-b95310bfe200", message, "Session ProcessReceive");
 
@@ -120,7 +116,7 @@ namespace ScalableIPC.Core
                 bool handled = false;
                 if (SessionState != StateClosed)
                 {
-                    EnsureIdleTimeout();
+                    ResetIdleTimeout();
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
                         handled = stateHandler.ProcessReceive(message);
@@ -135,9 +131,10 @@ namespace ScalableIPC.Core
                     DiscardReceivedMessage(message);
                 }
             });
+            return _promiseApi.Resolve(VoidType.Instance);
         }
 
-        public AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message)
+        public virtual AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message)
         {
             message.SessionId = SessionId;
             Log("5abd8c58-4f14-499c-ad0e-788d59c5f7e2", message, "Session ProcessSend");
@@ -150,9 +147,13 @@ namespace ScalableIPC.Core
                 {
                     promiseCb.CompleteExceptionally(new Exception("Session handler is closed"));
                 }
+                else if (IsSendInProgress())
+                {
+                    promiseCb.CompleteExceptionally(new Exception("send is in progress"));
+                }
                 else
                 {
-                    EnsureIdleTimeout();
+                    ResetIdleTimeout();
                     bool handled = false;
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
@@ -171,7 +172,7 @@ namespace ScalableIPC.Core
             return returnPromise;
         }
 
-        public AbstractPromise<VoidType> ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options)
+        public virtual AbstractPromise<VoidType> ProcessSend(byte[] data, Dictionary<string, List<string>> options)
         {
             Log("082f5b3f-c1fa-4d70-b224-0bf09d47ef84", "Session ProcessBulkSend");
 
@@ -183,13 +184,17 @@ namespace ScalableIPC.Core
                 {
                     promiseCb.CompleteExceptionally(new Exception("Session handler is closed"));
                 }
+                else if (IsSendInProgress())
+                {
+                    promiseCb.CompleteExceptionally(new Exception("send is in progress"));
+                }
                 else
                 {
-                    EnsureIdleTimeout();
+                    ResetIdleTimeout();
                     bool handled = false;
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
-                        handled = stateHandler.ProcessSend(opCode, data, options, promiseCb);
+                        handled = stateHandler.ProcessSend(data, options, promiseCb);
                         if (handled)
                         {
                             break;
@@ -204,7 +209,52 @@ namespace ScalableIPC.Core
             return returnPromise;
         }
 
-        public void PostIfNotClosed(Action cb)
+        public virtual AbstractPromise<VoidType> PartialShutdown()
+        {
+            Log("ba724e56-e5ae-449b-b66b-ec4b557551dd", "Session PartialShutdown");
+
+            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
+            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
+            EventLoop.PostCallback(() =>
+            {
+                if (SessionState == StateClosed)
+                {
+                    promiseCb.CompleteExceptionally(new Exception("Session handler is closed"));
+                }
+                else if (IsSendInProgress())
+                {
+                    promiseCb.CompleteExceptionally(new Exception("send is in progress"));
+                }
+                else
+                {
+                    var halfCloseMsg = new ProtocolDatagram
+                    {
+                        OpCode = ProtocolDatagram.OpCodeData,
+                        SessionId = SessionId,
+                        WindowId = NextWindowIdToSend,
+                        SequenceNumber = 0,
+                        CloseReceiverOption = true
+                    };
+                    ResetIdleTimeout();
+                    bool handled = false;
+                    foreach (ISessionStateHandler stateHandler in StateHandlers)
+                    {
+                        handled = stateHandler.ProcessSend(halfCloseMsg, promiseCb);
+                        if (handled)
+                        {
+                            break;
+                        }
+                    }
+                    if (!handled)
+                    {
+                        promiseCb.CompleteExceptionally(new Exception("No state handler found to process partial shutdown"));
+                    }
+                }
+            });
+            return returnPromise;
+        }
+
+        public virtual void PostIfNotClosed(Action cb)
         {
             EventLoop.PostCallback(() =>
             {
@@ -219,47 +269,30 @@ namespace ScalableIPC.Core
             });
         }
 
-        public void ResetAckTimeout(int timeoutSecs, Action cb)
+        public virtual void ResetAckTimeout(int timeoutSecs, Action cb)
         {
             Log("54c44637-3efe-4a35-a674-22e8e12c48cc", "About to set ack timeout");
 
-            CancelTimeout();
+            CancelAckTimeout();
             // interpret non positive timeout as disable ack timeout.
             if (timeoutSecs > 0)
             {
-                _lastTimeoutId = EventLoop.ScheduleTimeout(timeoutSecs,
-                    () => ProcessTimeout(cb));
+                _lastAckTimeoutId = EventLoop.ScheduleTimeout(timeoutSecs,
+                    () => ProcessAckTimeout(cb));
             }
         }
 
-        public void ResetIdleTimeout()
+        public virtual void ResetIdleTimeout()
         {
             Log("41f243a1-db75-4c08-82fa-b2c7ff7dfda6", "About to reset idle timeout");
-            SetIdleTimeout(true);
-        }
-
-        public void EnsureIdleTimeout()
-        {
-            Log("07fa532e-f45c-4acb-91b7-3e4d7ad9408c", "About to set idle timeout if not set already");
-            SetIdleTimeout(false);
-        }
-
-        private void SetIdleTimeout(bool reset)
-        {
-            if (reset)
-            {
-                CancelTimeout();
-            }
-            else if (_lastTimeoutId != null)
-            {
-                return;
-            }
+            
+            CancelIdleTimeout();
 
             // Interpret non positive default value as disable idle timeout AND ignore session idle timeout.
             // On the other hand, let non negative session idle timeout override any positive default value.
             // NB: use session idle timeout only in data exchange phase.
             int effectiveIdleTimeoutSecs = IdleTimeoutSecs;
-            if (effectiveIdleTimeoutSecs > 0 && SessionState == StateOpenedForData)
+            if (effectiveIdleTimeoutSecs > 0 && SessionState != StateClosing)
             {
                 if (SessionIdleTimeoutSecs.HasValue && SessionIdleTimeoutSecs.Value >= 0)
                 {
@@ -270,56 +303,69 @@ namespace ScalableIPC.Core
             // In the end, only positive values result in idle timeouts.
             if (effectiveIdleTimeoutSecs > 0)
             {
-                _lastTimeoutId = EventLoop.ScheduleTimeout(IdleTimeoutSecs,
-                    () => ProcessTimeout(null));
+                _lastIdleTimeoutId = EventLoop.ScheduleTimeout(IdleTimeoutSecs, ProcessIdleTimeout);
             }
         }
 
-        private void CancelTimeout()
+        private void CancelIdleTimeout()
         {
-            if (_lastTimeoutId != null)
+            if (_lastIdleTimeoutId != null)
             {
-                EventLoop.CancelTimeout(_lastTimeoutId);
-                _lastTimeoutId = null;
+                EventLoop.CancelTimeout(_lastIdleTimeoutId);
+                _lastIdleTimeoutId = null;
             }
         }
 
-        private void ProcessTimeout(Action cb)
+        public virtual void CancelAckTimeout()
+        {
+            if (_lastAckTimeoutId != null)
+            {
+                EventLoop.CancelTimeout(_lastAckTimeoutId);
+                _lastAckTimeoutId = null;
+            }
+        }
+
+        private void ProcessIdleTimeout()
         {
             if (SessionState == StateClosed)
             {
-                Log("06a8dca3-56a4-4121-ad2d-e63bf7bfb34d", "Ignoring timeout since session is closed");
+                Log("06a8dca3-56a4-4121-ad2d-e63bf7bfb34d", "Ignoring idle timeout since session is closed");
                 return;
             }
 
-            Log("33b0e81b-c4fa-4a78-9cb7-0900e60afe3e", "A timeout has occured on session");
+            Log("33b0e81b-c4fa-4a78-9cb7-0900e60afe3e", "Idle timeout has occured on session");
 
-            _lastTimeoutId = null;
-            if (cb != null)
-            {
-                // reset timeout before calling timeout callback.
-                ResetIdleTimeout();
-                cb.Invoke();
-            }
-            else
-            {
-                ProcessShutdown(null, true);
-            }
+            _lastIdleTimeoutId = null;
+            ProcessShutdown(null, true);
         }
 
-        public void DiscardReceivedMessage(ProtocolDatagram message)
+        private void ProcessAckTimeout(Action cb)
+        {
+            if (SessionState == StateClosed)
+            {
+                Log("deec47ed-7c13-4e4e-9fd6-030aad245458", "Ignoring ack timeout since session is closed");
+                return;
+            }
+
+            Log("4a130328-aa6e-46eb-81ca-5a705e3d0995", "Ack timeout has occured on session");
+
+            _lastAckTimeoutId = null;
+            cb.Invoke();
+        }
+
+        public virtual void DiscardReceivedMessage(ProtocolDatagram message)
         {
             // subclasses can log more.
 
             Log("ee37084b-2201-4591-b681-25b0398aba40", message, "Discarding message");
         }
         
-        public void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args)
+        public virtual void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args)
         {
             CustomLoggerFacade.Log(() =>
             {
                 var customEvent = new CustomLogEvent(logPosition, message, null);
-                customEvent.FillData("localEndpoint", EndpointHandler.EndpointConfig.LocalEndpoint.ToString());
+                customEvent.FillData("localEndpoint", NetworkInterface.LocalEndpoint.ToString());
                 customEvent.FillData("sessionId", SessionId);
                 customEvent.FillData(pdu);
                 customEvent.FillData(args);
@@ -327,19 +373,19 @@ namespace ScalableIPC.Core
             });
         }
 
-        public void Log(string logPosition, string message, params object[] args)
+        public virtual void Log(string logPosition, string message, params object[] args)
         {
             CustomLoggerFacade.Log(() =>
             {
                 var customEvent = new CustomLogEvent(logPosition, message, null);
-                customEvent.FillData("localEndpoint", EndpointHandler.EndpointConfig.LocalEndpoint.ToString());
+                customEvent.FillData("localEndpoint", NetworkInterface.LocalEndpoint.ToString());
                 customEvent.FillData("sessionId", SessionId);
                 customEvent.FillData(args);
                 return customEvent;
             });
         }
 
-        public void ProcessShutdown(Exception error, bool timeout)
+        public virtual void ProcessShutdown(Exception error, bool timeout)
         {
             if (SessionState == StateClosed)
             {
@@ -349,8 +395,9 @@ namespace ScalableIPC.Core
 
             Log("890ef817-b90c-45fc-9243-b809c684c730", "Session shutdown started");
 
-            CancelTimeout();
-            EndpointHandler.RemoveSessionHandler(RemoteEndpoint, SessionId);
+            CancelIdleTimeout();
+            CancelAckTimeout();
+            NetworkInterface.CloseSession(RemoteEndpoint, SessionId);
 
             var unifiedError = error;
             if (unifiedError == null)
@@ -379,11 +426,6 @@ namespace ScalableIPC.Core
         }
 
         // calls to application layer
-
-        public virtual void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest)
-        {
-            Log("93be5fa4-20ca-4bca-94da-760549096d27", "OnOpenRequest");
-        }
         public virtual void OnDataReceived(byte[] data, Dictionary<string, List<string>> options)
         {
             Log("ec6784dd-895e-4c13-a973-fa4733909f4e", "OnDataReceived");

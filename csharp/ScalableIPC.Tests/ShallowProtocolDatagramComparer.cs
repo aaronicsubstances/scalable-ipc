@@ -43,7 +43,7 @@ namespace ScalableIPC.Tests
             {
                 return false;
             }
-            if (x.IsLastOpenRequest != y.IsLastOpenRequest)
+            if (x.CloseReceiverOption != y.CloseReceiverOption)
             {
                 return false;
             }

@@ -17,10 +17,8 @@ namespace ScalableIPC.Core
     /// </summary>
     public class ProtocolDatagram
     {
-        public const byte OpCodeOpen = 1;
-        public const byte OpCodeOpenAck = 2;
-        public const byte OpCodeData = 3;
-        public const byte OpCodeAck = 4;
+        public const byte OpCodeData = 1;
+        public const byte OpCodeAck = 2;
         public const byte OpCodeClose = 5;
         public const byte OpCodeCloseAll = 11;
 
@@ -44,7 +42,7 @@ namespace ScalableIPC.Core
         public const string OptionNameIdleTimeout = "s_idle_timeout";
 
         public const string OptionNameErrorCode = "s_err_code";
-        public const string OptionNameIsLastOpenRequest = "s_last_open";
+        public const string OptionNameCloseReceiver = "s_close_receiver";
         public const string OptionNameIsWindowFull = "s_window_full";
         public const string OptionNameIsLastInWindow = "s_last_in_window";
 
@@ -63,7 +61,7 @@ namespace ScalableIPC.Core
         public bool? IsLastInWindow { get; set; }
         public int? IdleTimeoutSecs { get; set; }
         public int? ErrorCode { get; set; }
-        public bool? IsLastOpenRequest { get; set; }
+        public bool? CloseReceiverOption { get; set; }
         public bool? IsWindowFull { get; set; }
 
         public static ProtocolDatagram Parse(byte[] rawBytes, int offset, int length)
@@ -198,40 +196,25 @@ namespace ScalableIPC.Core
                     optionValues.Add(optionNameOrValue);
 
                     // Now identify known options.
-                    // In case of repetition, first one wins.
+                    // In case of repetition, last one wins.
                     try
                     {
                         switch (optionName)
                         {
                             case OptionNameIsLastInWindow:
-                                if (parsedDatagram.IsLastInWindow == null)
-                                {
-                                    parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionNameOrValue);
-                                }
+                                parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionNameOrValue);
                                 break;
                             case OptionNameIdleTimeout:
-                                if (parsedDatagram.IdleTimeoutSecs == null)
-                                {
-                                    parsedDatagram.IdleTimeoutSecs = ParseOptionAsInt32(optionNameOrValue);
-                                }
+                                parsedDatagram.IdleTimeoutSecs = ParseOptionAsInt32(optionNameOrValue);
                                 break;
                             case OptionNameErrorCode:
-                                if (parsedDatagram.ErrorCode == null)
-                                {
-                                    parsedDatagram.ErrorCode = ParseOptionAsInt32(optionNameOrValue);
-                                }
+                                parsedDatagram.ErrorCode = ParseOptionAsInt32(optionNameOrValue);
                                 break;
-                            case OptionNameIsLastOpenRequest:
-                                if (parsedDatagram.IsLastOpenRequest == null)
-                                {
-                                    parsedDatagram.IsLastOpenRequest = ParseOptionAsBoolean(optionNameOrValue);
-                                }
+                            case OptionNameCloseReceiver:
+                                parsedDatagram.CloseReceiverOption = ParseOptionAsBoolean(optionNameOrValue);
                                 break;
                             case OptionNameIsWindowFull:
-                                if (parsedDatagram.IsWindowFull == null)
-                                {
-                                    parsedDatagram.IsWindowFull = ParseOptionAsBoolean(optionNameOrValue);
-                                }
+                                parsedDatagram.IsWindowFull = ParseOptionAsBoolean(optionNameOrValue);
                                 break;
                             default:
                                 break;
@@ -252,6 +235,11 @@ namespace ScalableIPC.Core
             parsedDatagram.DataLength = endOffset - offset;
 
             return parsedDatagram;
+        }
+
+        public static string GenerateSessionId()
+        {
+            return DateTime.UtcNow.ToString("yyyMMddHHmmssfff") + Guid.NewGuid().ToString("n");
         }
 
         public byte[] ToRawDatagram(bool includeKnownOptions)
@@ -366,9 +354,9 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameErrorCode, ErrorCode.ToString());
             }
-            if (IsLastOpenRequest != null)
+            if (CloseReceiverOption != null)
             {
-                knownOptions.Add(OptionNameIsLastOpenRequest, IsLastOpenRequest.ToString());
+                knownOptions.Add(OptionNameCloseReceiver, CloseReceiverOption.ToString());
             }
             if (IsWindowFull != null)
             {
@@ -509,8 +497,8 @@ namespace ScalableIPC.Core
             // max crossover limit.
             if (nextWindowIdToSend >= MaxWindowIdCrossOverLimit)
             {
-                // return any value not exceeding min crossover limit.
-                return 0;
+                // return any positive value not exceeding min crossover limit.
+                return 1;
             }
             else
             {
@@ -522,13 +510,18 @@ namespace ScalableIPC.Core
         public static bool IsReceivedWindowIdValid(long v, long lastWindowIdProcessed)
         {
             // ANY alternate computations is allowed with these 2 requirements:
-            // 1. if current value has crossed max crossover limit,
-            //    then next value must be less than or equal to min crossover limit.
-            // 2. else next value must be larger than current value by a difference which is 
+            // 1. the very first value should be 0.
+            // 2. if current value has crossed max crossover limit,
+            //    then next value must be less than or equal to min crossover limit, but greater than 0.
+            // 3. else next value must be larger than current value by a difference which is 
             //    less than or equal to min crossover limit.
-            if (lastWindowIdProcessed < 0 || lastWindowIdProcessed >= MaxWindowIdCrossOverLimit)
+            if (lastWindowIdProcessed < 0)
             {
-                return v >= 0 && v <= MinWindowIdCrossOverLimit;
+                return v == 0;
+            }
+            if (lastWindowIdProcessed >= MaxWindowIdCrossOverLimit)
+            {
+                return v > 0 && v <= MinWindowIdCrossOverLimit;
             }
             else
             {

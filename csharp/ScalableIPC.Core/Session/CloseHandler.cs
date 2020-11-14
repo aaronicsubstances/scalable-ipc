@@ -13,7 +13,7 @@ namespace ScalableIPC.Core.Session
         public CloseHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _voidReturnPromise = _sessionHandler.EndpointHandler.PromiseApi.Resolve(VoidType.Instance);
+            _voidReturnPromise = _sessionHandler.NetworkInterface.PromiseApi.Resolve(VoidType.Instance);
         }
 
         public bool SendInProgress
@@ -55,7 +55,7 @@ namespace ScalableIPC.Core.Session
             return true;
         }
 
-        public bool ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options,
+        public bool ProcessSend(byte[] data, Dictionary<string, List<string>> options,
             PromiseCompletionSource<VoidType> promiseCb)
         {
             return false;
@@ -87,7 +87,7 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.Log("6e462e36-a9b9-4ea3-8735-c389e3dd0d36", "Sending closing message");
 
             // send but ignore errors.
-            _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, message)
+            _sessionHandler.NetworkInterface.HandleSend(_sessionHandler.RemoteEndpoint, message)
                 .CatchCompose(_ => _voidReturnPromise)
                 .Then(_ => HandleSendSuccessOrError(promiseCb));
         }

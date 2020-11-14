@@ -67,7 +67,7 @@ namespace ScalableIPC.Core.Abstractions
             Data.Add("pdu.opCode", pdu.OpCode);
             Data.Add("pdu.idleTimeout", pdu.IdleTimeoutSecs);
             Data.Add("pdu.lastInWindow", pdu.IsLastInWindow);
-            Data.Add("pdu.lastOpenRequest", pdu.IsLastOpenRequest);
+            Data.Add("pdu.closeReceiver", pdu.CloseReceiverOption);
             Data.Add("pdu.windowFull", pdu.IsWindowFull);
             string traceId = null;
             if (pdu.Options != null && pdu.Options.ContainsKey(PduOptionTraceId))

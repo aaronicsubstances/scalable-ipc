@@ -72,9 +72,9 @@ namespace ScalableIPC.Tests.Core
                 new object[]{ int.MaxValue + 1L, int.MaxValue + 2L },
                 new object[]{ 9_000_000_000_000_000_000 - 2, 9_000_000_000_000_000_000 - 1 },
                 new object[]{ 9_000_000_000_000_000_000 - 1, 9_000_000_000_000_000_000 },
-                new object[]{ 9_000_000_000_000_000_000, 0 },
-                new object[]{ 9_000_000_000_000_000_000 + 1, 0 },
-                new object[]{ long.MaxValue, 0 },
+                new object[]{ 9_000_000_000_000_000_000, 1 },
+                new object[]{ 9_000_000_000_000_000_000 + 1, 1 },
+                new object[]{ long.MaxValue, 1 },
             };
         }
 
@@ -106,7 +106,7 @@ namespace ScalableIPC.Tests.Core
                 new object[]{ 0, 0, false },
                 new object[]{ 160, 160, false },
                 new object[]{ 0, -1, true },
-                new object[]{ 160, -1, true },
+                new object[]{ 160, -1, false },
                 new object[]{ 161, 160, true },
                 new object[]{ 999, 0, true },
                 new object[]{ 1000, 0, true },

@@ -15,7 +15,7 @@ namespace ScalableIPC.Core.Session
         public ReceiveHandlerAssistant(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _voidReturnPromise = _sessionHandler.EndpointHandler.PromiseApi.Resolve(VoidType.Instance);
+            _voidReturnPromise = _sessionHandler.NetworkInterface.PromiseApi.Resolve(VoidType.Instance);
 
             _currentWindow = new List<ProtocolDatagram>();
             _isComplete = false;
@@ -43,7 +43,7 @@ namespace ScalableIPC.Core.Session
                     "Received message from last received window. Responding with ack", 
                     "ack.seqNr", _sessionHandler.LastMaxSeqReceived);
                 // ignore success and care only about failure.
-                _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, ack)
+                _sessionHandler.NetworkInterface.HandleSend(_sessionHandler.RemoteEndpoint, ack)
                     .CatchCompose(e => HandleAckSendFailure(message, e));
                 return;
             }
@@ -91,7 +91,7 @@ namespace ScalableIPC.Core.Session
                     SequenceNumber = lastEffectiveSeqNr,
                     IsWindowFull = isWindowFull
                 };
-                _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, ack)
+                _sessionHandler.NetworkInterface.HandleSend(_sessionHandler.RemoteEndpoint, ack)
                     .ThenOrCatchCompose(_ => HandleAckSendSuccess(message), 
                         error => HandleAckSendFailure(message, error));
             }

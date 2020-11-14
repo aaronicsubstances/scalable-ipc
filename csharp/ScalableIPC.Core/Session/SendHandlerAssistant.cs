@@ -14,7 +14,7 @@ namespace ScalableIPC.Core.Session
         public SendHandlerAssistant(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _voidReturnPromise = _sessionHandler.EndpointHandler.PromiseApi.Resolve(VoidType.Instance);
+            _voidReturnPromise = _sessionHandler.NetworkInterface.PromiseApi.Resolve(VoidType.Instance);
         }
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
@@ -57,7 +57,7 @@ namespace ScalableIPC.Core.Session
 
             _sessionHandler.Log("e289253e-bc8b-4d84-b337-8e3627b2759c", nextMessage, "Sending next message", 
                 "sentPduCount", _sentPduCount);
-            _sessionHandler.EndpointHandler.HandleSend(_sessionHandler.RemoteEndpoint, nextMessage)
+            _sessionHandler.NetworkInterface.HandleSend(_sessionHandler.RemoteEndpoint, nextMessage)
                 .ThenOrCatchCompose(_ => HandleSendSuccess(nextMessage), e => HandleSendError(nextMessage, e));
             _sentPduCount++;
         }
@@ -98,8 +98,8 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.Log("420af144-e772-444d-ab2d-57da89ad38b6",
                     "All messages in window have been successfully received");
 
-                // indirectly cancel ack timeout.
-                _sessionHandler.ResetIdleTimeout();
+                // cancel ack timeout.
+                _sessionHandler.CancelAckTimeout();
 
                 IsComplete = true;
                 _sessionHandler.IncrementNextWindowIdToSend();
@@ -110,8 +110,8 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.Log("049b8b41-49ce-4ffd-8f34-8f0ffb084626",
                     "Overflow detected in receiver window");
 
-                // indirectly cancel ack timeout.
-                _sessionHandler.ResetIdleTimeout();
+                // cancel ack timeout.
+                _sessionHandler.CancelAckTimeout();
 
                 _sessionHandler.IncrementNextWindowIdToSend();
                 PreviousSendCount += receiveCount;
@@ -123,8 +123,8 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.Log("905ae2a9-a867-4d76-bda0-c8db15a153dc",
                     "Ack received for stop and wait mode to continue");
 
-                // indirectly cancel ack timeout.
-                _sessionHandler.ResetIdleTimeout();
+                // cancel ack timeout.
+                _sessionHandler.CancelAckTimeout();
 
                 // continue stop and wait.
                 _sentPduCount = PreviousSendCount + receiveCount;

@@ -9,7 +9,7 @@ namespace ScalableIPC.Core.Abstractions
         void Shutdown(Exception error);
         bool ProcessReceive(ProtocolDatagram message);
         bool ProcessSend(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb);
-        bool ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options, 
+        bool ProcessSend(byte[] data, Dictionary<string, List<string>> options, 
             PromiseCompletionSource<VoidType> promiseCb);
     }
 }

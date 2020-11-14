@@ -15,11 +15,9 @@ namespace ScalableIPC.Core.ConcreteComponents
 
         public Type SessionHandlerType { get; }
 
-        public ISessionHandler Create(string sessionId, bool configureForInitialSend, IEndpointHandler endpointHandler,
-            IPEndPoint remoteEndpoint)
+        public ISessionHandler Create(bool configureForInitialSend)
         {
             var sessionHandler = (ISessionHandler) Activator.CreateInstance(SessionHandlerType);
-            sessionHandler.CompleteInit(sessionId, configureForInitialSend, endpointHandler, remoteEndpoint);
             return sessionHandler;
         }
     }

@@ -9,17 +9,18 @@ namespace ScalableIPC.Core.Abstractions
     {
         // beginning of public API.
         void CompleteInit(string sessionId, bool configureForInitialSend,
-            IEndpointHandler endpointHandler, IPEndPoint remoteEndpoint);
-        IEndpointHandler EndpointHandler { get; }
+            INetworkTransportInterface networkInterface, IPEndPoint remoteEndpoint);
+        INetworkTransportInterface NetworkInterface { get; }
         IPEndPoint RemoteEndpoint { get; }
         AbstractEventLoopApi EventLoop { get; }
         string SessionId { get; }
         List<ISessionStateHandler> StateHandlers { get; }
-        void ProcessReceive(ProtocolDatagram message);
+        AbstractPromise<VoidType> ProcessReceive(ProtocolDatagram message);
         // Accepting single message instead of list due to possibility of message opcodes being
         // set up differently. Custom session state handler can handle that.
         AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);
-        AbstractPromise<VoidType> ProcessSend(int opCode, byte[] data, Dictionary<string, List<string>> options);
+        AbstractPromise<VoidType> ProcessSend(byte[] data, Dictionary<string, List<string>> options);
+        AbstractPromise<VoidType> PartialShutdown();
         AbstractPromise<VoidType> Shutdown(Exception error, bool timeout);
 
         // beginning of internal API with state handlers.
@@ -34,9 +35,10 @@ namespace ScalableIPC.Core.Abstractions
         int IdleTimeoutSecs { get; set; }
 
         // Rules for window id changes are:
+        //  - First window id must be 0. 
         //  - Receiver usually accepts only next ids larger than last received window id.
-        //  - The only exception is that receiver can receive a next of 0, provided 
-        //    last received id is larger than 0.
+        //  - The only exception is that after 9E18, receiver must receive a next starting from 1
+        //  - In any case increments must be less than one thousand (1000).
         // By so doing receiver can be conservative, and sender can have 
         // freedom in varying trend of window ids.
         long NextWindowIdToSend { get; set; }
@@ -46,21 +48,19 @@ namespace ScalableIPC.Core.Abstractions
         bool IsSendInProgress();
         void PostIfNotClosed(Action cb);
 
-        // timeout api assumes only 1 timeout can be outstanding at any time.
-        // setting a timeout clears previous timeout.
         int? SessionIdleTimeoutSecs { get; set; }
+        bool? SessionCloseReceiverOption { get; set; }
 
-        void EnsureIdleTimeout();
         void ResetIdleTimeout();
 
         void ResetAckTimeout(int timeoutSecs, Action cb);
+        void CancelAckTimeout();
         void DiscardReceivedMessage(ProtocolDatagram message);
         void ProcessShutdown(Exception error, bool timeout);
         void Log(string logPosition, string message, params object[] args);
         void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args);
 
         // application layer interface. contract here is that these should be called from event loop.
-        void OnOpenRequest(byte[] data, Dictionary<string, List<string>> options, bool isLastOpenRequest);
         void OnDataReceived(byte[] data, Dictionary<string, List<string>> options);
         void OnClose(Exception error, bool timeout);
     }

@@ -10,8 +10,7 @@ namespace ScalableIPC.Core
     {
         private static readonly List<string> OptionsToSkipElseCouldInterfere = new List<string>
         {
-            ProtocolDatagram.OptionNameIsLastInWindow, ProtocolDatagram.OptionNameIsLastOpenRequest,
-            ProtocolDatagram.OptionNameIsWindowFull
+            ProtocolDatagram.OptionNameIsLastInWindow, ProtocolDatagram.OptionNameIsWindowFull
         };
 
         private readonly byte[] _data;
