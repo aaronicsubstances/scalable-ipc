@@ -112,7 +112,7 @@ namespace ScalableIPC.Core.Session
                     _sessionHandler.Log("f09fd1f8-b548-428e-a59a-01534fde8f0f", message,
                         "Failed to send ack. Shutting down...");
                     _isComplete = true;
-                    _sessionHandler.ProcessShutdown(error, false);
+                    _sessionHandler.InitiateClose(error, false);
                 }
             });
             return _voidReturnPromise;

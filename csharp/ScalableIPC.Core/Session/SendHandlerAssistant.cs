@@ -179,7 +179,7 @@ namespace ScalableIPC.Core.Session
                     _sessionHandler.Log("c57b8654-7c31-499d-b89b-52d1d5d7dd8d", message,
                         "Sending failed. Shutting down...", "error", error);
                     Cancel();
-                    _sessionHandler.ProcessShutdown(error, false);
+                    _sessionHandler.InitiateClose(error, false);
                 }
             });
             return _voidReturnPromise;

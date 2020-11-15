@@ -69,7 +69,7 @@ namespace ScalableIPC.Core.Session
             {
                 error = new Exception(FormatErrorcode(message.ErrorCode.Value));
             }
-            _sessionHandler.ProcessShutdown(error, false);
+            _sessionHandler.InitiateClose(error, false);
         }
 
         public virtual string FormatErrorcode(int errorCode)
@@ -100,7 +100,7 @@ namespace ScalableIPC.Core.Session
                     "Shutting down after sending closing message");
 
                 promiseCb.CompleteSuccessfully(VoidType.Instance);
-                _sessionHandler.ProcessShutdown(null, false);
+                _sessionHandler.InitiateClose(null, false);
             });
 
             return VoidType.Instance;

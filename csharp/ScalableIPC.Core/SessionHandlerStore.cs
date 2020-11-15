@@ -78,12 +78,29 @@ namespace ScalableIPC.Core
 
         public List<string> GetSessionIds(IPEndPoint remoteEndpoint)
         {
+            if (!_sessionHandlerMap.ContainsKey(remoteEndpoint))
+            {
+                return new List<string>();
+            }
             var sessionIds = _sessionHandlerMap[remoteEndpoint].Keys.ToList();
             return sessionIds;
         }
 
+        public int GetSessionCount(IPEndPoint remoteEndpoint)
+        {
+            if (!_sessionHandlerMap.ContainsKey(remoteEndpoint))
+            {
+                return 0;
+            }
+            return _sessionHandlerMap[remoteEndpoint].Keys.Count;
+        }
+
         public List<ISessionHandlerWrapper> GetSessionHandlers(IPEndPoint remoteEndpoint)
         {
+            if (!_sessionHandlerMap.ContainsKey(remoteEndpoint))
+            {
+                return new List<ISessionHandlerWrapper>();
+            }
             var sessionHandlers = _sessionHandlerMap[remoteEndpoint].Values.ToList();
             return sessionHandlers;
         }
@@ -92,6 +109,11 @@ namespace ScalableIPC.Core
         {
             var endpoints = _sessionHandlerMap.Keys.ToList();
             return endpoints;
+        }
+
+        public int GetEndpointCount()
+        {
+            return _sessionHandlerMap.Keys.Count;
         }
     }
 }

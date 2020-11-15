@@ -25,7 +25,7 @@ namespace ScalableIPC.Core.Session
             {
                 _sessionHandler.Log("28a90da5-1113-42e5-9894-881e3e2876f5", 
                     "Maximum retry count reached. Shutting down...", "retryCount", RetryCount);
-                _sessionHandler.ProcessShutdown(null, true);
+                _sessionHandler.InitiateClose(null, true);
             }
             else
             {

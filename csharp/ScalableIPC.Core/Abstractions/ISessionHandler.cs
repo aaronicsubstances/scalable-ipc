@@ -20,8 +20,8 @@ namespace ScalableIPC.Core.Abstractions
         // set up differently. Custom session state handler can handle that.
         AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSend(byte[] data, Dictionary<string, List<string>> options);
-        AbstractPromise<VoidType> PartialShutdown();
-        AbstractPromise<VoidType> Shutdown(Exception error, bool timeout);
+        AbstractPromise<VoidType> ProcessHalfClose();
+        AbstractPromise<VoidType> Close(Exception error, bool timeout);
 
         // beginning of internal API with state handlers.
         int SessionState { get; set; }
@@ -56,7 +56,7 @@ namespace ScalableIPC.Core.Abstractions
         void ResetAckTimeout(int timeoutSecs, Action cb);
         void CancelAckTimeout();
         void DiscardReceivedMessage(ProtocolDatagram message);
-        void ProcessShutdown(Exception error, bool timeout);
+        void InitiateClose(Exception error, bool timeout);
         void Log(string logPosition, string message, params object[] args);
         void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args);
 

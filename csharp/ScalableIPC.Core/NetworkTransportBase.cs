@@ -30,24 +30,6 @@ namespace ScalableIPC.Core
         public int MaximumTransferUnitSize { get; set; }
         public ISessionHandlerFactory SessionHandlerFactory { get; set; }
 
-        public virtual AbstractPromise<VoidType> CloseSession(IPEndPoint remoteEndpoint, string sessionId)
-        {
-            lock (_sessionHandlerStore)
-            {
-                _sessionHandlerStore.Remove(remoteEndpoint, sessionId);
-            }
-            return PromiseApi.Resolve(VoidType.Instance);
-        }
-
-        public virtual AbstractPromise<VoidType> CloseSessions(IPEndPoint remoteEndpoint)
-        {
-            lock (_sessionHandlerStore)
-            {
-                _sessionHandlerStore.Remove(remoteEndpoint);
-            }
-            return PromiseApi.Resolve(VoidType.Instance);
-        }
-
         public virtual AbstractPromise<VoidType> HandleReceive(IPEndPoint remoteEndpoint,
              byte[] rawBytes, int offset, int length)
         {
@@ -66,10 +48,11 @@ namespace ScalableIPC.Core
             {
                 return PromiseApi.Reject(ex);
             }
-            var handled = HandleReceiveProtocolControlMessage(remoteEndpoint, message);
-            if (handled)
+
+            // handle protocol control messages
+            if (message.OpCode == ProtocolDatagram.OpCodeCloseAll)
             {
-                return PromiseApi.Resolve(VoidType.Instance);
+                return CloseSessions(remoteEndpoint);
             }
 
             // handle opening window messages separately.
@@ -112,30 +95,6 @@ namespace ScalableIPC.Core
                     throw new Exception($"Invalid op code: {message.OpCode}");
             }
             return message;
-        }
-
-        protected virtual bool HandleReceiveProtocolControlMessage(IPEndPoint remoteEndpoint, ProtocolDatagram message)
-        {
-            if (message.OpCode == ProtocolDatagram.OpCodeCloseAll)
-            {
-                CloseAllEndpointSessions(remoteEndpoint);
-                return true;
-            }
-            return false;
-        }
-
-        private void CloseAllEndpointSessions(IPEndPoint remoteEndpoint)
-        {
-            List<ISessionHandlerWrapper> sessionHandlers;
-            lock (_sessionHandlerStore)
-            {
-                sessionHandlers = _sessionHandlerStore.GetSessionHandlers(remoteEndpoint);
-                _sessionHandlerStore.Remove(remoteEndpoint);
-            }
-            foreach (var sessionHandler in sessionHandlers)
-            {
-                SwallowException(sessionHandler.SessionHandler.Shutdown(null, false));
-            }
         }
 
         protected virtual AbstractPromise<VoidType> SwallowException(AbstractPromise<VoidType> promise)
@@ -206,7 +165,46 @@ namespace ScalableIPC.Core
             // swallow any send exception.
             return HandleSend(remoteEndpoint, pdu)
                 .CatchCompose(_ => PromiseApi.Resolve(VoidType.Instance))
-                .Then(_ => { CloseAllEndpointSessions(remoteEndpoint); return VoidType.Instance; });
+                .ThenCompose(_ => CloseSessions(remoteEndpoint));
+        }
+
+        public virtual void OnCloseSession(IPEndPoint remoteEndpoint, string sessionId, Exception error, bool timeout)
+        {
+            // invoke in different thread outside event loop?
+            CloseSession(remoteEndpoint, sessionId, error, timeout);
+        }
+
+        public virtual AbstractPromise<VoidType> CloseSession(IPEndPoint remoteEndpoint, string sessionId,
+            Exception error, bool timeout)
+        {
+            ISessionHandlerWrapper sessionHandler;
+            lock (_sessionHandlerStore)
+            {
+                sessionHandler = _sessionHandlerStore.Get(remoteEndpoint, sessionId);
+                _sessionHandlerStore.Remove(remoteEndpoint, sessionId);
+            }
+            if (sessionHandler != null)
+            {
+                return SwallowException(sessionHandler.SessionHandler.Close(error, timeout));
+            }
+            return PromiseApi.Resolve(VoidType.Instance);
+        }
+
+        public virtual AbstractPromise<VoidType> CloseSessions(IPEndPoint remoteEndpoint)
+        {
+            List<ISessionHandlerWrapper> sessionHandlers;
+            lock (_sessionHandlerStore)
+            {
+                sessionHandlers = _sessionHandlerStore.GetSessionHandlers(remoteEndpoint);
+                _sessionHandlerStore.Remove(remoteEndpoint);
+            }
+            var retVal = PromiseApi.Resolve(VoidType.Instance);
+            foreach (var sessionHandler in sessionHandlers)
+            {
+                retVal = retVal.ThenCompose(_ => SwallowException(
+                    sessionHandler.SessionHandler.Close(null, false)));
+            }
+            return retVal;
         }
 
         public virtual AbstractPromise<ISessionHandler> OpenSession(IPEndPoint remoteEndpoint, string sessionId = null,

@@ -46,7 +46,7 @@ namespace ScalableIPC.Core.Session
             }
 
             _sessionHandler.Log("abd38766-8116-4123-b5ab-8313fef91f5e", message,
-                "Ack pdu accepted for processing in send open handler");
+                "Ack pdu accepted for processing in send pdu handler");
             _sendWindowHandler.OnAckReceived(message);
             return true;
         }

@@ -22,7 +22,9 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> HandleSend(IPEndPoint remoteEndpoint, ProtocolDatagram message);
         AbstractPromise<ISessionHandler> OpenSession(IPEndPoint remoteEndpoint, string sessionId = null,
             ISessionHandler sessionHandler = null);
-        AbstractPromise<VoidType> CloseSession(IPEndPoint remoteEndpoint, string sessionId);
+        void OnCloseSession(IPEndPoint remoteEndpoint, string sessionId, Exception error, bool timeout);
+        AbstractPromise<VoidType> CloseSession(IPEndPoint remoteEndpoint, string sessionId,
+            Exception error, bool timeout);
         AbstractPromise<VoidType> CloseSessions(IPEndPoint remoteEndpoint);
         AbstractPromise<VoidType> Shutdown();
     }

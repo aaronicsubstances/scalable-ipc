@@ -60,7 +60,7 @@ namespace ScalableIPC.Tests.Network
             pendingPromise = sessionHandler.ProcessSend(message);
             await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
 
-            pendingPromise = sessionHandler.Shutdown(null, false);
+            pendingPromise = sessionHandler.Close(null, false);
             await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
         }
     }

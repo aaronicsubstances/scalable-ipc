@@ -55,14 +55,24 @@ namespace ScalableIPC.Tests.Network
         protected override AbstractPromise<VoidType> HandleReceiveOpeningWindowMessage(IPEndPoint remoteEndpoint,
             ProtocolDatagram message)
         {
-            var sessionHandler = SessionHandlerFactory.Create(false);
-            sessionHandler.CompleteInit(message.SessionId, true, this, remoteEndpoint);
+            // for receipt of window 0, reuse existing session handler or create one and add.
+            ISessionHandler sessionHandler;
             lock (_sessionHandlerStore)
             {
-                _sessionHandlerStore.Add(remoteEndpoint, message.SessionId, new SessionHandlerWrapper
+                var sessionHandlerWrapper = _sessionHandlerStore.Get(remoteEndpoint, message.SessionId);
+                if (sessionHandlerWrapper != null)
                 {
-                    SessionHandler = sessionHandler
-                });
+                    sessionHandler = sessionHandlerWrapper.SessionHandler;
+                }
+                else
+                {
+                    sessionHandler = SessionHandlerFactory.Create(false);
+                    sessionHandler.CompleteInit(message.SessionId, true, this, remoteEndpoint);
+                    _sessionHandlerStore.Add(remoteEndpoint, message.SessionId, new SessionHandlerWrapper
+                    {
+                        SessionHandler = sessionHandler
+                    });
+                }
             }
             return sessionHandler.ProcessReceive(message);
         }
@@ -112,14 +122,9 @@ namespace ScalableIPC.Tests.Network
     {
         public override void OnDataReceived(byte[] data, Dictionary<string, List<string>> options)
         {
-            base.OnDataReceived(data, options);
             string dataMessage = ProtocolDatagram.ConvertBytesToString(data, 0, data.Length);
             CustomLoggerFacade.Log(() => new CustomLogEvent("71931970-3923-4472-b110-3449141998e3",
-                $"Received data: {dataMessage}", (Exception)null));
-        }
-        public override void OnClose(Exception error, bool timeout)
-        {
-            base.OnClose(error, timeout);
+                $"Received data: {dataMessage}", null));
         }
     }
 
