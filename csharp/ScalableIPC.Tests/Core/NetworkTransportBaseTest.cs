@@ -6,23 +6,23 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace ScalableIPC.Tests.Network
+namespace ScalableIPC.Tests.Core
 {
-    public class NetworkTransportTest
+    public class NetworkTransportBaseTest
     {
-        private readonly TestNetworkTransport _localEndpoint;
+        private readonly SimulatedNetworkTransport _localEndpoint;
         private readonly GenericNetworkIdentifier _remoteAddr1;
 
-        public NetworkTransportTest()
+        public NetworkTransportBaseTest()
         {
             var localAddr = new GenericNetworkIdentifier { HostName = "local" };
-            _localEndpoint = new TestNetworkTransport
+            _localEndpoint = new SimulatedNetworkTransport
             {
                 LocalEndpoint = localAddr
             };
 
             _remoteAddr1 = new GenericNetworkIdentifier { HostName = "remote1" };
-            var remoteEndpoint = new TestNetworkTransport
+            var remoteEndpoint = new SimulatedNetworkTransport
             {
                 LocalEndpoint = _remoteAddr1
             };

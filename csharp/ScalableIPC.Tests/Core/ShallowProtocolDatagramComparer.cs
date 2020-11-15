@@ -1,7 +1,7 @@
 ﻿using ScalableIPC.Core;
 using System.Collections.Generic;
 
-namespace ScalableIPC.Tests
+namespace ScalableIPC.Tests.Core
 {
     class ShallowProtocolDatagramComparer : IEqualityComparer<ProtocolDatagram>
     {

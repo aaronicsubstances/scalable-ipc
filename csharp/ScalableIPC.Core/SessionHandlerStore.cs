@@ -8,15 +8,15 @@ namespace ScalableIPC.Core
     public class SessionHandlerStore
     {
         private readonly Dictionary<GenericNetworkIdentifier, 
-            Dictionary<string, ISessionHandlerWrapper>> _sessionHandlerMap;
+            Dictionary<string, SessionHandlerWrapper>> _sessionHandlerMap;
 
         public SessionHandlerStore()
         {
             _sessionHandlerMap = new Dictionary<GenericNetworkIdentifier, 
-                Dictionary<string, ISessionHandlerWrapper>>();
+                Dictionary<string, SessionHandlerWrapper>>();
         }
 
-        public ISessionHandlerWrapper Get(GenericNetworkIdentifier remoteEndpoint, string sessionId)
+        public SessionHandlerWrapper Get(GenericNetworkIdentifier remoteEndpoint, string sessionId)
         {
             if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
@@ -29,16 +29,16 @@ namespace ScalableIPC.Core
             return null;
         }
         
-        public void Add(GenericNetworkIdentifier remoteEndpoint, string sessionId, ISessionHandlerWrapper value)
+        public void Add(GenericNetworkIdentifier remoteEndpoint, string sessionId, SessionHandlerWrapper value)
         {
-            Dictionary<string, ISessionHandlerWrapper> subDict;
+            Dictionary<string, SessionHandlerWrapper> subDict;
             if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
                 subDict = _sessionHandlerMap[remoteEndpoint];
             }
             else
             {
-                subDict = new Dictionary<string, ISessionHandlerWrapper>();
+                subDict = new Dictionary<string, SessionHandlerWrapper>();
                 _sessionHandlerMap.Add(remoteEndpoint, subDict);
             }
             if (subDict.ContainsKey(sessionId))
@@ -95,11 +95,11 @@ namespace ScalableIPC.Core
             return _sessionHandlerMap[remoteEndpoint].Keys.Count;
         }
 
-        public List<ISessionHandlerWrapper> GetSessionHandlers(GenericNetworkIdentifier remoteEndpoint)
+        public List<SessionHandlerWrapper> GetSessionHandlers(GenericNetworkIdentifier remoteEndpoint)
         {
             if (!_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
-                return new List<ISessionHandlerWrapper>();
+                return new List<SessionHandlerWrapper>();
             }
             var sessionHandlers = _sessionHandlerMap[remoteEndpoint].Values.ToList();
             return sessionHandlers;

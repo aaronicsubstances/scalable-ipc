@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Text;
 using Xunit;
 
-namespace ScalableIPC.Tests.Session
+namespace ScalableIPC.Tests.Core.Session
 {
     public class ReceiveHandlerAssistantTest
     {

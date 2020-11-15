@@ -6,7 +6,7 @@ using System.Text;
 
 namespace ScalableIPC.Core
 {
-    public class NetworkTransportBase : INetworkTransportInterface
+    public abstract class NetworkTransportBase : INetworkTransportInterface
     {
         protected readonly SessionHandlerStore _sessionHandlerStore;
         protected volatile bool _isDisposing = false;
@@ -60,7 +60,7 @@ namespace ScalableIPC.Core
                 return HandleReceiveOpeningWindowMessage(remoteEndpoint, message);
             }
 
-            ISessionHandlerWrapper sessionHandlerWrapper;
+            SessionHandlerWrapper sessionHandlerWrapper;
             lock (_sessionHandlerStore)
             {
                 sessionHandlerWrapper = _sessionHandlerStore.Get(remoteEndpoint, message.SessionId);
@@ -171,13 +171,13 @@ namespace ScalableIPC.Core
             Exception error, bool timeout)
         {
             // invoke in different thread outside event loop?
-            CloseSession(remoteEndpoint, sessionId, error, timeout);
+            _ = CloseSession(remoteEndpoint, sessionId, error, timeout);
         }
 
         public virtual AbstractPromise<VoidType> CloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             Exception error, bool timeout)
         {
-            ISessionHandlerWrapper sessionHandler;
+            SessionHandlerWrapper sessionHandler;
             lock (_sessionHandlerStore)
             {
                 sessionHandler = _sessionHandlerStore.Get(remoteEndpoint, sessionId);
@@ -192,7 +192,7 @@ namespace ScalableIPC.Core
 
         public virtual AbstractPromise<VoidType> CloseSessions(GenericNetworkIdentifier remoteEndpoint)
         {
-            List<ISessionHandlerWrapper> sessionHandlers;
+            List<SessionHandlerWrapper> sessionHandlers;
             lock (_sessionHandlerStore)
             {
                 sessionHandlers = _sessionHandlerStore.GetSessionHandlers(remoteEndpoint);
@@ -207,28 +207,63 @@ namespace ScalableIPC.Core
             return retVal;
         }
 
+        protected virtual SessionHandlerWrapper CreateSessionHandlerWrapper(ISessionHandler sessionHandler)
+        {
+            return new SessionHandlerWrapper(sessionHandler);
+        }
+
         public virtual AbstractPromise<ISessionHandler> OpenSession(GenericNetworkIdentifier remoteEndpoint, 
             string sessionId = null, ISessionHandler sessionHandler = null)
         {
-            throw new NotImplementedException();
+            if (sessionId == null)
+            {
+                sessionId = ProtocolDatagram.GenerateSessionId();
+            }
+            if (sessionHandler == null)
+            {
+                sessionHandler = SessionHandlerFactory.Create(true);
+            }
+            sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
+            lock (_sessionHandlerStore)
+            {
+                _sessionHandlerStore.Add(remoteEndpoint, sessionId, 
+                    CreateSessionHandlerWrapper(sessionHandler));
+            }
+            return PromiseApi.Resolve(sessionHandler);
         }
 
         protected virtual AbstractPromise<VoidType> HandleReceiveOpeningWindowMessage(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram message)
         {
-            throw new NotImplementedException();
+            // for receipt of window 0, reuse existing session handler or create one and add.
+            ISessionHandler sessionHandler;
+            lock (_sessionHandlerStore)
+            {
+                var sessionHandlerWrapper = _sessionHandlerStore.Get(remoteEndpoint, message.SessionId);
+                if (sessionHandlerWrapper != null)
+                {
+                    sessionHandler = sessionHandlerWrapper.SessionHandler;
+                }
+                else
+                {
+                    sessionHandler = SessionHandlerFactory.Create(false);
+                    sessionHandler.CompleteInit(message.SessionId, true, this, remoteEndpoint);
+                    _sessionHandlerStore.Add(remoteEndpoint, message.SessionId,
+                        CreateSessionHandlerWrapper(sessionHandler));
+
+                }
+            }
+            return sessionHandler.ProcessReceive(message);
         }
 
         protected virtual AbstractPromise<VoidType> HandleSendOpeningWindowMessage(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram message)
         {
-            throw new NotImplementedException();
+            byte[] data = GenerateRawDatagram(message);
+            return HandleSendData(remoteEndpoint, message.SessionId, data, 0, data.Length);
         }
 
-        protected virtual AbstractPromise<VoidType> HandleSendData(GenericNetworkIdentifier remoteEndpoint,
-            string sessionId, byte[] data, int offset, int length)
-        {
-            throw new NotImplementedException();
-        }
+        protected abstract AbstractPromise<VoidType> HandleSendData(GenericNetworkIdentifier remoteEndpoint,
+            string sessionId, byte[] data, int offset, int length);
     }
 }
