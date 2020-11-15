@@ -2,21 +2,21 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Text;
 
 namespace ScalableIPC.Core
 {
     public class SessionHandlerStore
     {
-        private readonly Dictionary<IPEndPoint, Dictionary<string, ISessionHandlerWrapper>> _sessionHandlerMap;
+        private readonly Dictionary<GenericNetworkIdentifier, 
+            Dictionary<string, ISessionHandlerWrapper>> _sessionHandlerMap;
 
         public SessionHandlerStore()
         {
-            _sessionHandlerMap = new Dictionary<IPEndPoint, Dictionary<string, ISessionHandlerWrapper>>();
+            _sessionHandlerMap = new Dictionary<GenericNetworkIdentifier, 
+                Dictionary<string, ISessionHandlerWrapper>>();
         }
 
-        public ISessionHandlerWrapper Get(IPEndPoint remoteEndpoint, string sessionId)
+        public ISessionHandlerWrapper Get(GenericNetworkIdentifier remoteEndpoint, string sessionId)
         {
             if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
@@ -29,7 +29,7 @@ namespace ScalableIPC.Core
             return null;
         }
         
-        public void Add(IPEndPoint remoteEndpoint, string sessionId, ISessionHandlerWrapper value)
+        public void Add(GenericNetworkIdentifier remoteEndpoint, string sessionId, ISessionHandlerWrapper value)
         {
             Dictionary<string, ISessionHandlerWrapper> subDict;
             if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
@@ -43,12 +43,12 @@ namespace ScalableIPC.Core
             }
             if (subDict.ContainsKey(sessionId))
             {
-                throw new Exception($"Session {sessionId} is already present with a handler");
+                throw new Exception($"Session {sessionId} at {remoteEndpoint} is already present with a handler");
             }
             subDict.Add(sessionId, value);
         }
 
-        public bool Remove(IPEndPoint remoteEndpoint, string sessionId)
+        public bool Remove(GenericNetworkIdentifier remoteEndpoint, string sessionId)
         {
             if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
@@ -66,7 +66,7 @@ namespace ScalableIPC.Core
             return false;
         }
 
-        public bool Remove(IPEndPoint remoteEndpoint)
+        public bool Remove(GenericNetworkIdentifier remoteEndpoint)
         {
             if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
@@ -76,7 +76,7 @@ namespace ScalableIPC.Core
             return false;
         }
 
-        public List<string> GetSessionIds(IPEndPoint remoteEndpoint)
+        public List<string> GetSessionIds(GenericNetworkIdentifier remoteEndpoint)
         {
             if (!_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
@@ -86,7 +86,7 @@ namespace ScalableIPC.Core
             return sessionIds;
         }
 
-        public int GetSessionCount(IPEndPoint remoteEndpoint)
+        public int GetSessionCount(GenericNetworkIdentifier remoteEndpoint)
         {
             if (!_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
@@ -95,7 +95,7 @@ namespace ScalableIPC.Core
             return _sessionHandlerMap[remoteEndpoint].Keys.Count;
         }
 
-        public List<ISessionHandlerWrapper> GetSessionHandlers(IPEndPoint remoteEndpoint)
+        public List<ISessionHandlerWrapper> GetSessionHandlers(GenericNetworkIdentifier remoteEndpoint)
         {
             if (!_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
@@ -105,7 +105,7 @@ namespace ScalableIPC.Core
             return sessionHandlers;
         }
 
-        public List<IPEndPoint> GetEndpoints()
+        public List<GenericNetworkIdentifier> GetEndpoints()
         {
             var endpoints = _sessionHandlerMap.Keys.ToList();
             return endpoints;

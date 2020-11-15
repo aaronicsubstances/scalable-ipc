@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Net;
-using System.Text;
 
 namespace ScalableIPC.Core.Abstractions
 {
@@ -9,9 +7,9 @@ namespace ScalableIPC.Core.Abstractions
     {
         // beginning of public API.
         void CompleteInit(string sessionId, bool configureForInitialSend,
-            INetworkTransportInterface networkInterface, IPEndPoint remoteEndpoint);
+            INetworkTransportInterface networkInterface, GenericNetworkIdentifier remoteEndpoint);
         INetworkTransportInterface NetworkInterface { get; }
-        IPEndPoint RemoteEndpoint { get; }
+        GenericNetworkIdentifier RemoteEndpoint { get; }
         AbstractEventLoopApi EventLoop { get; }
         string SessionId { get; }
         List<ISessionStateHandler> StateHandlers { get; }

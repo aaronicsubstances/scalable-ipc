@@ -1,11 +1,8 @@
 ﻿using ScalableIPC.Core;
 using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.ConcreteComponents;
-using ScalableIPC.Tests.ConcreteComponents;
 using System;
 using System.Collections.Generic;
-using System.Net;
-using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -14,17 +11,17 @@ namespace ScalableIPC.Tests.Network
     public class NetworkTransportTest
     {
         private readonly TestNetworkTransport _localEndpoint;
-        private readonly IPEndPoint _remoteAddr1;
+        private readonly GenericNetworkIdentifier _remoteAddr1;
 
         public NetworkTransportTest()
         {
-            var localAddr = new IPEndPoint(new IPAddress(new byte[] { 192, 0, 0, 1 }), 30);
+            var localAddr = new GenericNetworkIdentifier { HostName = "local" };
             _localEndpoint = new TestNetworkTransport
             {
                 LocalEndpoint = localAddr
             };
 
-            _remoteAddr1 = new IPEndPoint(new IPAddress(new byte[] { 192, 0, 0, 2 }), 30);
+            _remoteAddr1 = new GenericNetworkIdentifier { HostName = "remote1" };
             var remoteEndpoint = new TestNetworkTransport
             {
                 LocalEndpoint = _remoteAddr1

@@ -13,7 +13,7 @@ namespace ScalableIPC.Tests.Network
     {
         public TestNetworkTransport()
         {
-            ConnectedNetworks = new Dictionary<IPEndPoint, TestNetworkTransport>();
+            ConnectedNetworks = new Dictionary<GenericNetworkIdentifier, TestNetworkTransport>();
             SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler));
             IdleTimeoutSecs = 5;
             AckTimeoutSecs = 3;
@@ -25,12 +25,12 @@ namespace ScalableIPC.Tests.Network
             MaxTransmissionDelayMs = 2;
         }
 
-        public Dictionary<IPEndPoint, TestNetworkTransport> ConnectedNetworks { get; }
+        public Dictionary<GenericNetworkIdentifier, TestNetworkTransport> ConnectedNetworks { get; }
 
         public int MinTransmissionDelayMs { get; set; }
         public int MaxTransmissionDelayMs { get; set; }
 
-        public override AbstractPromise<ISessionHandler> OpenSession(IPEndPoint remoteEndpoint, string sessionId = null,
+        public override AbstractPromise<ISessionHandler> OpenSession(GenericNetworkIdentifier remoteEndpoint, string sessionId = null,
             ISessionHandler sessionHandler = null)
         {
             if (sessionId == null)
@@ -52,7 +52,7 @@ namespace ScalableIPC.Tests.Network
             return PromiseApi.Resolve(sessionHandler);
         }
 
-        protected override AbstractPromise<VoidType> HandleReceiveOpeningWindowMessage(IPEndPoint remoteEndpoint,
+        protected override AbstractPromise<VoidType> HandleReceiveOpeningWindowMessage(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram message)
         {
             // for receipt of window 0, reuse existing session handler or create one and add.
@@ -77,15 +77,15 @@ namespace ScalableIPC.Tests.Network
             return sessionHandler.ProcessReceive(message);
         }
 
-        protected override AbstractPromise<VoidType> HandleSendOpeningWindowMessage(IPEndPoint remoteEndpoint,
+        protected override AbstractPromise<VoidType> HandleSendOpeningWindowMessage(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram message)
         {
             byte[] data = GenerateRawDatagram(message);
             return HandleSendData(remoteEndpoint, message.SessionId, data, 0, data.Length);
         }
 
-        protected override AbstractPromise<VoidType> HandleSendData(IPEndPoint remoteEndpoint, string sessionId, byte[] data,
-            int offset, int length)
+        protected override AbstractPromise<VoidType> HandleSendData(GenericNetworkIdentifier remoteEndpoint, 
+            string sessionId, byte[] data, int offset, int length)
         {
             if (ConnectedNetworks.ContainsKey(remoteEndpoint))
             {

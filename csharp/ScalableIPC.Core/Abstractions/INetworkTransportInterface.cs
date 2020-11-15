@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Net;
-using System.Text;
 
 namespace ScalableIPC.Core.Abstractions
 {
@@ -9,7 +6,7 @@ namespace ScalableIPC.Core.Abstractions
     {
         AbstractPromiseApi PromiseApi { get; set; }
         AbstractEventLoopApi EventLoop { get; set; }
-        IPEndPoint LocalEndpoint { get; set; }
+        GenericNetworkIdentifier LocalEndpoint { get; set; }
         int IdleTimeoutSecs { get; set; }
         int AckTimeoutSecs { get; set; }
         int MaxSendWindowSize { get; set; }
@@ -17,15 +14,15 @@ namespace ScalableIPC.Core.Abstractions
         int MaxRetryCount { get; set; }
         int MaximumTransferUnitSize { get; set; }
         ISessionHandlerFactory SessionHandlerFactory { get; set; }
-        AbstractPromise<VoidType> HandleReceive(IPEndPoint remoteEndpoint,
+        AbstractPromise<VoidType> HandleReceive(GenericNetworkIdentifier remoteEndpoint,
              byte[] rawBytes, int offset, int length);
-        AbstractPromise<VoidType> HandleSend(IPEndPoint remoteEndpoint, ProtocolDatagram message);
-        AbstractPromise<ISessionHandler> OpenSession(IPEndPoint remoteEndpoint, string sessionId = null,
+        AbstractPromise<VoidType> HandleSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message);
+        AbstractPromise<ISessionHandler> OpenSession(GenericNetworkIdentifier remoteEndpoint, string sessionId = null,
             ISessionHandler sessionHandler = null);
-        void OnCloseSession(IPEndPoint remoteEndpoint, string sessionId, Exception error, bool timeout);
-        AbstractPromise<VoidType> CloseSession(IPEndPoint remoteEndpoint, string sessionId,
+        void OnCloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId, Exception error, bool timeout);
+        AbstractPromise<VoidType> CloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             Exception error, bool timeout);
-        AbstractPromise<VoidType> CloseSessions(IPEndPoint remoteEndpoint);
+        AbstractPromise<VoidType> CloseSessions(GenericNetworkIdentifier remoteEndpoint);
         AbstractPromise<VoidType> Shutdown();
     }
 }

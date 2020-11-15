@@ -2,7 +2,6 @@
 using ScalableIPC.Core.ConcreteComponents;
 using System;
 using System.Collections.Generic;
-using System.Net;
 using System.Text;
 
 namespace ScalableIPC.Core
@@ -21,7 +20,7 @@ namespace ScalableIPC.Core
 
         public AbstractPromiseApi PromiseApi { get; set; }
         public AbstractEventLoopApi EventLoop { get; set; }
-        public IPEndPoint LocalEndpoint { get; set; }
+        public GenericNetworkIdentifier LocalEndpoint { get; set; }
         public int IdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
         public int MaxSendWindowSize { get; set; }
@@ -30,7 +29,7 @@ namespace ScalableIPC.Core
         public int MaximumTransferUnitSize { get; set; }
         public ISessionHandlerFactory SessionHandlerFactory { get; set; }
 
-        public virtual AbstractPromise<VoidType> HandleReceive(IPEndPoint remoteEndpoint,
+        public virtual AbstractPromise<VoidType> HandleReceive(GenericNetworkIdentifier remoteEndpoint,
              byte[] rawBytes, int offset, int length)
         {
             if (_isDisposing)
@@ -107,7 +106,7 @@ namespace ScalableIPC.Core
             });
         }
 
-        public virtual AbstractPromise<VoidType> HandleSend(IPEndPoint remoteEndpoint, ProtocolDatagram message)
+        public virtual AbstractPromise<VoidType> HandleSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message)
         {
             if (_isDisposing)
             {
@@ -142,7 +141,7 @@ namespace ScalableIPC.Core
 
         public virtual AbstractPromise<VoidType> Shutdown()
         {
-            List<IPEndPoint> endpoints;
+            List<GenericNetworkIdentifier> endpoints;
             lock (_sessionHandlerStore)
             {
                 endpoints = _sessionHandlerStore.GetEndpoints();
@@ -155,7 +154,7 @@ namespace ScalableIPC.Core
             return retVal;
         }
 
-        private AbstractPromise<VoidType> HandleSendCloseAll(IPEndPoint remoteEndpoint)
+        private AbstractPromise<VoidType> HandleSendCloseAll(GenericNetworkIdentifier remoteEndpoint)
         {
             ProtocolDatagram pdu = new ProtocolDatagram
             {
@@ -168,13 +167,14 @@ namespace ScalableIPC.Core
                 .ThenCompose(_ => CloseSessions(remoteEndpoint));
         }
 
-        public virtual void OnCloseSession(IPEndPoint remoteEndpoint, string sessionId, Exception error, bool timeout)
+        public virtual void OnCloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId, 
+            Exception error, bool timeout)
         {
             // invoke in different thread outside event loop?
             CloseSession(remoteEndpoint, sessionId, error, timeout);
         }
 
-        public virtual AbstractPromise<VoidType> CloseSession(IPEndPoint remoteEndpoint, string sessionId,
+        public virtual AbstractPromise<VoidType> CloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             Exception error, bool timeout)
         {
             ISessionHandlerWrapper sessionHandler;
@@ -190,7 +190,7 @@ namespace ScalableIPC.Core
             return PromiseApi.Resolve(VoidType.Instance);
         }
 
-        public virtual AbstractPromise<VoidType> CloseSessions(IPEndPoint remoteEndpoint)
+        public virtual AbstractPromise<VoidType> CloseSessions(GenericNetworkIdentifier remoteEndpoint)
         {
             List<ISessionHandlerWrapper> sessionHandlers;
             lock (_sessionHandlerStore)
@@ -207,26 +207,26 @@ namespace ScalableIPC.Core
             return retVal;
         }
 
-        public virtual AbstractPromise<ISessionHandler> OpenSession(IPEndPoint remoteEndpoint, string sessionId = null,
-            ISessionHandler sessionHandler = null)
+        public virtual AbstractPromise<ISessionHandler> OpenSession(GenericNetworkIdentifier remoteEndpoint, 
+            string sessionId = null, ISessionHandler sessionHandler = null)
         {
             throw new NotImplementedException();
         }
 
-        protected virtual AbstractPromise<VoidType> HandleReceiveOpeningWindowMessage(IPEndPoint remoteEndpoint,
+        protected virtual AbstractPromise<VoidType> HandleReceiveOpeningWindowMessage(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram message)
         {
             throw new NotImplementedException();
         }
 
-        protected virtual AbstractPromise<VoidType> HandleSendOpeningWindowMessage(IPEndPoint remoteEndpoint,
+        protected virtual AbstractPromise<VoidType> HandleSendOpeningWindowMessage(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram message)
         {
             throw new NotImplementedException();
         }
 
-        protected virtual AbstractPromise<VoidType> HandleSendData(IPEndPoint remoteEndpoint, string sessionId, byte[] data, 
-            int offset, int length)
+        protected virtual AbstractPromise<VoidType> HandleSendData(GenericNetworkIdentifier remoteEndpoint,
+            string sessionId, byte[] data, int offset, int length)
         {
             throw new NotImplementedException();
         }

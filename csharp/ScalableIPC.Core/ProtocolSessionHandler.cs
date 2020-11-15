@@ -2,7 +2,6 @@
 using ScalableIPC.Core.Session;
 using System;
 using System.Collections.Generic;
-using System.Net;
 
 namespace ScalableIPC.Core
 {
@@ -26,7 +25,7 @@ namespace ScalableIPC.Core
         { }
 
         public void CompleteInit(string sessionId, bool configureForInitialSend,
-            INetworkTransportInterface networkInterface, IPEndPoint remoteEndpoint)
+            INetworkTransportInterface networkInterface, GenericNetworkIdentifier remoteEndpoint)
         {
             NetworkInterface = networkInterface;
             EventLoop = networkInterface.EventLoop;
@@ -50,7 +49,7 @@ namespace ScalableIPC.Core
         }
 
         public INetworkTransportInterface NetworkInterface { get; private set; }
-        public IPEndPoint RemoteEndpoint { get; private set; }
+        public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
         public string SessionId { get; private set; }
         public AbstractEventLoopApi EventLoop { get; private set; }
 
