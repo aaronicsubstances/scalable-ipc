@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace ScalableIPC.Core
+namespace ScalableIPC.Core.Abstractions
 {
     public class VoidType
     {
