@@ -35,23 +35,19 @@ namespace ScalableIPC.Tests.Core
             {
                 return false;
             }
-            if (x.IdleTimeoutSecs != y.IdleTimeoutSecs)
+            if (x.Options?.IdleTimeoutSecs != y.Options?.IdleTimeoutSecs)
             {
                 return false;
             }
-            if (x.IsLastInWindow != y.IsLastInWindow)
+            if (x.Options?.IsLastInWindow != y.Options?.IsLastInWindow)
             {
                 return false;
             }
-            if (x.CloseReceiverOption != y.CloseReceiverOption)
+            if (x.Options?.IsWindowFull != y.Options?.IsWindowFull)
             {
                 return false;
             }
-            if (x.IsWindowFull != y.IsWindowFull)
-            {
-                return false;
-            }
-            if (x.ErrorCode != y.ErrorCode)
+            if (x.Options?.ErrorCode != y.Options?.ErrorCode)
             {
                 return false;
             }
@@ -66,7 +62,7 @@ namespace ScalableIPC.Tests.Core
             // From here onwards intention is to check that two options or dataBytes
             // are equal, if both equal to null 
             // options and dataBytes are expected to be null for this comparer.
-            if (x.Options != y.Options)
+            if (x.Options?.AllOptions != y.Options?.AllOptions)
             {
                 return false;
             }

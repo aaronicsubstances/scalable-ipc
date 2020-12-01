@@ -17,14 +17,18 @@ namespace ScalableIPC.Core.Abstractions
         // Accepting single message instead of list due to possibility of message opcodes being
         // set up differently. Custom session state handler can handle that.
         AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);
-        AbstractPromise<VoidType> ProcessSend(byte[] data, Dictionary<string, List<string>> options);
-        AbstractPromise<VoidType> ProcessHalfClose();
+        AbstractPromise<VoidType> ProcessSend(byte[] windowData, ProtocolDatagramOptions windowOptions);
+        AbstractPromise<VoidType> ShutdownInput();
+        AbstractPromise<bool> IsInputShutdown();
+        AbstractPromise<VoidType> ShutdownOutput();
+        AbstractPromise<bool> IsOutputShutdown();
         AbstractPromise<VoidType> Close(Exception error, bool timeout);
 
         // beginning of internal API with state handlers.
         int SessionState { get; set; }
+        bool IsInputShutdownInternal();
 
-        // sesion parameters.
+        // session parameters.
         int MaxReceiveWindowSize { get; set; }
         int MaxSendWindowSize { get; set; }
         int MaximumTransferUnitSize { get; set; }
@@ -47,7 +51,6 @@ namespace ScalableIPC.Core.Abstractions
         void PostIfNotClosed(Action cb);
 
         int? SessionIdleTimeoutSecs { get; set; }
-        bool? SessionCloseReceiverOption { get; set; }
 
         void ResetIdleTimeout();
 
@@ -59,7 +62,9 @@ namespace ScalableIPC.Core.Abstractions
         void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args);
 
         // application layer interface. contract here is that these should be called from event loop.
-        void OnDataReceived(byte[] data, Dictionary<string, List<string>> options);
+        // NB: What is passed to OnDataReceived is a window equivalent to 1 pdu with all
+        // data combined, and all options combined as well.
+        void OnDataReceived(byte[] windowData, ProtocolDatagramOptions windowOptions);
         void OnClose(Exception error, bool timeout);
     }
 }

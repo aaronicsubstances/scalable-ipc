@@ -105,7 +105,7 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.IncrementNextWindowIdToSend();
                 SuccessCallback.Invoke();
             }
-            else if (ack.IsWindowFull == true)
+            else if (ack.Options?.IsWindowFull == true)
             {
                 _sessionHandler.Log("049b8b41-49ce-4ffd-8f34-8f0ffb084626",
                     "Overflow detected in receiver window");

@@ -72,7 +72,7 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.Log("ea2d46d1-8baf-4e31-9c1a-5740ad5529cd", 
                 RetryCount > 0 ? "Retry sending window" : "Start sending window",
                 "retryCount", RetryCount, "prevSendCount", _currentWindowHandler.PreviousSendCount,
-                "lastInWindow", CurrentWindow[CurrentWindow.Count - 1].IsLastInWindow);
+                "lastInWindow", CurrentWindow[CurrentWindow.Count - 1].Options?.IsLastInWindow);
             _currentWindowHandler.Start();
         }
     }

@@ -2,6 +2,6 @@
 {
     public interface ISessionHandlerFactory
     {
-        ISessionHandler Create(bool configureForInitialSend);
+        ISessionHandler Create();
     }
 }

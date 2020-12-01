@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -10,28 +9,24 @@ namespace ScalableIPC.Core
     {
         private static readonly List<string> OptionsToSkipElseCouldInterfere = new List<string>
         {
-            ProtocolDatagram.OptionNameIsLastInWindow, ProtocolDatagram.OptionNameIsWindowFull
+            ProtocolDatagramOptions.OptionNameIsLastInWindow, ProtocolDatagramOptions.OptionNameIsWindowFull
         };
 
         private readonly byte[] _data;
-        private readonly List<string> _optionKeys;
-        private readonly Dictionary<string, List<string>> _options;
+        private readonly List<string[]> _options;
         private readonly int _maxPduSize;
-        private int _usedOptionKeyCount;
-        private int _usedOptionValueCount;
+        private int _usedOptionCount;
         private int _usedDataByteCount;
         private bool _doneWithOptions;
         private bool _started;
 
-        public DatagramChopper(byte[] data, Dictionary<string, List<string>> options, int maxPduSize)
+        public DatagramChopper(byte[] data, ProtocolDatagramOptions options, int maxPduSize)
         {
             _data = data;
-            _optionKeys = options.Keys.ToList();
-            _options = options;
+            _options = options.GenerateList().ToList();
             _maxPduSize = maxPduSize;
 
-            _usedOptionKeyCount = 0;
-            _usedOptionValueCount = 0;
+            _usedOptionCount = 0;
             _usedDataByteCount = 0;
             _doneWithOptions = false;
             _started = false;
@@ -45,61 +40,40 @@ namespace ScalableIPC.Core
             {
                 Started = _started,
                 DoneWithOptions= _doneWithOptions,
-                UsedOptionKeyCount = _usedOptionKeyCount, 
-                UsedOptionValueCount = _usedOptionValueCount,
+                UsedOptionCount = _usedOptionCount,
                 UsedDataByteCount = _usedDataByteCount
             };
 
             reserveSpaceByteCount += ProtocolDatagram.MinDatagramSize;
 
-            var subOptions = new Dictionary<string, List<string>>();
+            var subOptions = new ProtocolDatagramOptions();
             int spaceUsed = 0;
             if (!_doneWithOptions)
             {
                 bool nextOptionsSpaceUsedUp = false;
-                while (_usedOptionKeyCount < _optionKeys.Count)
+                while (_usedOptionCount < _options.Count)
                 {
-                    string k = _optionKeys[_usedOptionKeyCount];
+                    string[] pair = _options[_usedOptionCount];
+                    string k = pair[0];
 
                     // skip known session layer options which could interfere with bulk sending.
                     if (!OptionsToSkipElseCouldInterfere.Contains(k))
                     {
-                        var optionValues = _options[k];
                         int kLength = ProtocolDatagram.ConvertStringToBytes(k).Length;
-                        while (_usedOptionValueCount < optionValues.Count)
+                        var v = pair[1];
+                        int vLength = ProtocolDatagram.ConvertStringToBytes(v).Length;
+                        int extraSpaceNeeded = kLength + vLength + 2; // 2 for null terminator count.
+
+                        if (spaceUsed + extraSpaceNeeded > _maxPduSize - reserveSpaceByteCount)
                         {
-                            var v = optionValues[_usedOptionValueCount];
-                            int vLength = ProtocolDatagram.ConvertStringToBytes(v).Length;
-                            int extraSpaceNeeded = kLength + vLength + 2; // 2 for null terminator count.
-
-                            if (spaceUsed + extraSpaceNeeded > _maxPduSize - reserveSpaceByteCount)
-                            {
-                                nextOptionsSpaceUsedUp = true;
-                                break;
-                            }
-                            List<string> subOptionList;
-                            if (subOptions.ContainsKey(k))
-                            {
-                                subOptionList = subOptions[k];
-                            }
-                            else
-                            {
-                                subOptionList = new List<string>();
-                                subOptions.Add(k, subOptionList);
-                            }
-                            subOptionList.Add(v);
-                            _usedOptionValueCount++;
-                            spaceUsed += extraSpaceNeeded;
+                            nextOptionsSpaceUsedUp = true;
+                            break;
                         }
+                        subOptions.AddOption(k, v);
+                        spaceUsed += extraSpaceNeeded;
                     }
 
-                    if (nextOptionsSpaceUsedUp)
-                    {
-                        break;
-                    }
-
-                    _usedOptionKeyCount++;
-                    _usedOptionValueCount = 0;
+                    _usedOptionCount++;
                 }
 
                 if (!nextOptionsSpaceUsedUp)
@@ -152,8 +126,7 @@ namespace ScalableIPC.Core
 
             if (peekOnly)
             {
-                _usedOptionKeyCount = savedState.UsedOptionKeyCount;
-                _usedOptionValueCount = savedState.UsedOptionValueCount;
+                _usedOptionCount = savedState.UsedOptionCount;
                 _usedDataByteCount = savedState.UsedDataByteCount;
                 _doneWithOptions = savedState.DoneWithOptions;
                 _started = savedState.Started;

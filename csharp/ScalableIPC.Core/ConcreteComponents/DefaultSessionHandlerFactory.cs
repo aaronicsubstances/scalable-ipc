@@ -15,7 +15,7 @@ namespace ScalableIPC.Core.ConcreteComponents
 
         public Type SessionHandlerType { get; }
 
-        public ISessionHandler Create(bool configureForInitialSend)
+        public ISessionHandler Create()
         {
             var sessionHandler = (ISessionHandler) Activator.CreateInstance(SessionHandlerType);
             return sessionHandler;

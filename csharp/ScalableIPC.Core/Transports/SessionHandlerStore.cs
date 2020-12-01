@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace ScalableIPC.Core
+namespace ScalableIPC.Core.Transports
 {
     public class SessionHandlerStore
     {

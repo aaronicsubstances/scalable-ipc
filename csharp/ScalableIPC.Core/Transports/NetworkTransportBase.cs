@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ScalableIPC.Core
+namespace ScalableIPC.Core.Transports
 {
     public abstract class NetworkTransportBase : INetworkTransportInterface
     {
@@ -113,29 +113,27 @@ namespace ScalableIPC.Core
                 return PromiseApi.Reject(new Exception("endpoint handler is shutting down"));
             }
 
-            // handle opening window messages separately.
-            if (message.WindowId == 0 && message.OpCode == ProtocolDatagram.OpCodeData)
-            {
-                return HandleSendOpeningWindowMessage(remoteEndpoint, message);
-            }
-
-            byte[] pdu;
             try
             {
-                pdu = GenerateRawDatagram(message);
+                // handle opening window messages separately.
+                if (message.WindowId == 0 && message.OpCode == ProtocolDatagram.OpCodeData)
+                {
+                    return HandleSendOpeningWindowMessage(remoteEndpoint, message);
+                }
+                byte[] pdu = GenerateRawDatagram(message);
+                // send through network.
+                return HandleSendData(remoteEndpoint, message.SessionId, pdu, 0, pdu.Length);
             }
             catch (Exception ex)
             {
                 return PromiseApi.Reject(ex);
             }
-            // send through network.
-            return HandleSendData(remoteEndpoint, message.SessionId, pdu, 0, pdu.Length);
         }
 
         protected virtual byte[] GenerateRawDatagram(ProtocolDatagram message)
         {
             // subclasses can implement forward error correction, expiration, maximum length validation, etc.
-            byte[] rawBytes = message.ToRawDatagram(true);
+            byte[] rawBytes = message.ToRawDatagram();
             return rawBytes;
         }
 
@@ -221,7 +219,7 @@ namespace ScalableIPC.Core
             }
             if (sessionHandler == null)
             {
-                sessionHandler = SessionHandlerFactory.Create(true);
+                sessionHandler = SessionHandlerFactory.Create();
             }
             sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
             lock (_sessionHandlerStore)
@@ -246,7 +244,7 @@ namespace ScalableIPC.Core
                 }
                 else
                 {
-                    sessionHandler = SessionHandlerFactory.Create(false);
+                    sessionHandler = SessionHandlerFactory.Create();
                     sessionHandler.CompleteInit(message.SessionId, true, this, remoteEndpoint);
                     _sessionHandlerStore.Add(remoteEndpoint, message.SessionId,
                         CreateSessionHandlerWrapper(sessionHandler));

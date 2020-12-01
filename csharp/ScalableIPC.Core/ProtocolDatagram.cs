@@ -17,10 +17,10 @@ namespace ScalableIPC.Core
     /// </summary>
     public class ProtocolDatagram
     {
-        public const byte OpCodeData = 1;
-        public const byte OpCodeAck = 2;
-        public const byte OpCodeClose = 5;
-        public const byte OpCodeCloseAll = 11;
+        public const byte OpCodeData = 0x00;
+        public const byte OpCodeAck = 0x10;
+        public const byte OpCodeClose = 0x7e;
+        public const byte OpCodeCloseAll = 0x7f;
 
         public const byte NullTerminator = 0;
         public const byte FalseIndicatorByte = 0;
@@ -36,33 +36,16 @@ namespace ScalableIPC.Core
         // sequence number, null separator are always present.
         public const int MinDatagramSize = 2 + 4 + MinSessionIdLength + 1 + 4 + 4 + 1;
 
-        // Reserve s_ prefix for known options at session layer.
-
-        // NB: only applies to data exchange phase.
-        public const string OptionNameIdleTimeout = "s_idle_timeout";
-
-        public const string OptionNameErrorCode = "s_err_code";
-        public const string OptionNameCloseReceiver = "s_close_receiver";
-        public const string OptionNameIsWindowFull = "s_window_full";
-        public const string OptionNameIsLastInWindow = "s_last_in_window";
-
         public int ExpectedDatagramLength { get; set; }
         public string SessionId { get; set; }
         public byte OpCode { get; set; }
         public long WindowId { get; set; }
         public int SequenceNumber { get; set; }
-        public Dictionary<string, List<string>> Options { get; set; }
+        public ProtocolDatagramOptions Options { get; set; }
 
         public byte[] DataBytes { get; set; }
         public int DataOffset { get; set; }
         public int DataLength { get; set; }
-
-        // Known session layer options.
-        public bool? IsLastInWindow { get; set; }
-        public int? IdleTimeoutSecs { get; set; }
-        public int? ErrorCode { get; set; }
-        public bool? CloseReceiverOption { get; set; }
-        public bool? IsWindowFull { get; set; }
 
         public static ProtocolDatagram Parse(byte[] rawBytes, int offset, int length)
         {
@@ -181,44 +164,11 @@ namespace ScalableIPC.Core
                 {
                     if (parsedDatagram.Options == null)
                     {
-                        parsedDatagram.Options = new Dictionary<string, List<string>>();
+                        parsedDatagram.Options = new ProtocolDatagramOptions();
                     }
-                    List<string> optionValues;
-                    if (parsedDatagram.Options.ContainsKey(optionName))
-                    {
-                        optionValues = parsedDatagram.Options[optionName];
-                    }
-                    else
-                    {
-                        optionValues = new List<string>();
-                        parsedDatagram.Options.Add(optionName, optionValues);
-                    }
-                    optionValues.Add(optionNameOrValue);
-
-                    // Now identify known options.
-                    // In case of repetition, last one wins.
                     try
                     {
-                        switch (optionName)
-                        {
-                            case OptionNameIsLastInWindow:
-                                parsedDatagram.IsLastInWindow = ParseOptionAsBoolean(optionNameOrValue);
-                                break;
-                            case OptionNameIdleTimeout:
-                                parsedDatagram.IdleTimeoutSecs = ParseOptionAsInt32(optionNameOrValue);
-                                break;
-                            case OptionNameErrorCode:
-                                parsedDatagram.ErrorCode = ParseOptionAsInt32(optionNameOrValue);
-                                break;
-                            case OptionNameCloseReceiver:
-                                parsedDatagram.CloseReceiverOption = ParseOptionAsBoolean(optionNameOrValue);
-                                break;
-                            case OptionNameIsWindowFull:
-                                parsedDatagram.IsWindowFull = ParseOptionAsBoolean(optionNameOrValue);
-                                break;
-                            default:
-                                break;
-                        }
+                        parsedDatagram.Options.AddOption(optionName, optionNameOrValue);
                     }
                     catch (Exception ex)
                     {
@@ -242,7 +192,7 @@ namespace ScalableIPC.Core
             return DateTime.UtcNow.ToString("yyyMMddHHmmssfff") + Guid.NewGuid().ToString("n");
         }
 
-        public byte[] ToRawDatagram(bool includeKnownOptions)
+        public byte[] ToRawDatagram()
         {
             byte[] rawBytes;
             using (var ms = new MemoryStream())
@@ -289,33 +239,17 @@ namespace ScalableIPC.Core
 
                     writer.Write(OpCode);
 
-                    // write out all options, starting with known ones.
-                    if (includeKnownOptions)
-                    {
-                        var knownOptions = GatherKnownOptions();
-                        foreach (var kvp in knownOptions)
-                        {
-                            var optionNameBytes = ConvertStringToBytes(kvp.Key);
-                            writer.Write(optionNameBytes);
-                            writer.Write(NullTerminator);
-                            var optionValueBytes = ConvertStringToBytes(kvp.Value);
-                            writer.Write(optionValueBytes);
-                            writer.Write(NullTerminator);
-                        }
-                    }
+                    // write out all options.
                     if (Options != null)
                     {
-                        foreach (var kvp in Options)
+                        foreach (var pair in Options.GenerateList())
                         {
-                            var optionNameBytes = ConvertStringToBytes(kvp.Key);
-                            foreach (var optionValue in kvp.Value)
-                            {
-                                writer.Write(optionNameBytes);
-                                writer.Write(NullTerminator);
-                                var optionValueBytes = ConvertStringToBytes(optionValue);
-                                writer.Write(optionValueBytes);
-                                writer.Write(NullTerminator);
-                            }
+                            var optionNameBytes = ConvertStringToBytes(pair[0]);
+                            writer.Write(optionNameBytes);
+                            writer.Write(NullTerminator);
+                            var optionValueBytes = ConvertStringToBytes(pair[1]);
+                            writer.Write(optionValueBytes);
+                            writer.Write(NullTerminator);
                         }
                     }
 
@@ -338,33 +272,6 @@ namespace ScalableIPC.Core
             return rawBytes;
         }
 
-        private Dictionary<string, string> GatherKnownOptions()
-        {
-            var knownOptions = new Dictionary<string, string>();
-            
-            if (IsLastInWindow != null)
-            {
-                knownOptions.Add(OptionNameIsLastInWindow, IsLastInWindow.ToString());
-            }
-            if (IdleTimeoutSecs != null)
-            {
-                knownOptions.Add(OptionNameIdleTimeout, IdleTimeoutSecs.ToString());
-            }
-            if (ErrorCode != null)
-            {
-                knownOptions.Add(OptionNameErrorCode, ErrorCode.ToString());
-            }
-            if (CloseReceiverOption != null)
-            {
-                knownOptions.Add(OptionNameCloseReceiver, CloseReceiverOption.ToString());
-            }
-            if (IsWindowFull != null)
-            {
-                knownOptions.Add(OptionNameIsWindowFull, IsWindowFull.ToString());
-            }
-            return knownOptions;
-        }
-
         private static void InsertExpectedDataLength(byte[] rawBytes)
         {
             byte[] intBytes = WriteInt32BigEndian(rawBytes.Length);
@@ -372,23 +279,6 @@ namespace ScalableIPC.Core
             rawBytes[1] = intBytes[1];
             rawBytes[2] = intBytes[2];
             rawBytes[3] = intBytes[3];
-        }
-
-        internal static int ParseOptionAsInt32(string optionValue)
-        {
-            return int.Parse(optionValue);
-        }
-
-        internal static bool ParseOptionAsBoolean(string optionValue)
-        {
-            switch (optionValue.ToLowerInvariant())
-            {
-                case "true":
-                    return true;
-                case "false":
-                    return false;
-            }
-            throw new Exception($"expected {true} or {false}");
         }
 
         internal static byte[] ConvertStringToBytes(string s)
@@ -529,7 +419,7 @@ namespace ScalableIPC.Core
             }
         }
 
-        public static byte[] RetrieveData(List<ProtocolDatagram> messages, Dictionary<string, List<string>> optionsReceiver)
+        public static byte[] RetrieveData(List<ProtocolDatagram> messages, ProtocolDatagramOptions optionsReceiver = null)
         {
             var memoryStream = new MemoryStream();
             foreach (var msg in messages)
@@ -538,11 +428,11 @@ namespace ScalableIPC.Core
                 {
                     break;
                 }
-                if (msg.Options != null)
+                if (msg.Options != null && optionsReceiver != null)
                 {
-                    foreach (var kvp in msg.Options)
+                    foreach (var pair in msg.Options.GenerateList())
                     {
-                        optionsReceiver.Add(kvp.Key, kvp.Value);
+                        optionsReceiver.AddOption(pair[0], pair[1]);
                     }
                 }
                 memoryStream.Write(msg.DataBytes, msg.DataOffset, msg.DataLength);

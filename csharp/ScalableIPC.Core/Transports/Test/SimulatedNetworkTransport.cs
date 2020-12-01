@@ -1,18 +1,16 @@
-﻿using ScalableIPC.Core;
-using ScalableIPC.Core.Abstractions;
+﻿using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.ConcreteComponents;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace ScalableIPC.Tests.Core
+namespace ScalableIPC.Core.Transports.Test
 {
     public class SimulatedNetworkTransport : NetworkTransportBase
     {
         public SimulatedNetworkTransport()
         {
             ConnectedNetworks = new Dictionary<GenericNetworkIdentifier, SimulatedNetworkTransport>();
-            SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler));
             IdleTimeoutSecs = 5;
             AckTimeoutSecs = 3;
             MaxRetryCount = 0;
@@ -61,15 +59,6 @@ namespace ScalableIPC.Tests.Core
             {
                 return PromiseApi.Reject(new Exception($"{remoteEndpoint} remote endpoint not found."));
             }
-        }
-    }
-    class TestSessionHandler : ProtocolSessionHandler
-    {
-        public override void OnDataReceived(byte[] data, Dictionary<string, List<string>> options)
-        {
-            string dataMessage = ProtocolDatagram.ConvertBytesToString(data, 0, data.Length);
-            CustomLoggerFacade.Log(() => new CustomLogEvent("71931970-3923-4472-b110-3449141998e3",
-                $"Received data: {dataMessage}", null));
         }
     }
 }

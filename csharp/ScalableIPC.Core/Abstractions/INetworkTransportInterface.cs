@@ -5,16 +5,18 @@ namespace ScalableIPC.Core.Abstractions
     /// <summary>
     /// Abstracting underlying network allows us to separately target different networks such as
     /// 1. fake socket for testing
-    /// 2. datagram socket on localhost.
-    /// 3. TCP/TLS, implemented as connection pooling with either fixed size or maximum size.
+    /// 2. TCP/TLS, implemented as connection pooling.
     /// A key feature is automatic retry in some cases: when an error occurs on an existing connection,
     /// an attempt is immediately made to create a new one to replace it. This feature is the key to
     /// alleviating programmers from the pains of using custom protocols over TCP. 2 variants of this are:
     ///    A. this retry attempt is made for all pdus. Intended for use when there is no load balancing. In that
     ///       case few connections (e.g. 3) are enough.
-    ///    B. this retry attempt is made only for window id=0 pdus. Intended for load balancing in which number of
+    ///    B. this retry attempt is made only for the very first pdu of a session. Intended for load balancing in which number of
     ///       connections is about 3-5 times that of replica count.
-    /// 4. datagram socket and DTLS on the Internet. Futuristic and intended for gamers and others to implement.
+    /// 3. Unix domain socket
+    /// 4. Windows named pipe
+    /// 5. datagram socket on localhost.
+    /// 6. datagram socket and DTLS on the Internet. Futuristic and intended for gamers and others to implement.
     /// </summary>
     public interface INetworkTransportInterface
     {

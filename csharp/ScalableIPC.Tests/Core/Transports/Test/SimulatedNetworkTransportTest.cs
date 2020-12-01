@@ -1,24 +1,26 @@
 ﻿using ScalableIPC.Core;
 using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.ConcreteComponents;
+using ScalableIPC.Core.Transports.Test;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace ScalableIPC.Tests.Core
+namespace ScalableIPC.Tests.Core.Transports.Test
 {
-    public class NetworkTransportBaseTest
+    public class SimulatedNetworkTransportTest
     {
         private readonly SimulatedNetworkTransport _localEndpoint;
         private readonly GenericNetworkIdentifier _remoteAddr1;
 
-        public NetworkTransportBaseTest()
+        public SimulatedNetworkTransportTest()
         {
             var localAddr = new GenericNetworkIdentifier { HostName = "local" };
             _localEndpoint = new SimulatedNetworkTransport
             {
-                LocalEndpoint = localAddr
+                LocalEndpoint = localAddr,
+                SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler))
             };
 
             _remoteAddr1 = new GenericNetworkIdentifier { HostName = "remote1" };

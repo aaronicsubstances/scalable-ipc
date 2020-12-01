@@ -64,7 +64,7 @@ namespace ScalableIPC.Core.Session
             return true;
         }
 
-        public bool ProcessSend(byte[] data, Dictionary<string, List<string>> options,
+        public bool ProcessSend(byte[] windowData, ProtocolDatagramOptions windowOptions,
             PromiseCompletionSource<VoidType> promiseCb)
         {
             return false;
@@ -72,18 +72,12 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessSendRequest(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
         {
-            // Process options.
-            if (message.IdleTimeoutSecs != null)
-            {
-                _sessionHandler.SessionIdleTimeoutSecs = message.IdleTimeoutSecs.Value;
-            }
-            if (message.CloseReceiverOption != null)
-            {
-                _sessionHandler.SessionCloseReceiverOption = message.CloseReceiverOption;
-            }
-
             // create current window to send. let assistant handlers handle assignment of window and sequence numbers.
-            message.IsLastInWindow = true;
+            if (message.Options == null)
+            {
+                message.Options = new ProtocolDatagramOptions();
+            }
+            message.Options.IsLastInWindow = true;
             var currentWindow = new List<ProtocolDatagram> { message };
 
             _sendWindowHandler = new RetrySendHandlerAssistant(_sessionHandler)
@@ -100,15 +94,10 @@ namespace ScalableIPC.Core.Session
         private void OnWindowSendSuccess()
         {
             SendInProgress = false;
-            if (_sessionHandler.SessionCloseReceiverOption == true)
-            {
-                _sessionHandler.SessionState = ProtocolSessionHandler.StateClosing;
-            }
 
             _sessionHandler.Log("5e573074-e830-4f05-a9cb-72be78ab9943", "Send pdu succeeded", 
                 "sendInProgress", _sessionHandler.IsSendInProgress(), 
                 "idleTimeout", _sessionHandler.SessionIdleTimeoutSecs,
-                "closeReceiver", _sessionHandler.SessionCloseReceiverOption,
                 "sessionState", _sessionHandler.SessionState);
 
             // complete pending promise.

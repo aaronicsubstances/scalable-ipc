@@ -36,7 +36,10 @@ namespace ScalableIPC.Core.Session
                     OpCode = AckOpCode,
                     WindowId = _sessionHandler.LastWindowIdReceived,
                     SequenceNumber = _sessionHandler.LastMaxSeqReceived,
-                    IsWindowFull = true
+                    Options = new ProtocolDatagramOptions
+                    {
+                        IsWindowFull = true
+                    }
                 };
 
                 _sessionHandler.Log("b68d4dc2-52c0-4ffa-a395-82a49937a838", message,
@@ -89,7 +92,10 @@ namespace ScalableIPC.Core.Session
                     OpCode = AckOpCode,
                     WindowId = message.WindowId,
                     SequenceNumber = lastEffectiveSeqNr,
-                    IsWindowFull = isWindowFull
+                    Options = new ProtocolDatagramOptions
+                    {
+                        IsWindowFull = isWindowFull
+                    }
                 };
                 _sessionHandler.NetworkInterface.HandleSend(_sessionHandler.RemoteEndpoint, ack)
                     .ThenOrCatchCompose(_ => HandleAckSendSuccess(message), 
@@ -189,13 +195,13 @@ namespace ScalableIPC.Core.Session
 
             // before inserting new message, clear any existing message with set last_in_window option
             // and its effects.
-            if (message.IsLastInWindow == true)
+            if (message.Options?.IsLastInWindow == true)
             {
                 for (int i = 0; i < currentWindow.Count; i++)
                 {
                     if (currentWindow[i] != null)
                     {
-                        if (currentWindow[i].IsLastInWindow == true)
+                        if (currentWindow[i].Options?.IsLastInWindow == true)
                         {
                             currentWindow[i] = null;
                         }
@@ -235,7 +241,7 @@ namespace ScalableIPC.Core.Session
             {
                 return false;
             }
-            if (currentWindow[lastPosInSlidingWindow].IsLastInWindow == true)
+            if (currentWindow[lastPosInSlidingWindow].Options?.IsLastInWindow == true)
             {
                 return true;
             }

@@ -55,7 +55,7 @@ namespace ScalableIPC.Core.Session
             return true;
         }
 
-        public bool ProcessSend(byte[] data, Dictionary<string, List<string>> options,
+        public bool ProcessSend(byte[] windowData, ProtocolDatagramOptions windowOptions,
             PromiseCompletionSource<VoidType> promiseCb)
         {
             return false;
@@ -65,9 +65,9 @@ namespace ScalableIPC.Core.Session
         {
             // process termination message regardless of session state.
             Exception error = null;
-            if (message.ErrorCode != null)
+            if (message.Options?.ErrorCode != null)
             {
-                error = new Exception(FormatErrorcode(message.ErrorCode.Value));
+                error = new Exception(FormatErrorcode(message.Options.ErrorCode.Value));
             }
             _sessionHandler.InitiateClose(error, false);
         }

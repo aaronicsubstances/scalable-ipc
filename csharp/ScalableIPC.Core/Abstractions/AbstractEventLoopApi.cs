@@ -10,9 +10,13 @@ namespace ScalableIPC.Core.Abstractions
     /// 1. blocking I/O and multi-threaded
     /// 2. non-blocking I/O and single-threaded
     /// 3. non-blocking I/O and multi-threaded
-    /// The only thing presumed however, is that the event loop should run in a single thread.
-    /// For multi-threaded environments, an additional requirement is that the rest of the application 
-    /// cannot share in using the event loop thread.
+    /// The required constraints on an event loop implementation in summary are that it should be equivalent to
+    /// single-threaded program execution of tasks in a queue, and provide async timeouts. In particular,
+    ///  1. Tasks should be run serially, ie one at a time. Even if there are multiple threads, there must be only ONE
+    ///     degree of parallelism. If a running task schedules another task, that task must be guaranteed to execute
+    ///     after the current one is done running.
+    ///  2. Side-effects of executed tasks must be visible to tasks which will be run later.
+    ///  3. Provide timeouts asynchronously without using dedicated timer thread.
     /// </summary>
     public interface AbstractEventLoopApi
     {

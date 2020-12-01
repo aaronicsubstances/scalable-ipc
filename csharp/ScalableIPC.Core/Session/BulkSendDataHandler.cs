@@ -9,6 +9,8 @@ namespace ScalableIPC.Core.Session
     public class BulkSendDataHandler: ISessionStateHandler
     {
         private readonly ISessionHandler _sessionHandler;
+        private byte[] _windowData;
+        private ProtocolDatagramOptions _windowOptions;
         private DatagramChopper _datagramChopper;
         private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
         private RetrySendHandlerAssistant _sendWindowHandler;
@@ -57,50 +59,22 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
-        public bool ProcessSend(byte[] rawData, Dictionary<string, List<string>> options,
+        public bool ProcessSend(byte[] windowData, ProtocolDatagramOptions windowOptions,
             PromiseCompletionSource<VoidType> promiseCb)
         {
             _sessionHandler.Log("ab33803c-2eb4-4525-b566-0baa3e1f51ff",
                 "Pdu accepted for processing in bulk send data handler");
-            ProcessSendRequest(rawData, options, promiseCb);
+            ProcessSendRequest(windowData, windowOptions, promiseCb);
             return true;
         }
 
-        private void ProcessSendRequest(byte[] rawData, Dictionary<string, List<string>> options,
+        private void ProcessSendRequest(byte[] windowData, ProtocolDatagramOptions windowOptions,
            PromiseCompletionSource<VoidType> promiseCb)
         {
-            ProcessWindowOptions(options);
-
-            _datagramChopper = new DatagramChopper(rawData, options, _sessionHandler.MaximumTransferUnitSize);
+            _windowData = windowData;
+            _windowOptions = windowOptions;
             _pendingPromiseCallback = promiseCb;
             SendInProgress = ContinueBulkSend(false);
-        }
-
-        private void ProcessWindowOptions(Dictionary<string, List<string>> options)
-        {
-            if (options == null)
-            {
-                return;
-            }
-
-            // All session layer options are single valued. If multiple are specified, pick last.
-            if (options.ContainsKey(ProtocolDatagram.OptionNameIdleTimeout))
-            {
-                var optionIdleTimeout = options[ProtocolDatagram.OptionNameIdleTimeout].LastOrDefault();
-                if (optionIdleTimeout != null)
-                {
-                    _sessionHandler.SessionIdleTimeoutSecs = ProtocolDatagram.ParseOptionAsInt32(optionIdleTimeout);
-                }
-            }
-
-            if (options.ContainsKey(ProtocolDatagram.OptionNameCloseReceiver))
-            {
-                var optionCloseReceiver = options[ProtocolDatagram.OptionNameCloseReceiver].LastOrDefault();
-                if (optionCloseReceiver != null)
-                {
-                    _sessionHandler.SessionCloseReceiverOption = ProtocolDatagram.ParseOptionAsBoolean(optionCloseReceiver);
-                }
-            }
         }
 
         private bool ContinueBulkSend(bool haveSentBefore)
@@ -108,30 +82,54 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.Log("c5b21878-ac61-4414-ba37-4248a4702084",
                 (haveSentBefore ? "Attempting to continue ": "About to start") + " sending data");
 
-            var reserveSpace = ProtocolDatagram.OptionNameIsLastInWindow.Length +
-                Math.Max(true.ToString().Length, false.ToString().Length);
             var nextWindow = new List<ProtocolDatagram>();
-            while (nextWindow.Count < _sessionHandler.MaxSendWindowSize)
+
+            // Interpret Int.MaxValue specially if we haven't sent before, to mean
+            // that no chopping should be done, rather send it in its entirety.
+            if (!haveSentBefore && _sessionHandler.MaximumTransferUnitSize == int.MaxValue)
             {
-                var nextPdu =_datagramChopper.Next(reserveSpace, false);
-                if (nextPdu == null)
+                var solePdu = new ProtocolDatagram
                 {
-                    _sessionHandler.Log("9c7619ff-3c5d-46c0-948c-419372c15d2b",
-                        "No more data chunking possible");
-                    break;
-                }
-                nextPdu.SessionId = _sessionHandler.SessionId;
-                nextPdu.OpCode = ProtocolDatagram.OpCodeData;
-                nextWindow.Add(nextPdu);
+                    DataBytes = _windowData,
+                    DataLength = _windowData.Length,
+                    Options = _windowOptions
+                };
+                nextWindow.Add(solePdu);
             }
-            if (nextWindow.Count == 0)
+            else
             {
-                _sessionHandler.Log("d7d65563-154a-4855-8efd-c19ae60817d8",
-                    "No data chunks found for send window.");
-                return false;
+                if (!haveSentBefore)
+                {
+                    _datagramChopper = new DatagramChopper(_windowData, _windowOptions, _sessionHandler.MaximumTransferUnitSize);
+                }
+                var reserveSpace = ProtocolDatagramOptions.OptionNameIsLastInWindow.Length +
+                    Math.Max(true.ToString().Length, false.ToString().Length);
+                while (nextWindow.Count < _sessionHandler.MaxSendWindowSize)
+                {
+                    var nextPdu = _datagramChopper.Next(reserveSpace, false);
+                    if (nextPdu == null)
+                    {
+                        _sessionHandler.Log("9c7619ff-3c5d-46c0-948c-419372c15d2b",
+                            "No more data chunking possible");
+                        break;
+                    }
+                    nextPdu.SessionId = _sessionHandler.SessionId;
+                    nextPdu.OpCode = ProtocolDatagram.OpCodeData;
+                    nextWindow.Add(nextPdu);
+                }
+                if (nextWindow.Count == 0)
+                {
+                    _sessionHandler.Log("d7d65563-154a-4855-8efd-c19ae60817d8",
+                        "No data chunks found for send window.");
+                    return false;
+                }
             }
 
-            nextWindow[nextWindow.Count - 1].IsLastInWindow = true;
+            if (nextWindow[nextWindow.Count - 1].Options == null)
+            {
+                nextWindow[nextWindow.Count - 1].Options = new ProtocolDatagramOptions();
+            }
+            nextWindow[nextWindow.Count - 1].Options.IsLastInWindow = true;
 
             _sendWindowHandler = new RetrySendHandlerAssistant(_sessionHandler)
             {
@@ -156,20 +154,18 @@ namespace ScalableIPC.Core.Session
             }
 
             SendInProgress = false;
-            if (_sessionHandler.SessionCloseReceiverOption == true)
-            {
-                _sessionHandler.SessionState = ProtocolSessionHandler.StateClosing;
-            }
 
             _sessionHandler.Log("edeafec4-5596-4931-9f2a-5876e1241d89", "Bulk send succeeded",
                 "sendInProgress", _sessionHandler.IsSendInProgress(),
                 "idleTimeout", _sessionHandler.SessionIdleTimeoutSecs,
-                "closeReceiver", _sessionHandler.SessionCloseReceiverOption,
                 "sessionState", _sessionHandler.SessionState);
 
             // complete pending promise.
             _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
             _pendingPromiseCallback = null;
+            _datagramChopper = null;
+            _windowData = null;
+            _windowOptions = null;
         }
     }
 }

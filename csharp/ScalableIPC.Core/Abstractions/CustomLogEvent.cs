@@ -7,7 +7,7 @@ namespace ScalableIPC.Core.Abstractions
 {
     public class CustomLogEvent
     {
-        public const string PduOptionTraceId = "sx_traceId";
+        public const string PduOptionTraceId = ProtocolDatagramOptions.NonStandardSessionLayerOptionPrefix + "traceId";
 
         public CustomLogEvent(string logPosition, string message, Exception ex)
         {
@@ -65,14 +65,13 @@ namespace ScalableIPC.Core.Abstractions
             Data.Add("pdu.windowId", pdu.WindowId);
             Data.Add("pdu.seqNr", pdu.SequenceNumber);
             Data.Add("pdu.opCode", pdu.OpCode);
-            Data.Add("pdu.idleTimeout", pdu.IdleTimeoutSecs);
-            Data.Add("pdu.lastInWindow", pdu.IsLastInWindow);
-            Data.Add("pdu.closeReceiver", pdu.CloseReceiverOption);
-            Data.Add("pdu.windowFull", pdu.IsWindowFull);
+            Data.Add("pdu.idleTimeout", pdu.Options?.IdleTimeoutSecs);
+            Data.Add("pdu.lastInWindow", pdu.Options?.IsLastInWindow);
+            Data.Add("pdu.windowFull", pdu.Options?.IsWindowFull);
             string traceId = null;
-            if (pdu.Options != null && pdu.Options.ContainsKey(PduOptionTraceId))
+            if (pdu.Options?.AllOptions.ContainsKey(PduOptionTraceId) == true)
             {
-                traceId = pdu.Options[PduOptionTraceId].FirstOrDefault();
+                traceId = pdu.Options.AllOptions[PduOptionTraceId].FirstOrDefault();
             }
             Data.Add("pdu.traceId", traceId);
         }
