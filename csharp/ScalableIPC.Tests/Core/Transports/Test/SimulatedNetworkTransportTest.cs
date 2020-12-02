@@ -20,7 +20,7 @@ namespace ScalableIPC.Tests.Core.Transports.Test
             _accraEndpoint = new SimulatedNetworkTransport
             {
                 LocalEndpoint = _accraAddr,
-                MaxSendWindowSize = 0, // doesn't send in chunks.
+                MaximumTransferUnitSize = 0, // doesn't send in chunks.
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler))
             };
 
@@ -28,7 +28,7 @@ namespace ScalableIPC.Tests.Core.Transports.Test
             _kumasiEndpoint = new SimulatedNetworkTransport
             {
                 LocalEndpoint = _kumasiAddr,
-                MaxSendWindowSize = 512, // sends in chunks.
+                MaximumTransferUnitSize = 512, // sends in chunks.
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler))
             };
             _accraEndpoint.ConnectedNetworks.Add(_kumasiAddr, _kumasiEndpoint);

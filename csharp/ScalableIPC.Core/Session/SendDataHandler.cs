@@ -115,10 +115,15 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.Log("c5b21878-ac61-4414-ba37-4248a4702084",
                 (haveSentBefore ? "Attempting to continue ": "About to start") + " sending data");
 
+            var nextWindow = new List<ProtocolDatagram>();
+
             var reserveSpace = ProtocolDatagramOptions.OptionNameIsLastInWindow.Length +
                 Math.Max(true.ToString().Length, false.ToString().Length);
-            var nextWindow = new List<ProtocolDatagram>();
-            while (nextWindow.Count < _sessionHandler.MaxSendWindowSize)
+
+            // ensure minimum value of 1 for max send window size.
+            int maxSendWindowSize = Math.Max(1, _sessionHandler.MaxSendWindowSize);
+
+            while (nextWindow.Count < maxSendWindowSize)
             {
                 var nextPdu = _datagramChopper.Next(reserveSpace, false);
                 if (nextPdu == null)
