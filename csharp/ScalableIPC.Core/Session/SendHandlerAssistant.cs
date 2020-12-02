@@ -57,7 +57,7 @@ namespace ScalableIPC.Core.Session
 
             _sessionHandler.Log("e289253e-bc8b-4d84-b337-8e3627b2759c", nextMessage, "Sending next message", 
                 "sentPduCount", _sentPduCount);
-            _sessionHandler.NetworkInterface.HandleSend(_sessionHandler.RemoteEndpoint, nextMessage)
+            _sessionHandler.NetworkInterface.HandleSendAsync(_sessionHandler.RemoteEndpoint, nextMessage)
                 .ThenOrCatchCompose(_ => HandleSendSuccess(nextMessage), e => HandleSendError(nextMessage, e));
             _sentPduCount++;
         }
@@ -179,7 +179,7 @@ namespace ScalableIPC.Core.Session
                     _sessionHandler.Log("c57b8654-7c31-499d-b89b-52d1d5d7dd8d", message,
                         "Sending failed. Shutting down...", "error", error);
                     Cancel();
-                    _sessionHandler.InitiateClose(error, false);
+                    _sessionHandler.InitiateClose(new SessionCloseException(error));
                 }
             });
             return _voidReturnPromise;

@@ -36,11 +36,12 @@ namespace ScalableIPC.Core.Session
 
             StateHandlers.Add(new ReceiveDataHandler(this));
             StateHandlers.Add(new SendDataHandler(this));
-            StateHandlers.Add(new BulkSendDataHandler(this));
             StateHandlers.Add(new CloseHandler(this));
 
-            // initialize session management parameters from endpoint config.
+            // initialize session management parameters from network interface config.
             IdleTimeoutSecs = networkInterface.IdleTimeoutSecs;
+            MinRemoteIdleTimeoutSecs = networkInterface.MinRemoteIdleTimeoutSecs;
+            MaxRemoteIdleTimeoutSecs = networkInterface.MaxRemoteIdleTimeoutSecs;
             AckTimeoutSecs = networkInterface.AckTimeoutSecs;
             MaxRetryCount = networkInterface.MaxRetryCount;
             MaximumTransferUnitSize = networkInterface.MaximumTransferUnitSize;
@@ -60,6 +61,8 @@ namespace ScalableIPC.Core.Session
         public int MaximumTransferUnitSize { get; set; }
         public int MaxRetryCount { get; set; }
         public int IdleTimeoutSecs { get; set; }
+        public int MinRemoteIdleTimeoutSecs { get; set; }
+        public int MaxRemoteIdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
 
         // Protocol requires initial value for window id to be 0,
@@ -69,7 +72,7 @@ namespace ScalableIPC.Core.Session
         public long LastWindowIdReceived { get; set; } = -1;
 
         public int LastMaxSeqReceived { get; set; }
-        public int? SessionIdleTimeoutSecs { get; set; }
+        public int? RemoteIdleTimeoutSecs { get; set; }
         public bool? SessionCloseReceiverOption { get; set; }
 
         public virtual void IncrementNextWindowIdToSend()
@@ -91,7 +94,7 @@ namespace ScalableIPC.Core.Session
 
         public List<ISessionStateHandler> StateHandlers { get; } = new List<ISessionStateHandler>();
 
-        public virtual AbstractPromise<VoidType> ProcessReceive(ProtocolDatagram message)
+        public virtual AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram message)
         {
             EventLoop.PostCallback(() =>
             {
@@ -118,13 +121,12 @@ namespace ScalableIPC.Core.Session
             return _promiseApi.Resolve(VoidType.Instance);
         }
 
-        public virtual AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message)
+        public virtual AbstractPromise<VoidType> ProcessSendAsync(ProtocolDatagram message)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             EventLoop.PostCallback(() =>
             {
-                message.SessionId = SessionId;
                 Log("5abd8c58-4f14-499c-ad0e-788d59c5f7e2", message, "Session ProcessSend");
 
                 if (SessionState == StateClosed)
@@ -137,7 +139,7 @@ namespace ScalableIPC.Core.Session
                 }
                 else if (IsSendInProgress())
                 {
-                    promiseCb.CompleteExceptionally(new Exception("send is in progress"));
+                    promiseCb.CompleteExceptionally(new Exception("Send is in progress"));
                 }
                 else
                 {
@@ -160,48 +162,7 @@ namespace ScalableIPC.Core.Session
             return returnPromise;
         }
 
-        public virtual AbstractPromise<VoidType> ProcessSend(byte[] windowData, ProtocolDatagramOptions windowOptions)
-        {
-            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
-            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
-            EventLoop.PostCallback(() =>
-            {
-                Log("082f5b3f-c1fa-4d70-b224-0bf09d47ef84", "Session ProcessBulkSend");
-
-                if (SessionState == StateClosed)
-                {
-                    promiseCb.CompleteExceptionally(new Exception("Session handler is closed"));
-                }
-                else if (_isOutputShutdown)
-                {
-                    promiseCb.CompleteExceptionally(new Exception("Output has been shutdown"));
-                }
-                else if (IsSendInProgress())
-                {
-                    promiseCb.CompleteExceptionally(new Exception("send is in progress"));
-                }
-                else
-                {
-                    ResetIdleTimeout();
-                    bool handled = false;
-                    foreach (ISessionStateHandler stateHandler in StateHandlers)
-                    {
-                        handled = stateHandler.ProcessSend(windowData, windowOptions, promiseCb);
-                        if (handled)
-                        {
-                            break;
-                        }
-                    }
-                    if (!handled)
-                    {
-                        promiseCb.CompleteExceptionally(new Exception("No state handler found to process send data"));
-                    }
-                }
-            });
-            return returnPromise;
-        }
-
-        public virtual AbstractPromise<VoidType> ShutdownInput()
+        public virtual AbstractPromise<VoidType> ShutdownInputAsync()
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
@@ -213,7 +174,7 @@ namespace ScalableIPC.Core.Session
             return returnPromise;
         }
 
-        public AbstractPromise<bool> IsInputShutdown()
+        public AbstractPromise<bool> IsInputShutdownAsync()
         {
             PromiseCompletionSource<bool> promiseCb = _promiseApi.CreateCallback<bool>(this);
             AbstractPromise<bool> returnPromise = promiseCb.Extract();
@@ -224,12 +185,7 @@ namespace ScalableIPC.Core.Session
             return returnPromise;
         }
 
-        public bool IsInputShutdownInternal()
-        {
-            return _isInputShutdown;
-        }
-
-        public virtual AbstractPromise<VoidType> ShutdownOutput()
+        public virtual AbstractPromise<VoidType> ShutdownOutputAsync()
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
@@ -241,7 +197,7 @@ namespace ScalableIPC.Core.Session
             return returnPromise;
         }
 
-        public AbstractPromise<bool> IsOutputShutdown()
+        public AbstractPromise<bool> IsOutputShutdownAsync()
         {
             PromiseCompletionSource<bool> promiseCb = _promiseApi.CreateCallback<bool>(this);
             AbstractPromise<bool> returnPromise = promiseCb.Extract();
@@ -252,35 +208,22 @@ namespace ScalableIPC.Core.Session
             return returnPromise;
         }
 
-        public virtual AbstractPromise<VoidType> Close(Exception error, bool timeout)
+        public virtual AbstractPromise<VoidType> CloseAsync(SessionCloseException cause)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             EventLoop.PostCallback(() =>
             {
-                Log("e9d228bb-e00d-4002-8fe8-81df4a21dc41", "Session Close", "error", error,
-                    "timeout", timeout);
+                Log("e9d228bb-e00d-4002-8fe8-81df4a21dc41", "Session Close", "cause", cause);
 
                 if (SessionState != StateClosed)
                 {
                     CancelIdleTimeout();
                     CancelAckTimeout();
 
-                    var unifiedError = error;
-                    if (unifiedError == null)
-                    {
-                        if (timeout)
-                        {
-                            unifiedError = new Exception("Session timed out");
-                        }
-                        else
-                        {
-                            unifiedError = new Exception("Session closed");
-                        }
-                    }
                     foreach (ISessionStateHandler stateHandler in StateHandlers)
                     {
-                        stateHandler.Shutdown(unifiedError);
+                        stateHandler.Shutdown(cause);
                     }
 
                     SessionState = StateClosed;
@@ -289,11 +232,26 @@ namespace ScalableIPC.Core.Session
 
                     // pass on to application layer. NB: all calls to application layer must go through
                     // event loop.
-                    EventLoop.PostCallback(() => OnClose(error, timeout));
+                    EventLoop.PostCallback(() => OnClose(cause));
                 }
                 promiseCb.CompleteSuccessfully(VoidType.Instance);
             });
             return returnPromise;
+        }
+        public AbstractPromise<int> GetSessionStateAsync()
+        {
+            PromiseCompletionSource<int> promiseCb = _promiseApi.CreateCallback<int>(this);
+            AbstractPromise<int> returnPromise = promiseCb.Extract();
+            EventLoop.PostCallback(() =>
+            {
+                promiseCb.CompleteSuccessfully(SessionState);
+            });
+            return returnPromise;
+        }
+
+        public bool IsInputShutdown()
+        {
+            return _isInputShutdown;
         }
 
         public virtual void PostIfNotClosed(Action cb)
@@ -330,13 +288,16 @@ namespace ScalableIPC.Core.Session
             
             CancelIdleTimeout();
 
-            // Interpret non positive default value as disable idle timeout AND ignore session idle timeout.
-            // On the other hand, let non negative session idle timeout override any positive default value
-            // if larger.
-            int effectiveIdleTimeoutSecs = IdleTimeoutSecs;
-            if (effectiveIdleTimeoutSecs > 0 && SessionIdleTimeoutSecs.HasValue)
+            int effectiveIdleTimeoutSecs;
+            if (RemoteIdleTimeoutSecs.HasValue)
             {
-                effectiveIdleTimeoutSecs = Math.Max(effectiveIdleTimeoutSecs, SessionIdleTimeoutSecs.Value);
+                // place remote idle timeout within bounds of min and max.
+                effectiveIdleTimeoutSecs = Math.Min(Math.Max(RemoteIdleTimeoutSecs.Value, 
+                    MinRemoteIdleTimeoutSecs), MaxRemoteIdleTimeoutSecs);
+            }
+            else
+            {
+                effectiveIdleTimeoutSecs = IdleTimeoutSecs;
             }
 
             // In the end, only positive values result in idle timeouts.
@@ -375,7 +336,7 @@ namespace ScalableIPC.Core.Session
             Log("33b0e81b-c4fa-4a78-9cb7-0900e60afe3e", "Idle timeout has occured on session");
 
             _lastIdleTimeoutId = null;
-            InitiateClose(null, true);
+            InitiateClose(new SessionCloseException(SessionCloseException.ReasonTimeout));
         }
 
         private void ProcessAckTimeout(Action cb)
@@ -424,7 +385,7 @@ namespace ScalableIPC.Core.Session
             });
         }
 
-        public virtual void InitiateClose(Exception error, bool timeout)
+        public virtual void InitiateClose(SessionCloseException cause)
         {
             if (SessionState == StateClosed)
             {
@@ -433,11 +394,11 @@ namespace ScalableIPC.Core.Session
             }
 
             Log("890ef817-b90c-45fc-9243-b809c684c730", "Session close initiation started");
-            NetworkInterface.OnCloseSession(RemoteEndpoint, SessionId, error, timeout);
+            NetworkInterface.OnCloseSession(RemoteEndpoint, SessionId, cause);
         }
 
         // calls to application layer.
         public abstract void OnDataReceived(byte[] windowData, ProtocolDatagramOptions windowOptions);
-        public abstract void OnClose(Exception error, bool timeout);
+        public abstract void OnClose(SessionCloseException cause);
     }
 }

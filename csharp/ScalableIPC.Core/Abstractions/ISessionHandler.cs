@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ScalableIPC.Core.Session;
+using System;
 using System.Collections.Generic;
 
 namespace ScalableIPC.Core.Abstractions
@@ -13,20 +14,18 @@ namespace ScalableIPC.Core.Abstractions
         AbstractEventLoopApi EventLoop { get; }
         string SessionId { get; }
         List<ISessionStateHandler> StateHandlers { get; }
-        AbstractPromise<VoidType> ProcessReceive(ProtocolDatagram message);
-        // Accepting single message instead of list due to possibility of message opcodes being
-        // set up differently. Custom session state handler can handle that.
-        AbstractPromise<VoidType> ProcessSend(ProtocolDatagram message);
-        AbstractPromise<VoidType> ProcessSend(byte[] windowData, ProtocolDatagramOptions windowOptions);
-        AbstractPromise<VoidType> ShutdownInput();
-        AbstractPromise<bool> IsInputShutdown();
-        AbstractPromise<VoidType> ShutdownOutput();
-        AbstractPromise<bool> IsOutputShutdown();
-        AbstractPromise<VoidType> Close(Exception error, bool timeout);
+        AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram message);
+        AbstractPromise<VoidType> ProcessSendAsync(ProtocolDatagram message);
+        AbstractPromise<VoidType> ShutdownInputAsync();
+        AbstractPromise<bool> IsInputShutdownAsync();
+        AbstractPromise<VoidType> ShutdownOutputAsync();
+        AbstractPromise<bool> IsOutputShutdownAsync();
+        AbstractPromise<VoidType> CloseAsync(SessionCloseException cause);
+        AbstractPromise<int> GetSessionStateAsync();
 
         // beginning of internal API with state handlers.
         int SessionState { get; set; }
-        bool IsInputShutdownInternal();
+        bool IsInputShutdown();
 
         // session parameters.
         int MaxReceiveWindowSize { get; set; }
@@ -35,6 +34,8 @@ namespace ScalableIPC.Core.Abstractions
         int MaxRetryCount { get; set; }
         int AckTimeoutSecs { get; set; }
         int IdleTimeoutSecs { get; set; }
+        int MinRemoteIdleTimeoutSecs { get; set; }
+        int MaxRemoteIdleTimeoutSecs { get; set; }
 
         // Rules for window id changes are:
         //  - First window id must be 0. 
@@ -50,21 +51,19 @@ namespace ScalableIPC.Core.Abstractions
         bool IsSendInProgress();
         void PostIfNotClosed(Action cb);
 
-        int? SessionIdleTimeoutSecs { get; set; }
+        int? RemoteIdleTimeoutSecs { get; set; }
 
         void ResetIdleTimeout();
 
         void ResetAckTimeout(int timeoutSecs, Action cb);
         void CancelAckTimeout();
         void DiscardReceivedMessage(ProtocolDatagram message);
-        void InitiateClose(Exception error, bool timeout);
+        void InitiateClose(SessionCloseException cause);
         void Log(string logPosition, string message, params object[] args);
         void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args);
 
         // application layer interface. contract here is that these should be called from event loop.
-        // NB: What is passed to OnDataReceived is a window equivalent to 1 pdu with all
-        // data combined, and all options combined as well.
         void OnDataReceived(byte[] windowData, ProtocolDatagramOptions windowOptions);
-        void OnClose(Exception error, bool timeout);
+        void OnClose(SessionCloseException cause);
     }
 }

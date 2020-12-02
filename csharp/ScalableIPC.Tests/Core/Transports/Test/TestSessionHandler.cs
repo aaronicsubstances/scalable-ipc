@@ -14,10 +14,10 @@ namespace ScalableIPC.Tests.Core.Transports.Test
                 $"Received data: {dataMessage}", null));
         }
 
-        public override void OnClose(Exception error, bool timeout)
+        public override void OnClose(SessionCloseException cause)
         {
             CustomLoggerFacade.Log(() => new CustomLogEvent("06f62330-a218-4667-9df5-b8851fed628a",
-                   $"Received close: timeout={timeout}", error));
+                   $"Received close", cause));
         }
     }
 }

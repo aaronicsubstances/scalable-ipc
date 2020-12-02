@@ -55,30 +55,12 @@ namespace ScalableIPC.Core.Session
             return true;
         }
 
-        public bool ProcessSend(byte[] windowData, ProtocolDatagramOptions windowOptions,
-            PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
         private void ProcessReceiveClose(ProtocolDatagram message)
         {
             // process termination message regardless of session state.
-            Exception error = null;
-            if (message.Options?.ErrorCode != null)
-            {
-                error = new Exception(FormatErrorcode(message.Options.ErrorCode.Value));
-            }
-            _sessionHandler.InitiateClose(error, false);
-        }
-
-        public virtual string FormatErrorcode(int errorCode)
-        {
-            switch (errorCode)
-            {
-                default:
-                    return $"{errorCode} Unknown error";
-            }
+            var error = new SessionCloseException(SessionCloseException.ReasonCloseReceived,
+                message.Options?.ErrorCode);
+            _sessionHandler.InitiateClose(error);
         }
 
         private void ProcessSendClose(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
@@ -87,7 +69,7 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.Log("6e462e36-a9b9-4ea3-8735-c389e3dd0d36", "Sending closing message");
 
             // send but ignore errors.
-            _sessionHandler.NetworkInterface.HandleSend(_sessionHandler.RemoteEndpoint, message)
+            _sessionHandler.NetworkInterface.HandleSendAsync(_sessionHandler.RemoteEndpoint, message)
                 .CatchCompose(_ => _voidReturnPromise)
                 .Then(_ => HandleSendSuccessOrError(promiseCb));
         }
@@ -100,7 +82,7 @@ namespace ScalableIPC.Core.Session
                     "Shutting down after sending closing message");
 
                 promiseCb.CompleteSuccessfully(VoidType.Instance);
-                _sessionHandler.InitiateClose(null, false);
+                _sessionHandler.InitiateClose(new SessionCloseException());
             });
 
             return VoidType.Instance;

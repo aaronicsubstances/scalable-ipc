@@ -46,7 +46,7 @@ namespace ScalableIPC.Core.Session
                     "Received message from last received window. Responding with ack", 
                     "ack.seqNr", _sessionHandler.LastMaxSeqReceived);
                 // ignore success and care only about failure.
-                _sessionHandler.NetworkInterface.HandleSend(_sessionHandler.RemoteEndpoint, ack)
+                _sessionHandler.NetworkInterface.HandleSendAsync(_sessionHandler.RemoteEndpoint, ack)
                     .CatchCompose(e => HandleAckSendFailure(message, e));
                 return;
             }
@@ -97,7 +97,7 @@ namespace ScalableIPC.Core.Session
                         IsWindowFull = isWindowFull
                     }
                 };
-                _sessionHandler.NetworkInterface.HandleSend(_sessionHandler.RemoteEndpoint, ack)
+                _sessionHandler.NetworkInterface.HandleSendAsync(_sessionHandler.RemoteEndpoint, ack)
                     .ThenOrCatchCompose(_ => HandleAckSendSuccess(message), 
                         error => HandleAckSendFailure(message, error));
             }
@@ -118,7 +118,7 @@ namespace ScalableIPC.Core.Session
                     _sessionHandler.Log("f09fd1f8-b548-428e-a59a-01534fde8f0f", message,
                         "Failed to send ack. Shutting down...");
                     _isComplete = true;
-                    _sessionHandler.InitiateClose(error, false);
+                    _sessionHandler.InitiateClose(new SessionCloseException(error));
                 }
             });
             return _voidReturnPromise;
@@ -168,6 +168,12 @@ namespace ScalableIPC.Core.Session
         internal static bool AddToCurrentWindow(List<ProtocolDatagram> currentWindow, int maxReceiveWindowSize,
             ProtocolDatagram message)
         {
+            // ensure minimum value of 1 for max receive window size.
+            if (maxReceiveWindowSize < 1)
+            {
+                maxReceiveWindowSize = 1;
+            }
+
             // ensure enough capacity of current window for new message.
             if (message.SequenceNumber >= maxReceiveWindowSize)
             {
@@ -237,6 +243,12 @@ namespace ScalableIPC.Core.Session
         internal static bool IsCurrentWindowFull(List<ProtocolDatagram> currentWindow, int maxReceiveWindowSize,
             int lastPosInSlidingWindow)
         {
+            // ensure minimum value of 1 for max receive window size.
+            if (maxReceiveWindowSize < 1)
+            {
+                maxReceiveWindowSize = 1;
+            }
+
             if (lastPosInSlidingWindow < 0)
             {
                 return false;

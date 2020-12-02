@@ -1,5 +1,6 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.ConcreteComponents;
+using ScalableIPC.Core.Session;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -9,7 +10,7 @@ namespace ScalableIPC.Core.Transports
     public abstract class NetworkTransportBase : INetworkTransportInterface
     {
         protected readonly SessionHandlerStore _sessionHandlerStore;
-        protected volatile bool _isDisposing = false;
+        protected volatile bool _isShuttingDown;
 
         public NetworkTransportBase()
         {
@@ -22,6 +23,8 @@ namespace ScalableIPC.Core.Transports
         public AbstractEventLoopApi EventLoop { get; set; }
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
         public int IdleTimeoutSecs { get; set; }
+        public int MinRemoteIdleTimeoutSecs { get; set; }
+        public int MaxRemoteIdleTimeoutSecs { get; set; }
         public int AckTimeoutSecs { get; set; }
         public int MaxSendWindowSize { get; set; }
         public int MaxReceiveWindowSize { get; set; }
@@ -29,14 +32,9 @@ namespace ScalableIPC.Core.Transports
         public int MaximumTransferUnitSize { get; set; }
         public ISessionHandlerFactory SessionHandlerFactory { get; set; }
 
-        public virtual AbstractPromise<VoidType> HandleReceive(GenericNetworkIdentifier remoteEndpoint,
+        public virtual AbstractPromise<VoidType> HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint,
              byte[] rawBytes, int offset, int length)
         {
-            if (_isDisposing)
-            {
-                return PromiseApi.Reject(new Exception("endpoint handler is shutting down"));
-            }
-
             // Process data from underlying network.
             ProtocolDatagram message;
             try
@@ -51,15 +49,51 @@ namespace ScalableIPC.Core.Transports
             // handle protocol control messages
             if (message.OpCode == ProtocolDatagram.OpCodeCloseAll)
             {
-                return CloseSessions(remoteEndpoint);
+                return CloseSessionsAsync(remoteEndpoint, 
+                    new SessionCloseException(SessionCloseException.ReasonCloseAllReceived));
             }
 
-            // handle opening window messages separately.
-            if (message.WindowId == 0 && message.OpCode == ProtocolDatagram.OpCodeData)
+            // split session processing in two to enable connection-oriented transports
+            // to associate connections with new sessions.
+            return PrepareReceiveDataAsync(remoteEndpoint, message)
+                .ThenCompose(_ => CompleteReceiveDataAsync(remoteEndpoint, message));
+            
+        }
+
+        protected virtual AbstractPromise<VoidType> PrepareReceiveDataAsync(GenericNetworkIdentifier remoteEndpoint,
+            ProtocolDatagram message)
+        {
+            // By default for connection-less transports, get existing session handler
+            // or create new one.
+            ISessionHandler sessionHandler;
+            lock (_sessionHandlerStore)
             {
-                return HandleReceiveOpeningWindowMessage(remoteEndpoint, message);
-            }
+                var sessionHandlerWrapper = _sessionHandlerStore.Get(remoteEndpoint, message.SessionId);
+                if (sessionHandlerWrapper != null)
+                {
+                    sessionHandler = sessionHandlerWrapper.SessionHandler;
+                }
+                else
+                {
+                    if (_isShuttingDown)
+                    {
+                        // silently ignore new session if shutting down.
+                        return PromiseApi.Resolve(VoidType.Instance);
+                    }
 
+                    sessionHandler = SessionHandlerFactory.Create();
+                    sessionHandler.CompleteInit(message.SessionId, true, this, remoteEndpoint);
+                    _sessionHandlerStore.Add(remoteEndpoint, message.SessionId,
+                        CreateSessionHandlerWrapper(sessionHandler));
+
+                }
+            }
+            return PromiseApi.Resolve(VoidType.Instance);
+        }
+
+        protected virtual AbstractPromise<VoidType> CompleteReceiveDataAsync(GenericNetworkIdentifier remoteEndpoint,
+            ProtocolDatagram message)
+        {
             SessionHandlerWrapper sessionHandlerWrapper;
             lock (_sessionHandlerStore)
             {
@@ -67,12 +101,20 @@ namespace ScalableIPC.Core.Transports
             }
             if (sessionHandlerWrapper != null)
             {
-                return sessionHandlerWrapper.SessionHandler.ProcessReceive(message);
+                return sessionHandlerWrapper.SessionHandler.ProcessReceiveAsync(message);
             }
             else
             {
-                return PromiseApi.Reject(new Exception($"Could not allocate handler for session " +
-                    $"{message.SessionId} from {remoteEndpoint}"));
+                // missing session handler not a problem if shutting down.
+                if (_isShuttingDown)
+                {
+                    return PromiseApi.Resolve(VoidType.Instance);
+                }
+                else
+                {
+                    return PromiseApi.Reject(new Exception($"Could not allocate handler for session " +
+                        $"{message.SessionId} from {remoteEndpoint}"));
+                }
             }
         }
 
@@ -106,38 +148,49 @@ namespace ScalableIPC.Core.Transports
             });
         }
 
-        public virtual AbstractPromise<VoidType> HandleSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message)
+        public virtual AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint,
+            string sessionId = null, ISessionHandler sessionHandler = null)
         {
-            if (_isDisposing)
+            if (sessionId == null)
             {
-                return PromiseApi.Reject(new Exception("endpoint handler is shutting down"));
+                sessionId = ProtocolDatagram.GenerateSessionId();
             }
+            if (sessionHandler == null)
+            {
+                sessionHandler = SessionHandlerFactory.Create();
+            }
+            sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
+            lock (_sessionHandlerStore)
+            {
+                _sessionHandlerStore.Add(remoteEndpoint, sessionId,
+                    CreateSessionHandlerWrapper(sessionHandler));
+            }
+            return PromiseApi.Resolve(sessionHandler);
+        }
 
-            try
+        public virtual AbstractPromise<VoidType> ShutdownAsync(int waitSecs)
+        {
+            if (_isShuttingDown)
             {
-                // handle opening window messages separately.
-                if (message.WindowId == 0 && message.OpCode == ProtocolDatagram.OpCodeData)
-                {
-                    return HandleSendOpeningWindowMessage(remoteEndpoint, message);
-                }
-                byte[] pdu = GenerateRawDatagram(message);
-                // send through network.
-                return HandleSendData(remoteEndpoint, message.SessionId, pdu, 0, pdu.Length);
+                return PromiseApi.Resolve(VoidType.Instance);
             }
-            catch (Exception ex)
+            
+            // stop receiving new sessions.
+            _isShuttingDown = true;
+
+            // wait for ongoing sessions to end, after which
+            // forcefully tear down sessions.
+            if (waitSecs < 1)
             {
-                return PromiseApi.Reject(ex);
+                return ShutdownSessionsAsync();
+            }
+            else
+            {
+                return PromiseApi.Delay(waitSecs).ThenCompose(_ => ShutdownSessionsAsync());
             }
         }
 
-        protected virtual byte[] GenerateRawDatagram(ProtocolDatagram message)
-        {
-            // subclasses can implement forward error correction, expiration, maximum length validation, etc.
-            byte[] rawBytes = message.ToRawDatagram();
-            return rawBytes;
-        }
-
-        public virtual AbstractPromise<VoidType> Shutdown()
+        private AbstractPromise<VoidType> ShutdownSessionsAsync()
         {
             List<GenericNetworkIdentifier> endpoints;
             lock (_sessionHandlerStore)
@@ -157,23 +210,25 @@ namespace ScalableIPC.Core.Transports
             ProtocolDatagram pdu = new ProtocolDatagram
             {
                 OpCode = ProtocolDatagram.OpCodeCloseAll,
-                SessionId = ProtocolDatagram.GenerateSessionId()
+                SessionId = ProtocolDatagram.GenerateSessionId(),
             };
             // swallow any send exception.
-            return HandleSend(remoteEndpoint, pdu)
+            return HandleSendAsync(remoteEndpoint, pdu)
                 .CatchCompose(_ => PromiseApi.Resolve(VoidType.Instance))
-                .ThenCompose(_ => CloseSessions(remoteEndpoint));
+                .ThenCompose(_ => CloseSessionsAsync(remoteEndpoint, 
+                    new SessionCloseException(SessionCloseException.ReasonShutdown)));
         }
 
         public virtual void OnCloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId, 
-            Exception error, bool timeout)
+            SessionCloseException cause)
         {
             // invoke in different thread outside event loop?
-            _ = CloseSession(remoteEndpoint, sessionId, error, timeout);
+            _ = CloseSessionAsync(remoteEndpoint, sessionId, cause);
         }
 
-        public virtual AbstractPromise<VoidType> CloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId,
-            Exception error, bool timeout)
+        // separate from OnCloseSession so it can be overriden to tear down connections if need be.
+        public virtual AbstractPromise<VoidType> CloseSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
+            SessionCloseException cause)
         {
             SessionHandlerWrapper sessionHandler;
             lock (_sessionHandlerStore)
@@ -183,12 +238,13 @@ namespace ScalableIPC.Core.Transports
             }
             if (sessionHandler != null)
             {
-                return SwallowException(sessionHandler.SessionHandler.Close(error, timeout));
+                return SwallowException(sessionHandler.SessionHandler.CloseAsync(cause));
             }
             return PromiseApi.Resolve(VoidType.Instance);
         }
 
-        public virtual AbstractPromise<VoidType> CloseSessions(GenericNetworkIdentifier remoteEndpoint)
+        public virtual AbstractPromise<VoidType> CloseSessionsAsync(GenericNetworkIdentifier remoteEndpoint,
+            SessionCloseException cause)
         {
             List<SessionHandlerWrapper> sessionHandlers;
             lock (_sessionHandlerStore)
@@ -200,7 +256,7 @@ namespace ScalableIPC.Core.Transports
             foreach (var sessionHandler in sessionHandlers)
             {
                 retVal = retVal.ThenCompose(_ => SwallowException(
-                    sessionHandler.SessionHandler.Close(null, false)));
+                    sessionHandler.SessionHandler.CloseAsync(cause)));
             }
             return retVal;
         }
@@ -210,58 +266,11 @@ namespace ScalableIPC.Core.Transports
             return new SessionHandlerWrapper(sessionHandler);
         }
 
-        public virtual AbstractPromise<ISessionHandler> OpenSession(GenericNetworkIdentifier remoteEndpoint, 
-            string sessionId = null, ISessionHandler sessionHandler = null)
-        {
-            if (sessionId == null)
-            {
-                sessionId = ProtocolDatagram.GenerateSessionId();
-            }
-            if (sessionHandler == null)
-            {
-                sessionHandler = SessionHandlerFactory.Create();
-            }
-            sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
-            lock (_sessionHandlerStore)
-            {
-                _sessionHandlerStore.Add(remoteEndpoint, sessionId, 
-                    CreateSessionHandlerWrapper(sessionHandler));
-            }
-            return PromiseApi.Resolve(sessionHandler);
-        }
-
-        protected virtual AbstractPromise<VoidType> HandleReceiveOpeningWindowMessage(GenericNetworkIdentifier remoteEndpoint,
-            ProtocolDatagram message)
-        {
-            // for receipt of window 0, reuse existing session handler or create one and add.
-            ISessionHandler sessionHandler;
-            lock (_sessionHandlerStore)
-            {
-                var sessionHandlerWrapper = _sessionHandlerStore.Get(remoteEndpoint, message.SessionId);
-                if (sessionHandlerWrapper != null)
-                {
-                    sessionHandler = sessionHandlerWrapper.SessionHandler;
-                }
-                else
-                {
-                    sessionHandler = SessionHandlerFactory.Create();
-                    sessionHandler.CompleteInit(message.SessionId, true, this, remoteEndpoint);
-                    _sessionHandlerStore.Add(remoteEndpoint, message.SessionId,
-                        CreateSessionHandlerWrapper(sessionHandler));
-
-                }
-            }
-            return sessionHandler.ProcessReceive(message);
-        }
-
-        protected virtual AbstractPromise<VoidType> HandleSendOpeningWindowMessage(GenericNetworkIdentifier remoteEndpoint,
-            ProtocolDatagram message)
-        {
-            byte[] data = GenerateRawDatagram(message);
-            return HandleSendData(remoteEndpoint, message.SessionId, data, 0, data.Length);
-        }
-
-        protected abstract AbstractPromise<VoidType> HandleSendData(GenericNetworkIdentifier remoteEndpoint,
-            string sessionId, byte[] data, int offset, int length);
+        // Implementations must deal with CloseAll messages separately from other messages.
+        // For connection-oriented transports, implementations must also identify the connection
+        // to use for message, or create new connections for the very first message of a session
+        // i.e., Data messages with window = 0 and seqNr = 0.
+        public abstract AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint,
+            ProtocolDatagram message);
     }
 }

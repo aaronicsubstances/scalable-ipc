@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ScalableIPC.Core.Session;
+using System;
 
 namespace ScalableIPC.Core.Abstractions
 {
@@ -15,7 +16,7 @@ namespace ScalableIPC.Core.Abstractions
     ///       connections is about 3-5 times that of replica count.
     /// 3. Unix domain socket
     /// 4. Windows named pipe
-    /// 5. datagram socket on localhost.
+    /// 5. datagram socket on localhost. Intended as fallback if domain socket or named pipe cannot be used.
     /// 6. datagram socket and DTLS on the Internet. Futuristic and intended for gamers and others to implement.
     /// </summary>
     public interface INetworkTransportInterface
@@ -23,22 +24,25 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromiseApi PromiseApi { get; set; }
         AbstractEventLoopApi EventLoop { get; set; }
         GenericNetworkIdentifier LocalEndpoint { get; set; }
-        int IdleTimeoutSecs { get; set; }
-        int AckTimeoutSecs { get; set; }
-        int MaxSendWindowSize { get; set; }
-        int MaxReceiveWindowSize { get; set; }
-        int MaxRetryCount { get; set; }
-        int MaximumTransferUnitSize { get; set; }
+        int IdleTimeoutSecs { get; set; } // non-positive means disable idle timer 
+        int MinRemoteIdleTimeoutSecs { get; set; }
+        int MaxRemoteIdleTimeoutSecs { get; set; }
+        int AckTimeoutSecs { get; set; } // non-positive means disable ack timer
+        int MaxSendWindowSize { get; set; } // non-positive means use 1.
+        int MaxReceiveWindowSize { get; set; } // non-positive means use 1.
+        int MaxRetryCount { get; set; } // non-positive means disable retries.
+        int MaximumTransferUnitSize { get; set; } // non-positive means disable datagram chopping.
         ISessionHandlerFactory SessionHandlerFactory { get; set; }
-        AbstractPromise<VoidType> HandleReceive(GenericNetworkIdentifier remoteEndpoint,
+        AbstractPromise<VoidType> HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint,
              byte[] rawBytes, int offset, int length);
-        AbstractPromise<VoidType> HandleSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message);
-        AbstractPromise<ISessionHandler> OpenSession(GenericNetworkIdentifier remoteEndpoint, string sessionId = null,
+        AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message);
+        AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId = null,
             ISessionHandler sessionHandler = null);
-        void OnCloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId, Exception error, bool timeout);
-        AbstractPromise<VoidType> CloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId,
-            Exception error, bool timeout);
-        AbstractPromise<VoidType> CloseSessions(GenericNetworkIdentifier remoteEndpoint);
-        AbstractPromise<VoidType> Shutdown();
+        void OnCloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId, SessionCloseException cause);
+        AbstractPromise<VoidType> CloseSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
+            SessionCloseException cause);
+        AbstractPromise<VoidType> CloseSessionsAsync(GenericNetworkIdentifier remoteEndpoint,
+            SessionCloseException cause);
+        AbstractPromise<VoidType> ShutdownAsync(int waitSecs);
     }
 }

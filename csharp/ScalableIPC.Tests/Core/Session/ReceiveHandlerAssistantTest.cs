@@ -46,20 +46,38 @@ namespace ScalableIPC.Tests.Core.Session
             return new List<object[]>
             {
                 new object[]{ new List<ProtocolDatagram>(), 0, -1, false },
+                new object[]{ new List<ProtocolDatagram> { new ProtocolDatagram() }, 0, 0, true },
                 new object[]{ new List<ProtocolDatagram>(), 1, -1, false },
                 new object[]{ new List<ProtocolDatagram> { null, new ProtocolDatagram() }, 2, -1, false },
                 new object[]{ new List<ProtocolDatagram> { new ProtocolDatagram(), new ProtocolDatagram(),
                     new ProtocolDatagram() }, 3, 2, true },
                 new object[]{ new List<ProtocolDatagram> { new ProtocolDatagram(), new ProtocolDatagram(),
                     new ProtocolDatagram() }, 4, 2, false },
-                new object[]{ new List<ProtocolDatagram> { new ProtocolDatagram(), new ProtocolDatagram(),
-                    new ProtocolDatagram { Options = { IsLastInWindow = true } } }, 4, 2, true },
+                new object[]
+                {
+                    new List<ProtocolDatagram> { new ProtocolDatagram(), new ProtocolDatagram(),
+                        new ProtocolDatagram
+                        {
+                            Options = new ProtocolDatagramOptions { IsLastInWindow = true } 
+                        } 
+                    }, 
+                    4, 2, true
+                },
                 new object[]{ new List<ProtocolDatagram> { new ProtocolDatagram(), new ProtocolDatagram(),
                     null, new ProtocolDatagram() }, 2, 1, true },
                 new object[]{ new List<ProtocolDatagram> { new ProtocolDatagram(), new ProtocolDatagram(),
                     null, new ProtocolDatagram() }, 3, 1, false },
-                new object[]{ new List<ProtocolDatagram> { new ProtocolDatagram { Options = { IsLastInWindow = true } }, 
-                    new ProtocolDatagram(), null, new ProtocolDatagram() }, 3, 0, true },
+                new object[]
+                { 
+                    new List<ProtocolDatagram> 
+                    {
+                        new ProtocolDatagram
+                        {
+                            Options = new ProtocolDatagramOptions { IsLastInWindow = true } 
+                        }, 
+                        new ProtocolDatagram(), null, new ProtocolDatagram() 
+                    }, 3, 0, true 
+                },
                 new object[]{ new List<ProtocolDatagram> { new ProtocolDatagram() }, 1, 0, true },
             };
         }
@@ -77,8 +95,16 @@ namespace ScalableIPC.Tests.Core.Session
             {
                 expectedWindow = inputWindow;
             }
-            Assert.True(mutableWindow.Count <= maxReceiveWindowSize,
-                $"Expected {mutableWindow.Count} <= {maxReceiveWindowSize}");
+            if (maxReceiveWindowSize < 1)
+            {
+                Assert.True(mutableWindow.Count == 1,
+                    $"Expected {mutableWindow.Count} == 1");
+            }
+            else
+            {
+                Assert.True(mutableWindow.Count <= maxReceiveWindowSize,
+                    $"Expected {mutableWindow.Count} <= {maxReceiveWindowSize}");
+            }
             Assert.Equal(expectedWindow, mutableWindow, new ShallowProtocolDatagramComparer());
         }
 
@@ -108,13 +134,16 @@ namespace ScalableIPC.Tests.Core.Session
                 testArgs.Add(new object[] { inputWindow, maxReceiveWindowSize, message, expected, expectedWindow });
             }
 
-            // maxReceiveWindowSize = 0
+            // maxReceiveWindowSize = 0: non-positives should be treated as equivalent to 1.
             {
                 List<ProtocolDatagram> inputWindow = new List<ProtocolDatagram>();
                 int maxReceiveWindowSize = 0;
                 ProtocolDatagram message = new ProtocolDatagram();
-                bool expected = false;
-                List<ProtocolDatagram> expectedWindow = null;
+                bool expected = true;
+                var expectedWindow = new List<ProtocolDatagram>
+                {
+                    message
+                };
                 testArgs.Add(new object[] { inputWindow, maxReceiveWindowSize, message, expected, expectedWindow });
             }
 
@@ -263,7 +292,10 @@ namespace ScalableIPC.Tests.Core.Session
                 {
                     SequenceNumber = 2,
                     WindowId = 3,
-                    Options = { IsLastInWindow = true }
+                    Options = new ProtocolDatagramOptions
+                    { 
+                        IsLastInWindow = true 
+                    }
                 };
                 bool expected = true;
                 List<ProtocolDatagram> expectedWindow = new List<ProtocolDatagram>
@@ -283,7 +315,10 @@ namespace ScalableIPC.Tests.Core.Session
                 {
                     SequenceNumber = 0,
                     WindowId = 3,
-                    Options = { IsLastInWindow = true }
+                    Options = new ProtocolDatagramOptions
+                    { 
+                        IsLastInWindow = true 
+                    }
                 };
                 bool expected = true;
                 List<ProtocolDatagram> expectedWindow = new List<ProtocolDatagram>
@@ -298,13 +333,23 @@ namespace ScalableIPC.Tests.Core.Session
                 List<ProtocolDatagram> inputWindow = new List<ProtocolDatagram>
                 {
                     new ProtocolDatagram(),
-                    new ProtocolDatagram { SequenceNumber = 1, Options = { IsLastInWindow = true } }
+                    new ProtocolDatagram
+                    { 
+                        SequenceNumber = 1,
+                        Options = new ProtocolDatagramOptions
+                        {
+                            IsLastInWindow = true
+                        }
+                    }
                 };
                 int maxReceiveWindowSize = 10;
                 ProtocolDatagram message = new ProtocolDatagram
                 {
                     SequenceNumber = 2,
-                    Options = { IsLastInWindow = true }
+                    Options = new ProtocolDatagramOptions
+                    {
+                        IsLastInWindow = true
+                    }
                 };
                 bool expected = true;
                 List<ProtocolDatagram> expectedWindow = new List<ProtocolDatagram>
@@ -321,13 +366,23 @@ namespace ScalableIPC.Tests.Core.Session
                 List<ProtocolDatagram> inputWindow = new List<ProtocolDatagram>
                 {
                     new ProtocolDatagram(),
-                    new ProtocolDatagram { SequenceNumber = 1, Options = { IsLastInWindow = true } }
+                    new ProtocolDatagram
+                    {
+                        SequenceNumber = 1,
+                        Options = new ProtocolDatagramOptions
+                        {
+                            IsLastInWindow = true
+                        }
+                    }
                 };
                 int maxReceiveWindowSize = 10;
                 ProtocolDatagram message = new ProtocolDatagram
                 {
                     SequenceNumber = 5,
-                    Options = { IsLastInWindow = true }
+                    Options = new ProtocolDatagramOptions
+                    {
+                        IsLastInWindow = true
+                    }
                 };
                 bool expected = true;
                 List<ProtocolDatagram> expectedWindow = new List<ProtocolDatagram>
@@ -346,13 +401,23 @@ namespace ScalableIPC.Tests.Core.Session
             {
                 List<ProtocolDatagram> inputWindow = new List<ProtocolDatagram>
                 {
-                    new ProtocolDatagram { SequenceNumber = 0, Options = { IsLastInWindow = true } }
+                    new ProtocolDatagram
+                    {
+                        SequenceNumber = 0,
+                        Options = new ProtocolDatagramOptions
+                        {
+                            IsLastInWindow = true
+                        }
+                    }
                 };
                 int maxReceiveWindowSize = 6;
                 ProtocolDatagram message = new ProtocolDatagram
                 {
                     SequenceNumber = 5,
-                    Options = { IsLastInWindow = true }
+                    Options = new ProtocolDatagramOptions
+                    {
+                        IsLastInWindow = true
+                    }
                 };
                 bool expected = true;
                 List<ProtocolDatagram> expectedWindow = new List<ProtocolDatagram>
@@ -372,15 +437,34 @@ namespace ScalableIPC.Tests.Core.Session
                 List<ProtocolDatagram> inputWindow = new List<ProtocolDatagram>
                 {
                     null,
-                    new ProtocolDatagram { SequenceNumber = 1, WindowId = 3, Options = { IsLastInWindow = false } },
-                    new ProtocolDatagram { SequenceNumber = 2, WindowId = 3, Options = { IsLastInWindow = true } }
+                    new ProtocolDatagram
+                    {
+                        SequenceNumber = 1,
+                        WindowId = 3,
+                        Options = new ProtocolDatagramOptions
+                        {
+                            IsLastInWindow = true
+                        }
+                    },
+                    new ProtocolDatagram
+                    {
+                        SequenceNumber = 2, 
+                        WindowId = 3,
+                        Options = new ProtocolDatagramOptions
+                        {
+                            IsLastInWindow = true
+                        }
+                    }
                 };
                 int maxReceiveWindowSize = 10;
                 ProtocolDatagram message = new ProtocolDatagram
                 {
                     SequenceNumber = 0,
                     WindowId = 3,
-                    Options = { IsLastInWindow = true }
+                    Options = new ProtocolDatagramOptions
+                    {
+                        IsLastInWindow = true
+                    }
                 };
                 bool expected = true;
                 List<ProtocolDatagram> expectedWindow = new List<ProtocolDatagram>
@@ -399,14 +483,25 @@ namespace ScalableIPC.Tests.Core.Session
                     null,
                     new ProtocolDatagram { SequenceNumber = 1, WindowId = 3 },
                     new ProtocolDatagram { SequenceNumber = 2, WindowId = 3 },
-                    new ProtocolDatagram { SequenceNumber = 3, WindowId = 3, Options = { IsLastInWindow = true } }
+                    new ProtocolDatagram
+                    {
+                        SequenceNumber = 3, 
+                        WindowId = 3,
+                        Options = new ProtocolDatagramOptions
+                        {
+                            IsLastInWindow = true
+                        }
+                    }
                 };
                 int maxReceiveWindowSize = 10;
                 ProtocolDatagram message = new ProtocolDatagram
                 {
                     SequenceNumber = 1,
                     WindowId = 3,
-                    Options = { IsLastInWindow = true }
+                    Options = new ProtocolDatagramOptions
+                    {
+                        IsLastInWindow = true
+                    }
                 };
                 bool expected = true;
                 List<ProtocolDatagram> expectedWindow = new List<ProtocolDatagram>
@@ -426,14 +521,25 @@ namespace ScalableIPC.Tests.Core.Session
                 {
                     new ProtocolDatagram { SequenceNumber = 0, WindowId = 3 },
                     new ProtocolDatagram { SequenceNumber = 1, WindowId = 3 },
-                    new ProtocolDatagram { SequenceNumber = 2, WindowId = 3, Options = { IsLastInWindow = true } }
+                    new ProtocolDatagram
+                    {
+                        SequenceNumber = 2,
+                        WindowId = 3,
+                        Options = new ProtocolDatagramOptions
+                        {
+                            IsLastInWindow = true
+                        }
+                    }
                 };
                 int maxReceiveWindowSize = 10;
                 ProtocolDatagram message = new ProtocolDatagram
                 {
                     SequenceNumber = 1,
                     WindowId = 3,
-                    Options = { IsLastInWindow = true }
+                    Options = new ProtocolDatagramOptions
+                    {
+                        IsLastInWindow = true
+                    }
                 };
                 bool expected = true;
                 List<ProtocolDatagram> expectedWindow = new List<ProtocolDatagram>

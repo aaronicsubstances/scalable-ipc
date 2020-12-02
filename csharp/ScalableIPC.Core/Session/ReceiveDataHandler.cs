@@ -46,12 +46,6 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
-        public bool ProcessSend(byte[] windowData, ProtocolDatagramOptions windowOptions, 
-            PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
         private void OnReceiveRequest(ProtocolDatagram message)
         {
             if (_currentWindowHandler == null)
@@ -71,7 +65,7 @@ namespace ScalableIPC.Core.Session
             
             // ready to pass on to application layer, unless input has been shutdown
             // in which case silently ignore.
-            if (_sessionHandler.IsInputShutdownInternal())
+            if (_sessionHandler.IsInputShutdown())
             {
                 return;
             }
@@ -83,7 +77,7 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.Log("85b3284a-7787-4949-a8de-84211f91e154",
                 "Successfully received full window of data",
                 "count", currentWindow.Count, "sessionState", _sessionHandler.SessionState,
-                "idleTimeout", _sessionHandler.SessionIdleTimeoutSecs,
+                "remoteIdleTimeout", _sessionHandler.RemoteIdleTimeoutSecs,
                 "sessionState", _sessionHandler.SessionState);
 
             _sessionHandler.EventLoop.PostCallback(() => _sessionHandler.OnDataReceived(windowData,
@@ -94,7 +88,7 @@ namespace ScalableIPC.Core.Session
         {
             if (windowOptions.IdleTimeoutSecs.HasValue)
             {
-                _sessionHandler.SessionIdleTimeoutSecs = windowOptions.IdleTimeoutSecs;
+                _sessionHandler.RemoteIdleTimeoutSecs = windowOptions.IdleTimeoutSecs;
             }
         }
     }

@@ -7,28 +7,58 @@ namespace ScalableIPC.Core
 {
     public class DatagramChopper
     {
-        private static readonly List<string> OptionsToSkipElseCouldInterfere = new List<string>
+        private static readonly List<string> StandardOptionsToSkip = new List<string>
         {
-            ProtocolDatagramOptions.OptionNameIsLastInWindow, ProtocolDatagramOptions.OptionNameIsWindowFull
+            ProtocolDatagramOptions.OptionNameIsLastInWindow, ProtocolDatagramOptions.OptionNameIsWindowFull,
+            ProtocolDatagramOptions.OptionNameErrorCode
         };
 
         private readonly byte[] _data;
+        private readonly int _dataOffset;
+        private readonly int _dataLength;
         private readonly List<string[]> _options;
         private readonly int _maxPduSize;
+        private readonly List<string> _extraOptionsToSkip;
         private int _usedOptionCount;
         private int _usedDataByteCount;
-        private bool _doneWithOptions;
         private bool _started;
 
-        public DatagramChopper(byte[] data, ProtocolDatagramOptions options, int maxPduSize)
+        public DatagramChopper(ProtocolDatagram fullMessage, int maxPduSize, List<string> extraOptionsToSkip)
         {
-            _data = data;
-            _options = options.GenerateList().ToList();
+            if (fullMessage.DataBytes != null)
+            {
+                _data = fullMessage.DataBytes;
+                _dataOffset = fullMessage.DataOffset;
+                _dataLength = fullMessage.DataLength;
+            }
+            else
+            {
+                _data = new byte[0];
+                _dataOffset = 0;
+                _dataLength = 0;
+            }
+            if (fullMessage.Options != null)
+            {
+                _options = fullMessage.Options.GenerateList().ToList();
+            }
+            else
+            {
+                _options = new List<string[]>();
+            }
+
             _maxPduSize = maxPduSize;
+
+            if (extraOptionsToSkip != null)
+            {
+                _extraOptionsToSkip = extraOptionsToSkip;
+            }
+            else
+            {
+                _extraOptionsToSkip = new List<string>();
+            }
 
             _usedOptionCount = 0;
             _usedDataByteCount = 0;
-            _doneWithOptions = false;
             _started = false;
         }
 
@@ -39,7 +69,6 @@ namespace ScalableIPC.Core
             var savedState = new
             {
                 Started = _started,
-                DoneWithOptions= _doneWithOptions,
                 UsedOptionCount = _usedOptionCount,
                 UsedDataByteCount = _usedDataByteCount
             };
@@ -48,46 +77,42 @@ namespace ScalableIPC.Core
 
             var subOptions = new ProtocolDatagramOptions();
             int spaceUsed = 0;
-            if (!_doneWithOptions)
+            while (_usedOptionCount < _options.Count)
             {
-                bool nextOptionsSpaceUsedUp = false;
-                while (_usedOptionCount < _options.Count)
-                {
-                    string[] pair = _options[_usedOptionCount];
-                    string k = pair[0];
+                string[] pair = _options[_usedOptionCount];
+                string k = pair[0];
 
-                    // skip known session layer options which could interfere with bulk sending.
-                    if (!OptionsToSkipElseCouldInterfere.Contains(k))
+                if (StandardOptionsToSkip.Contains(k) && !_extraOptionsToSkip.Contains(k))
+                {
+                    // skip standard session layer options and user-defined extra ones
+                    // which could interfere with bulk sending.
+                }
+                else
+                {
+                    int kLength = ProtocolDatagram.ConvertStringToBytes(k).Length;
+                    var v = pair[1];
+                    int vLength = ProtocolDatagram.ConvertStringToBytes(v).Length;
+                    int extraSpaceNeeded = kLength + vLength + 2; // 2 for null terminator count.
+
+                    if (spaceUsed + extraSpaceNeeded > _maxPduSize - reserveSpaceByteCount)
                     {
-                        int kLength = ProtocolDatagram.ConvertStringToBytes(k).Length;
-                        var v = pair[1];
-                        int vLength = ProtocolDatagram.ConvertStringToBytes(v).Length;
-                        int extraSpaceNeeded = kLength + vLength + 2; // 2 for null terminator count.
-
-                        if (spaceUsed + extraSpaceNeeded > _maxPduSize - reserveSpaceByteCount)
-                        {
-                            nextOptionsSpaceUsedUp = true;
-                            break;
-                        }
-                        subOptions.AddOption(k, v);
-                        spaceUsed += extraSpaceNeeded;
+                        break;
                     }
-
-                    _usedOptionCount++;
+                    subOptions.AddOption(k, v);
+                    spaceUsed += extraSpaceNeeded;
                 }
 
-                if (!nextOptionsSpaceUsedUp)
-                {
-                    _doneWithOptions = true;
-                }
+                _usedOptionCount++;
             }
+
+            var doneWithOptions = _usedOptionCount >= _options.Count;
 
             int dataChunkOffset = _usedDataByteCount;
             int dataChunkLength = 0;
-            if (_doneWithOptions)
+            if (doneWithOptions)
             {
                 dataChunkLength = Math.Max(0,
-                    Math.Min(_maxPduSize - spaceUsed - reserveSpaceByteCount, _data.Length - dataChunkOffset));
+                    Math.Min(_maxPduSize - reserveSpaceByteCount - spaceUsed, _dataLength - dataChunkOffset));
                 _usedDataByteCount += dataChunkLength;
                 spaceUsed += dataChunkLength;
             }
@@ -95,7 +120,7 @@ namespace ScalableIPC.Core
             // detect endless looping.
             if (spaceUsed == 0)
             {
-                if (!_doneWithOptions || (_usedDataByteCount < _data.Length && dataChunkLength == 0))
+                if (!doneWithOptions || (_usedDataByteCount < _dataLength && dataChunkLength == 0))
                 {
                     throw new Exception("Endless looping detected.");
                 }
@@ -109,7 +134,7 @@ namespace ScalableIPC.Core
                 nextPdu = new ProtocolDatagram
                 {
                     DataBytes = _data,
-                    DataOffset = dataChunkOffset,
+                    DataOffset = _dataOffset + dataChunkOffset,
                     DataLength = dataChunkLength,
                     Options = subOptions
                 };
@@ -122,13 +147,12 @@ namespace ScalableIPC.Core
                 }
             }
 
-            _started = false;
+            _started = true;
 
             if (peekOnly)
             {
                 _usedOptionCount = savedState.UsedOptionCount;
                 _usedDataByteCount = savedState.UsedDataByteCount;
-                _doneWithOptions = savedState.DoneWithOptions;
                 _started = savedState.Started;
             }
 

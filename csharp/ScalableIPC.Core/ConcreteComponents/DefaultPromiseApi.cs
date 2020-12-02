@@ -22,6 +22,12 @@ namespace ScalableIPC.Core.ConcreteComponents
         {
             return new DefaultPromise<T>(Task.FromResult(value));
         }
+
+        public AbstractPromise<VoidType> Delay(int secs)
+        {
+            return new DefaultPromise<VoidType>(Task.Delay(secs * 100)
+                .ContinueWith(_ => VoidType.Instance));
+        }
     }
 
     public class DefaultPromise<T>: AbstractPromise<T>

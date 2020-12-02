@@ -13,10 +13,6 @@ namespace ScalableIPC.Core.Transports.Test
             ConnectedNetworks = new Dictionary<GenericNetworkIdentifier, SimulatedNetworkTransport>();
             IdleTimeoutSecs = 5;
             AckTimeoutSecs = 3;
-            MaxRetryCount = 0;
-            MaximumTransferUnitSize = 512;
-            MaxReceiveWindowSize = 1;
-            MaxSendWindowSize = 1;
             MinTransmissionDelayMs = 0;
             MaxTransmissionDelayMs = 2;
         }
@@ -26,11 +22,11 @@ namespace ScalableIPC.Core.Transports.Test
         public int MinTransmissionDelayMs { get; set; }
         public int MaxTransmissionDelayMs { get; set; }
 
-        protected override AbstractPromise<VoidType> HandleSendData(GenericNetworkIdentifier remoteEndpoint, 
-            string sessionId, byte[] data, int offset, int length)
+        public override AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message)
         {
             if (ConnectedNetworks.ContainsKey(remoteEndpoint))
             {
+                byte[] data = message.ToRawDatagram();
                 Task.Run(async () =>
                 {
                     // Simulate transmission delay here.
@@ -43,7 +39,7 @@ namespace ScalableIPC.Core.Transports.Test
                     }
                     try
                     {
-                        var pendingPromise = connectedNetwork.HandleReceive(LocalEndpoint, data, offset, length);
+                        var pendingPromise = connectedNetwork.HandleReceiveAsync(LocalEndpoint, data, 0, data.Length);
                         await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
                     }
                     catch (Exception ex)
