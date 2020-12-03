@@ -168,7 +168,7 @@ namespace ScalableIPC.Core
                     }
                     try
                     {
-                        parsedDatagram.Options.AddOption(optionName, optionNameOrValue);
+                        parsedDatagram.Options.AddOption(optionName, optionNameOrValue, true);
                     }
                     catch (Exception ex)
                     {
@@ -284,6 +284,11 @@ namespace ScalableIPC.Core
         internal static byte[] ConvertStringToBytes(string s)
         {
             return Encoding.UTF8.GetBytes(s);
+        }
+
+        internal static int CountBytesInString(string s)
+        {
+            return Encoding.UTF8.GetByteCount(s);
         }
 
         internal static string ConvertBytesToString(byte[] data, int offset, int length)
@@ -419,8 +424,12 @@ namespace ScalableIPC.Core
             }
         }
 
-        public static byte[] RetrieveData(List<ProtocolDatagram> messages, ProtocolDatagramOptions optionsReceiver = null)
+        public static ProtocolDatagram CreateMessageOutOfWindow(List<ProtocolDatagram> messages)
         {
+            var windowAsMessage = new ProtocolDatagram
+            {
+                Options = new ProtocolDatagramOptions()
+            };
             var memoryStream = new MemoryStream();
             foreach (var msg in messages)
             {
@@ -428,17 +437,25 @@ namespace ScalableIPC.Core
                 {
                     break;
                 }
-                if (msg.Options != null && optionsReceiver != null)
+                windowAsMessage.OpCode = msg.OpCode;
+                windowAsMessage.SessionId = msg.SessionId;
+                windowAsMessage.WindowId = msg.WindowId;
+                windowAsMessage.SequenceNumber = msg.SequenceNumber;
+                if (msg.Options != null)
                 {
                     foreach (var pair in msg.Options.GenerateList())
                     {
-                        optionsReceiver.AddOption(pair[0], pair[1]);
+                        windowAsMessage.Options.AddOption(pair[0], pair[1], false);
                     }
+                    windowAsMessage.Options.IdleTimeoutSecs = msg.Options.IdleTimeoutSecs;
                 }
                 memoryStream.Write(msg.DataBytes, msg.DataOffset, msg.DataLength);
             }
             memoryStream.Flush();
-            return memoryStream.ToArray();
+            var data = memoryStream.ToArray();
+            windowAsMessage.DataBytes = data;
+            windowAsMessage.DataLength = data.Length;
+            return windowAsMessage;
         }
     }
 }

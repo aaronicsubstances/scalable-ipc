@@ -13,6 +13,8 @@ namespace ScalableIPC.Core.Session
         public static readonly int ReasonCloseAllReceived = 3;
         public static readonly int ReasonShutdown = 4;
         public static readonly int ReasonError = 5;
+        public static readonly int ReasonGracefulUserRequest = 6;
+        public static readonly int ReasonForcefulUserRequest = 6;
 
         private static string StringifyReason(int reason)
         {
@@ -28,12 +30,13 @@ namespace ScalableIPC.Core.Session
                 return "SHUTTINGDOWN";
             if (reason == ReasonError)
                 return "INTERNALERROR";
+            if (reason == ReasonGracefulUserRequest)
+                return "NORMAL";
+            if (reason == ReasonForcefulUserRequest)
+                return "FORCEDCLOSE";
             return null;
         }
 
-        public SessionCloseException()
-        { }
-        
         public SessionCloseException(int reason):
             this(reason, null)
         { }

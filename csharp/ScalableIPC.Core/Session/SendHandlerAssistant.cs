@@ -96,7 +96,7 @@ namespace ScalableIPC.Core.Session
             if (receiveCount == maxExpectedReceiveCount)
             {
                 _sessionHandler.Log("420af144-e772-444d-ab2d-57da89ad38b6",
-                    "All messages in window have been successfully received");
+                    "All messages in window have been successfully sent and confirmed");
 
                 // cancel ack timeout.
                 _sessionHandler.CancelAckTimeout();

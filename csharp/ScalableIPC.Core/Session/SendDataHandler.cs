@@ -64,9 +64,21 @@ namespace ScalableIPC.Core.Session
             return true;
         }
 
+        public bool ProcessClose(bool closeGracefully, PromiseCompletionSource<VoidType> promiseCb)
+        {
+            return false;
+        }
+
         private void ProcessSendRequest(ProtocolDatagram message,
            PromiseCompletionSource<VoidType> promiseCb)
         {
+            if (_sessionHandler.SessionState >= DefaultSessionHandler.StateClosing)
+            {
+                // Session handler is closing so don't send data.
+                promiseCb.CompleteExceptionally(new Exception("Session handler is closing"));
+                return;
+            }
+
             _pendingPromiseCallback = promiseCb;
 
             // Interpret non-positive MTU to mean

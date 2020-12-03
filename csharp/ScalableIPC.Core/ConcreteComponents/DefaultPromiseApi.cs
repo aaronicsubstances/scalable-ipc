@@ -50,12 +50,15 @@ namespace ScalableIPC.Core.ConcreteComponents
 
         public AbstractPromise<T> Catch(Action<Exception> onRejected)
         {
-            var continuationTask = WrappedTask.ContinueWith<T>(task =>
+            var continuationTask = WrappedTask.ContinueWith(task =>
             {
-                onRejected.Invoke(task.Exception);
-                throw task.Exception;
-            }, TaskContinuationOptions.NotOnRanToCompletion);
-            return new DefaultPromise<T>(continuationTask);
+                if (task.Status != TaskStatus.RanToCompletion)
+                {
+                    onRejected.Invoke(task.Exception);
+                }
+                return task;
+            });
+            return new DefaultPromise<T>(continuationTask.Unwrap());
         }
 
         public AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled)
@@ -68,14 +71,29 @@ namespace ScalableIPC.Core.ConcreteComponents
             return new DefaultPromise<U>(continuationTask.Unwrap());
         }
 
-        public AbstractPromise<U> CatchCompose<U>(Func<Exception, AbstractPromise<U>> onRejected)
+        /// <summary>
+        /// Bugs in initial implementation of CatchCompose forced us to abandon use
+        /// of TaskContinuationOptions, and use if else conditional instead.
+        /// Bugs were:
+        ///  1. CatchCompose wasn't forwarding success results to subsequent Then handlers.
+        /// </summary>
+        /// <param name="onRejected"></param>
+        /// <returns></returns>
+        public AbstractPromise<T> CatchCompose(Func<Exception, AbstractPromise<T>> onRejected)
         {
             var continuationTask = WrappedTask.ContinueWith(task =>
             {
-                AbstractPromise<U> continuationPromise = onRejected(task.Exception);
-                return ((DefaultPromise<U>)continuationPromise).WrappedTask;
-            }, TaskContinuationOptions.NotOnRanToCompletion);
-            return new DefaultPromise<U>(continuationTask.Unwrap());
+                if (task.Status == TaskStatus.RanToCompletion)
+                {
+                    return task;
+                }
+                else
+                {
+                    AbstractPromise<T> continuationPromise = onRejected(task.Exception);
+                    return ((DefaultPromise<T>)continuationPromise).WrappedTask;
+                }
+            });
+            return new DefaultPromise<T>(continuationTask.Unwrap());
         }
 
         public AbstractPromise<U> ThenOrCatchCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,

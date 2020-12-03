@@ -25,7 +25,7 @@ namespace ScalableIPC.Core
         public bool? IsWindowFull { get; set; }
         public bool? IsLastInWindow { get; set; }
 
-        public void AddOption(string name, string value)
+        public void AddOption(string name, string value, bool parseKnownOptions)
         {
             List<string> optionValues;
             if (AllOptions.ContainsKey(name))
@@ -38,6 +38,11 @@ namespace ScalableIPC.Core
                 AllOptions.Add(name, optionValues);
             }
             optionValues.Add(value);
+
+            if (!parseKnownOptions)
+            {
+                return;
+            }
 
             // Now identify and validate standard options.
             // In case of repetition, last one wins.

@@ -27,12 +27,19 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> Delay(int waitSecs);
     }
 
-    public interface AbstractPromise<out T>
+    public interface AbstractPromise<T>
     {
         AbstractPromise<U> Then<U>(Func<T, U> onFulfilled);
         AbstractPromise<T> Catch(Action<Exception> onRejected);
         AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled);
-        AbstractPromise<U> CatchCompose<U>(Func<Exception, AbstractPromise<U>> onRejected);
+
+        // In prescence of generics, CatchCompose has to return a result which is a supertype
+        // of both the type of the current promise, and the type of the promise returned by onRejected.
+        // Also couldn't cast AbstractPromise of VoidType to DefaultPromise of object
+        // at runtime, even though object is a supertype of VoidType.
+        // Hence these constraints forced us to this design of the method in which the type returned by
+        // onRejected is the same as that of this one. Also had to remove covariance of T.
+        AbstractPromise<T> CatchCompose(Func<Exception, AbstractPromise<T>> onRejected);
         AbstractPromise<U> ThenOrCatchCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
             Func<Exception, AbstractPromise<U>> onRejected);
     }

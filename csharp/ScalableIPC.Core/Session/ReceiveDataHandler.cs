@@ -46,8 +46,19 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
+        public bool ProcessClose(bool closeGracefully, PromiseCompletionSource<VoidType> promiseCb)
+        {
+            return false;
+        }
+
         private void OnReceiveRequest(ProtocolDatagram message)
         {
+            if (_sessionHandler.SessionState >= DefaultSessionHandler.StateClosing)
+            {
+                // Session handler is closing so don't receive data.
+                return;
+            }
+
             if (_currentWindowHandler == null)
             {
                 _currentWindowHandler = new ReceiveHandlerAssistant(_sessionHandler)
@@ -70,9 +81,8 @@ namespace ScalableIPC.Core.Session
                 return;
             }
 
-            var windowOptions = new ProtocolDatagramOptions();
-            byte[] windowData = ProtocolDatagram.RetrieveData(currentWindow, windowOptions);
-            ProcessCurrentWindowOptions(windowOptions);
+            ProtocolDatagram windowAsMessage = ProtocolDatagram.CreateMessageOutOfWindow(currentWindow);
+            ProcessCurrentWindowOptions(windowAsMessage.Options);
 
             _sessionHandler.Log("85b3284a-7787-4949-a8de-84211f91e154",
                 "Successfully received full window of data",
@@ -80,13 +90,14 @@ namespace ScalableIPC.Core.Session
                 "remoteIdleTimeout", _sessionHandler.RemoteIdleTimeoutSecs,
                 "sessionState", _sessionHandler.SessionState);
 
-            _sessionHandler.EventLoop.PostCallback(() => _sessionHandler.OnDataReceived(windowData,
-                windowOptions));
+            // should be called from event loop.
+            _sessionHandler.EventLoop.PostCallback(() => _sessionHandler.OnMessageReceived(
+                new MessageReceivedEventArgs { Message = windowAsMessage }));
         }
 
         private void ProcessCurrentWindowOptions(ProtocolDatagramOptions windowOptions)
         {
-            if (windowOptions.IdleTimeoutSecs.HasValue)
+            if (windowOptions?.IdleTimeoutSecs != null)
             {
                 _sessionHandler.RemoteIdleTimeoutSecs = windowOptions.IdleTimeoutSecs;
             }

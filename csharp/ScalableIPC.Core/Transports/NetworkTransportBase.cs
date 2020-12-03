@@ -238,7 +238,7 @@ namespace ScalableIPC.Core.Transports
             }
             if (sessionHandler != null)
             {
-                return SwallowException(sessionHandler.SessionHandler.CloseAsync(cause));
+                return SwallowException(sessionHandler.SessionHandler.FinaliseCloseAsync(cause));
             }
             return PromiseApi.Resolve(VoidType.Instance);
         }
@@ -256,7 +256,7 @@ namespace ScalableIPC.Core.Transports
             foreach (var sessionHandler in sessionHandlers)
             {
                 retVal = retVal.ThenCompose(_ => SwallowException(
-                    sessionHandler.SessionHandler.CloseAsync(cause)));
+                    sessionHandler.SessionHandler.FinaliseCloseAsync(cause)));
             }
             return retVal;
         }

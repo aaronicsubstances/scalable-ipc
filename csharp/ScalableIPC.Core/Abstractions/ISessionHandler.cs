@@ -16,11 +16,12 @@ namespace ScalableIPC.Core.Abstractions
         List<ISessionStateHandler> StateHandlers { get; }
         AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSendAsync(ProtocolDatagram message);
+        AbstractPromise<VoidType> CloseAsync();
+        AbstractPromise<VoidType> CloseAsync(bool skipSendClose);
         AbstractPromise<VoidType> ShutdownInputAsync();
         AbstractPromise<bool> IsInputShutdownAsync();
         AbstractPromise<VoidType> ShutdownOutputAsync();
         AbstractPromise<bool> IsOutputShutdownAsync();
-        AbstractPromise<VoidType> CloseAsync(SessionCloseException cause);
         AbstractPromise<int> GetSessionStateAsync();
 
         // beginning of internal API with state handlers.
@@ -59,11 +60,14 @@ namespace ScalableIPC.Core.Abstractions
         void CancelAckTimeout();
         void DiscardReceivedMessage(ProtocolDatagram message);
         void InitiateClose(SessionCloseException cause);
+        AbstractPromise<VoidType> FinaliseCloseAsync(SessionCloseException cause);
         void Log(string logPosition, string message, params object[] args);
         void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args);
 
         // application layer interface. contract here is that these should be called from event loop.
-        void OnDataReceived(byte[] windowData, ProtocolDatagramOptions windowOptions);
-        void OnClose(SessionCloseException cause);
+        event EventHandler<MessageReceivedEventArgs> MessageReceived;
+        event EventHandler<SessionClosedEventArgs> SessionClosed;
+        void OnMessageReceived(MessageReceivedEventArgs e);
+        void OnSessionClosed(SessionClosedEventArgs e);
     }
 }

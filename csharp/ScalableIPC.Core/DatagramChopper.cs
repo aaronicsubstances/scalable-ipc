@@ -89,16 +89,16 @@ namespace ScalableIPC.Core
                 }
                 else
                 {
-                    int kLength = ProtocolDatagram.ConvertStringToBytes(k).Length;
+                    int kLength = ProtocolDatagram.CountBytesInString(k);
                     var v = pair[1];
-                    int vLength = ProtocolDatagram.ConvertStringToBytes(v).Length;
+                    int vLength = ProtocolDatagram.CountBytesInString(v);
                     int extraSpaceNeeded = kLength + vLength + 2; // 2 for null terminator count.
 
                     if (spaceUsed + extraSpaceNeeded > _maxPduSize - reserveSpaceByteCount)
                     {
                         break;
                     }
-                    subOptions.AddOption(k, v);
+                    subOptions.AddOption(k, v, false);
                     spaceUsed += extraSpaceNeeded;
                 }
 

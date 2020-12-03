@@ -62,7 +62,7 @@ namespace ScalableIPC.Tests.Core.Transports.Test
             pendingPromise = sessionHandler.ProcessSendAsync(message);
             await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
 
-            pendingPromise = sessionHandler.CloseAsync(null);
+            pendingPromise = sessionHandler.CloseAsync();
             await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
         }
 
@@ -93,7 +93,7 @@ namespace ScalableIPC.Tests.Core.Transports.Test
             pendingPromise = sessionHandler.ProcessSendAsync(message);
             await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
 
-            pendingPromise = sessionHandler.CloseAsync(null);
+            pendingPromise = sessionHandler.CloseAsync();
             await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
         }
     }
