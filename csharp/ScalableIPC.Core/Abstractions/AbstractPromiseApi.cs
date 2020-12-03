@@ -25,6 +25,7 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<T> Resolve<T>(T value);
         AbstractPromise<VoidType> Reject(Exception reason);
         AbstractPromise<VoidType> Delay(int waitSecs);
+        AbstractPromise<T> Race<T>(params AbstractPromise<T>[] competitors);
     }
 
     public interface AbstractPromise<T>

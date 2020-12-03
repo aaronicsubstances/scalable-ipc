@@ -178,19 +178,19 @@ namespace ScalableIPC.Core.Transports
             // stop receiving new sessions.
             _isShuttingDown = true;
 
-            // wait for ongoing sessions to end, after which
-            // forcefully tear down sessions.
+            // interpret non positive waitSecs to mean
+            // wait for tear down of sessions to complete.
             if (waitSecs < 1)
             {
                 return ShutdownSessionsAsync();
             }
             else
             {
-                return PromiseApi.Delay(waitSecs).ThenCompose(_ => ShutdownSessionsAsync());
+                return PromiseApi.Race(PromiseApi.Delay(waitSecs), ShutdownSessionsAsync());
             }
         }
 
-        private AbstractPromise<VoidType> ShutdownSessionsAsync()
+        protected AbstractPromise<VoidType> ShutdownSessionsAsync()
         {
             List<GenericNetworkIdentifier> endpoints;
             lock (_sessionHandlerStore)
