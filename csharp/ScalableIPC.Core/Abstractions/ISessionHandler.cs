@@ -13,20 +13,13 @@ namespace ScalableIPC.Core.Abstractions
         GenericNetworkIdentifier RemoteEndpoint { get; }
         AbstractEventLoopApi EventLoop { get; }
         string SessionId { get; }
-        List<ISessionStateHandler> StateHandlers { get; }
         AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram message);
         AbstractPromise<VoidType> ProcessSendAsync(ProtocolDatagram message);
         AbstractPromise<VoidType> CloseAsync();
-        AbstractPromise<VoidType> CloseAsync(bool skipSendClose);
-        AbstractPromise<VoidType> ShutdownInputAsync();
-        AbstractPromise<bool> IsInputShutdownAsync();
-        AbstractPromise<VoidType> ShutdownOutputAsync();
-        AbstractPromise<bool> IsOutputShutdownAsync();
-        AbstractPromise<int> GetSessionStateAsync();
+        AbstractPromise<VoidType> CloseAsync(bool closeGracefully);
 
         // beginning of internal API with state handlers.
         int SessionState { get; set; }
-        bool IsInputShutdown();
 
         // session parameters.
         int MaxReceiveWindowSize { get; set; }
@@ -50,7 +43,7 @@ namespace ScalableIPC.Core.Abstractions
         int LastMaxSeqReceived { get; set; }
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();
-        void PostIfNotClosed(Action cb);
+        void PostIfNotDisposed(Action cb);
 
         int? RemoteIdleTimeoutSecs { get; set; }
 
@@ -59,15 +52,16 @@ namespace ScalableIPC.Core.Abstractions
         void ResetAckTimeout(int timeoutSecs, Action cb);
         void CancelAckTimeout();
         void DiscardReceivedMessage(ProtocolDatagram message);
-        void InitiateClose(SessionCloseException cause);
-        AbstractPromise<VoidType> FinaliseCloseAsync(SessionCloseException cause);
+        void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb);
+        void ContinueDisposal(SessionDisposedException cause);
+        AbstractPromise<VoidType> FinaliseDisposalAsync(SessionDisposedException cause);
         void Log(string logPosition, string message, params object[] args);
         void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args);
 
         // application layer interface. contract here is that these should be called from event loop.
         event EventHandler<MessageReceivedEventArgs> MessageReceived;
-        event EventHandler<SessionClosedEventArgs> SessionClosed;
+        event EventHandler<SessionDisposedEventArgs> SessionDisposed;
         void OnMessageReceived(MessageReceivedEventArgs e);
-        void OnSessionClosed(SessionClosedEventArgs e);
+        void OnSessionDisposed(SessionDisposedEventArgs e);
     }
 }

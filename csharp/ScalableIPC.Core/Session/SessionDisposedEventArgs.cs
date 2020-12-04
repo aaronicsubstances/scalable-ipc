@@ -4,8 +4,8 @@ using System.Text;
 
 namespace ScalableIPC.Core.Session
 {
-    public class SessionClosedEventArgs: EventArgs
+    public class SessionDisposedEventArgs: EventArgs
     {
-        public SessionCloseException Cause { get; set; }
+        public SessionDisposedException Cause { get; set; }
     }
 }

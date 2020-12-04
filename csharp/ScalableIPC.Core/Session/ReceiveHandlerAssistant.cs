@@ -1,6 +1,7 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ScalableIPC.Core.Session
 {
@@ -10,6 +11,8 @@ namespace ScalableIPC.Core.Session
         private readonly AbstractPromise<VoidType> _voidReturnPromise;
 
         private readonly List<ProtocolDatagram> _currentWindow;
+        private readonly List<ProtocolDatagram> _currentWindowGroup;
+        private readonly List<long> _groupedWindowIds;
         private bool _isComplete;
 
         public ReceiveHandlerAssistant(ISessionHandler sessionHandler)
@@ -18,6 +21,8 @@ namespace ScalableIPC.Core.Session
             _voidReturnPromise = _sessionHandler.NetworkInterface.PromiseApi.Resolve(VoidType.Instance);
 
             _currentWindow = new List<ProtocolDatagram>();
+            _currentWindowGroup = new List<ProtocolDatagram>();
+            _groupedWindowIds = new List<long>();
             _isComplete = false;
         }
 
@@ -105,9 +110,10 @@ namespace ScalableIPC.Core.Session
 
         private AbstractPromise<VoidType> HandleAckSendFailure(ProtocolDatagram message, Exception error)
         {
-            _sessionHandler.PostIfNotClosed(() =>
+            _sessionHandler.PostIfNotDisposed(() =>
             {
-                if (_isComplete)
+                // check if ack send callback is coming in too late.
+                if (_isComplete || _groupedWindowIds.Contains(message.WindowId))
                 {
                     _sessionHandler.Log("54823b3a-a4e2-4f91-97c8-27e658a1b07d", message,
                         "Ignoring ack send failure");
@@ -118,7 +124,7 @@ namespace ScalableIPC.Core.Session
                     _sessionHandler.Log("f09fd1f8-b548-428e-a59a-01534fde8f0f", message,
                         "Failed to send ack. Shutting down...");
                     _isComplete = true;
-                    _sessionHandler.InitiateClose(new SessionCloseException(error));
+                    _sessionHandler.InitiateDispose(new SessionDisposedException(error), null);
                 }
             });
             return _voidReturnPromise;
@@ -126,10 +132,10 @@ namespace ScalableIPC.Core.Session
 
         private AbstractPromise<VoidType> HandleAckSendSuccess(ProtocolDatagram message)
         {
-            _sessionHandler.PostIfNotClosed(() =>
+            _sessionHandler.PostIfNotDisposed(() =>
             {
                 // check if ack send callback is coming in too late.
-                if (_isComplete)
+                if (_isComplete || _groupedWindowIds.Contains(message.WindowId))
                 {
                     _sessionHandler.Log("e36c8f41-1b0d-4c0c-9acd-2d7761c260c1", message,
                         "Ignoring ack send success callback");
@@ -153,14 +159,41 @@ namespace ScalableIPC.Core.Session
                     "Window is full");
 
                 // Window is full.
-                // invalidate subsequent ack send confirmations for this current window instance.
-                _isComplete = true;
 
                 // Reset last window bounds.
                 _sessionHandler.LastWindowIdReceived = _currentWindow[0].WindowId;
                 _sessionHandler.LastMaxSeqReceived = lastEffectiveSeqNr;
 
-                SuccessCallback.Invoke(_currentWindow);
+                // Update window group and only pass up if last message in window has been seen.
+                _currentWindowGroup.AddRange(_currentWindow.GetRange(0, lastEffectiveSeqNr + 1));
+                _currentWindow.Clear();
+                _groupedWindowIds.Add(_sessionHandler.LastWindowIdReceived);
+
+                // Check if window group is becoming too large, and fail if is too much than 
+                // can fit a single UDP payload.
+                int cumulativeLength = _currentWindowGroup.Sum(t => t.ExpectedDatagramLength);
+                if (cumulativeLength > ProtocolDatagram.MaxDatagramSize)
+                {
+                    _sessionHandler.Log("bff758a4-f80a-48c1-ac28-8ce7ea36589e", message,
+                       "Window group overflow!");
+                    _isComplete = true;
+                    _sessionHandler.InitiateDispose(new SessionDisposedException(false, 
+                        ProtocolDatagram.AbortCodeWindowGroupOverflow), null);
+                    return;
+                }
+
+                if (_currentWindowGroup[_currentWindowGroup.Count - 1].Options?.IsLastInWindowGroup == true)
+                {
+                    _isComplete = true;
+                    _sessionHandler.Log("89d4c052-a99a-4e49-9116-9c80553ec594", message,
+                       "Window group is full");
+                    SuccessCallback.Invoke(_currentWindowGroup);
+                }
+                else
+                {
+                    _sessionHandler.Log("3bdb8e9c-7795-480a-97ea-29b4923a8260", message,
+                       "Window group is not yet full. Waiting for another window");
+                }
             });
             return _voidReturnPromise;
         }

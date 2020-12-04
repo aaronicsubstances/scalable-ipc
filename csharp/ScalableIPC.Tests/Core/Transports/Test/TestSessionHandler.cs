@@ -18,7 +18,7 @@ namespace ScalableIPC.Tests.Core.Transports.Test
                     $"Received data: {dataMessage}", null));
             };
 
-            SessionClosed += (_, e) =>
+            SessionDisposed += (_, e) =>
             {
                 CustomLoggerFacade.Log(() => new CustomLogEvent("06f62330-a218-4667-9df5-b8851fed628a",
                        $"Received close", e.Cause));

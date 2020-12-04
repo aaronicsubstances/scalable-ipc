@@ -10,18 +10,19 @@ namespace ScalableIPC.Core
         private static readonly List<string> StandardOptionsToSkip = new List<string>
         {
             ProtocolDatagramOptions.OptionNameIsLastInWindow, ProtocolDatagramOptions.OptionNameIsWindowFull,
-            ProtocolDatagramOptions.OptionNameErrorCode
+            ProtocolDatagramOptions.OptionNameAbortCode, ProtocolDatagramOptions.OptionNameIsLastInWindowGroup
         };
 
         private readonly byte[] _data;
         private readonly int _dataOffset;
         private readonly int _dataLength;
         private readonly List<string[]> _options;
-        private readonly int _maxPduSize;
         private readonly List<string> _extraOptionsToSkip;
         private int _usedOptionCount;
         private int _usedDataByteCount;
         private bool _started;
+        private ProtocolDatagram _nextPdu;
+        private bool _nextPduReturned;
 
         public DatagramChopper(ProtocolDatagram fullMessage, int maxPduSize, List<string> extraOptionsToSkip)
         {
@@ -46,7 +47,7 @@ namespace ScalableIPC.Core
                 _options = new List<string[]>();
             }
 
-            _maxPduSize = maxPduSize;
+            MaxPduSize = maxPduSize;
 
             if (extraOptionsToSkip != null)
             {
@@ -60,18 +61,22 @@ namespace ScalableIPC.Core
             _usedOptionCount = 0;
             _usedDataByteCount = 0;
             _started = false;
+            _nextPdu = null;
+            _nextPduReturned = false;
         }
 
-        public ProtocolDatagram Next(int reserveSpaceByteCount, bool peekOnly)
-        {
-            // send all options first, then data.
+        public int MaxPduSize { get; }
 
-            var savedState = new
+        public bool HasNext(int reserveSpaceByteCount)
+        {
+            if (_started && !_nextPduReturned)
             {
-                Started = _started,
-                UsedOptionCount = _usedOptionCount,
-                UsedDataByteCount = _usedDataByteCount
-            };
+                return _nextPdu != null;
+            }
+            _nextPdu = null;
+            _nextPduReturned = false;
+
+            // send all options first, then data.
 
             reserveSpaceByteCount += ProtocolDatagram.MinDatagramSize;
 
@@ -94,7 +99,7 @@ namespace ScalableIPC.Core
                     int vLength = ProtocolDatagram.CountBytesInString(v);
                     int extraSpaceNeeded = kLength + vLength + 2; // 2 for null terminator count.
 
-                    if (spaceUsed + extraSpaceNeeded > _maxPduSize - reserveSpaceByteCount)
+                    if (spaceUsed + extraSpaceNeeded > MaxPduSize - reserveSpaceByteCount)
                     {
                         break;
                     }
@@ -112,7 +117,7 @@ namespace ScalableIPC.Core
             if (doneWithOptions)
             {
                 dataChunkLength = Math.Max(0,
-                    Math.Min(_maxPduSize - reserveSpaceByteCount - spaceUsed, _dataLength - dataChunkOffset));
+                    Math.Min(MaxPduSize - reserveSpaceByteCount - spaceUsed, _dataLength - dataChunkOffset));
                 _usedDataByteCount += dataChunkLength;
                 spaceUsed += dataChunkLength;
             }
@@ -120,18 +125,23 @@ namespace ScalableIPC.Core
             // detect endless looping.
             if (spaceUsed == 0)
             {
-                if (!doneWithOptions || (_usedDataByteCount < _dataLength && dataChunkLength == 0))
+                if (!doneWithOptions)
                 {
-                    throw new Exception("Endless looping detected.");
+                    throw new Exception("Cannot make further progress... Option at index" +
+                        $"{_usedOptionCount} is too long to fit into pdu.");
+                }
+                else if (_usedDataByteCount < _dataLength && dataChunkLength == 0)
+                {
+                    throw new Exception("Cannot make further progress... Maximum PDU size of " +
+                        $"{MaxPduSize} is too small to accomodate data payload");
                 }
             }
 
             // return null to indicate end of iteration, except if we have not
             // started, in which case something (possibly empty) has to be returned.
-            ProtocolDatagram nextPdu = null;
             if (spaceUsed > 0)
             {
-                nextPdu = new ProtocolDatagram
+                _nextPdu = new ProtocolDatagram
                 {
                     DataBytes = _data,
                     DataOffset = _dataOffset + dataChunkOffset,
@@ -143,20 +153,19 @@ namespace ScalableIPC.Core
             {
                 if (!_started)
                 {
-                    nextPdu = new ProtocolDatagram();
+                    _nextPdu = new ProtocolDatagram();
                 }
             }
 
             _started = true;
 
-            if (peekOnly)
-            {
-                _usedOptionCount = savedState.UsedOptionCount;
-                _usedDataByteCount = savedState.UsedDataByteCount;
-                _started = savedState.Started;
-            }
+            return _nextPdu != null;
+        }
 
-            return nextPdu;
+        public ProtocolDatagram Next()
+        {
+            _nextPduReturned = true; 
+            return _nextPdu;
         }
     }
 }

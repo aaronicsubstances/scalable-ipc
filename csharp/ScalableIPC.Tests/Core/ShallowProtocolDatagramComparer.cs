@@ -47,7 +47,7 @@ namespace ScalableIPC.Tests.Core
             {
                 return false;
             }
-            if (x.Options?.ErrorCode != y.Options?.ErrorCode)
+            if (x.Options?.AbortCode != y.Options?.AbortCode)
             {
                 return false;
             }

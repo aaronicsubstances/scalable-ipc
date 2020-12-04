@@ -22,7 +22,12 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void Shutdown(Exception error)
+        public void PrepareForDispose(SessionDisposedException cause)
+        {
+            // nothing to do
+        }
+
+        public void Dispose(SessionDisposedException cause)
         {
             // nothing to do
         }
@@ -46,19 +51,8 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
-        public bool ProcessClose(bool closeGracefully, PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
         private void OnReceiveRequest(ProtocolDatagram message)
         {
-            if (_sessionHandler.SessionState >= DefaultSessionHandler.StateClosing)
-            {
-                // Session handler is closing so don't receive data.
-                return;
-            }
-
             if (_currentWindowHandler == null)
             {
                 _currentWindowHandler = new ReceiveHandlerAssistant(_sessionHandler)
@@ -74,21 +68,15 @@ namespace ScalableIPC.Core.Session
         {
             _currentWindowHandler = null;
             
-            // ready to pass on to application layer, unless input has been shutdown
-            // in which case silently ignore.
-            if (_sessionHandler.IsInputShutdown())
-            {
-                return;
-            }
+            // ready to pass on to application layer.
 
             ProtocolDatagram windowAsMessage = ProtocolDatagram.CreateMessageOutOfWindow(currentWindow);
             ProcessCurrentWindowOptions(windowAsMessage.Options);
 
             _sessionHandler.Log("85b3284a-7787-4949-a8de-84211f91e154",
                 "Successfully received full window of data",
-                "count", currentWindow.Count, "sessionState", _sessionHandler.SessionState,
-                "remoteIdleTimeout", _sessionHandler.RemoteIdleTimeoutSecs,
-                "sessionState", _sessionHandler.SessionState);
+                "count", currentWindow.Count,
+                "remoteIdleTimeout", _sessionHandler.RemoteIdleTimeoutSecs);
 
             // should be called from event loop.
             _sessionHandler.EventLoop.PostCallback(() => _sessionHandler.OnMessageReceived(

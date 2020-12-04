@@ -38,11 +38,11 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message);
         AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId = null,
             ISessionHandler sessionHandler = null);
-        void OnCloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId, SessionCloseException cause);
+        void OnCloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId, SessionDisposedException cause);
         AbstractPromise<VoidType> CloseSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
-            SessionCloseException cause);
+            SessionDisposedException cause);
         AbstractPromise<VoidType> CloseSessionsAsync(GenericNetworkIdentifier remoteEndpoint,
-            SessionCloseException cause);
+            SessionDisposedException cause);
         AbstractPromise<VoidType> ShutdownAsync(int waitSecs);
     }
 }

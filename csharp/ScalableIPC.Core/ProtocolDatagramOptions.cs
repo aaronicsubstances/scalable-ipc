@@ -13,17 +13,19 @@ namespace ScalableIPC.Core
         public const string NonStandardSessionLayerOptionPrefix = "sx_";
 
         public const string OptionNameIdleTimeout = StandardSessionLayerOptionPrefix + "idle_timeout";
-        public const string OptionNameErrorCode = StandardSessionLayerOptionPrefix + "err_code";
+        public const string OptionNameAbortCode = StandardSessionLayerOptionPrefix + "abort_code";
         public const string OptionNameIsWindowFull = StandardSessionLayerOptionPrefix + "window_full";
         public const string OptionNameIsLastInWindow = StandardSessionLayerOptionPrefix + "last_in_window";
+        public const string OptionNameIsLastInWindowGroup = StandardSessionLayerOptionPrefix + "last_in_window_group";
 
         public Dictionary<string, List<string>> AllOptions { get; } = new Dictionary<string, List<string>>();
 
         // Standard session layer options.
         public int? IdleTimeoutSecs { get; set; }
-        public int? ErrorCode { get; set; }
+        public int? AbortCode { get; set; }
         public bool? IsWindowFull { get; set; }
         public bool? IsLastInWindow { get; set; }
+        public bool? IsLastInWindowGroup { get; set; }
 
         public void AddOption(string name, string value, bool parseKnownOptions)
         {
@@ -51,14 +53,17 @@ namespace ScalableIPC.Core
                 case OptionNameIdleTimeout:
                     IdleTimeoutSecs = ParseOptionAsInt32(value);
                     break;
-                case OptionNameErrorCode:
-                    ErrorCode = ParseOptionAsInt32(value);
+                case OptionNameAbortCode:
+                    AbortCode = ParseOptionAsInt32(value);
                     break;
                 case OptionNameIsLastInWindow:
                     IsLastInWindow = ParseOptionAsBoolean(value);
                     break;
                 case OptionNameIsWindowFull:
                     IsWindowFull = ParseOptionAsBoolean(value);
+                    break;
+                case OptionNameIsLastInWindowGroup:
+                    IsLastInWindowGroup = ParseOptionAsBoolean(value);
                     break;
                 default:
                     break;
@@ -132,9 +137,9 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameIdleTimeout, IdleTimeoutSecs.ToString());
             }
-            if (ErrorCode != null)
+            if (AbortCode != null)
             {
-                knownOptions.Add(OptionNameErrorCode, ErrorCode.ToString());
+                knownOptions.Add(OptionNameAbortCode, AbortCode.ToString());
             }
             if (IsLastInWindow != null)
             {
@@ -144,7 +149,35 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameIsWindowFull, IsWindowFull.ToString());
             }
+            if (IsLastInWindowGroup != null)
+            {
+                knownOptions.Add(OptionNameIsLastInWindowGroup, IsLastInWindowGroup.ToString());
+            }
             return knownOptions;
+        }
+
+        public void TransferKnownOptions(ProtocolDatagramOptions destOptions)
+        {
+            if (IdleTimeoutSecs != null)
+            {
+                destOptions.IdleTimeoutSecs = IdleTimeoutSecs;
+            }
+            if (AbortCode != null)
+            {
+                destOptions.AbortCode = AbortCode;
+            }
+            if (IsLastInWindow != null)
+            {
+                destOptions.IsLastInWindow = IsLastInWindow;
+            }
+            if (IsWindowFull != null)
+            {
+                destOptions.IsWindowFull = IsWindowFull;
+            }
+            if (IsLastInWindowGroup != null)
+            {
+                destOptions.IsLastInWindowGroup = IsLastInWindowGroup;
+            }
         }
     }
 }

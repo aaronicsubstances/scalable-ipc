@@ -50,7 +50,7 @@ namespace ScalableIPC.Core.Transports
             if (message.OpCode == ProtocolDatagram.OpCodeCloseAll)
             {
                 return CloseSessionsAsync(remoteEndpoint, 
-                    new SessionCloseException(SessionCloseException.ReasonCloseAllReceived));
+                    new SessionDisposedException(true, ProtocolDatagram.AbortCodeCloseAll));
             }
 
             // split session processing in two to enable connection-oriented transports
@@ -216,11 +216,11 @@ namespace ScalableIPC.Core.Transports
             return HandleSendAsync(remoteEndpoint, pdu)
                 .CatchCompose(_ => PromiseApi.Resolve(VoidType.Instance))
                 .ThenCompose(_ => CloseSessionsAsync(remoteEndpoint, 
-                    new SessionCloseException(SessionCloseException.ReasonShutdown)));
+                    new SessionDisposedException(false, ProtocolDatagram.AbortCodeShutdown)));
         }
 
         public virtual void OnCloseSession(GenericNetworkIdentifier remoteEndpoint, string sessionId, 
-            SessionCloseException cause)
+            SessionDisposedException cause)
         {
             // invoke in different thread outside event loop?
             _ = CloseSessionAsync(remoteEndpoint, sessionId, cause);
@@ -228,7 +228,7 @@ namespace ScalableIPC.Core.Transports
 
         // separate from OnCloseSession so it can be overriden to tear down connections if need be.
         public virtual AbstractPromise<VoidType> CloseSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
-            SessionCloseException cause)
+            SessionDisposedException cause)
         {
             SessionHandlerWrapper sessionHandler;
             lock (_sessionHandlerStore)
@@ -238,13 +238,13 @@ namespace ScalableIPC.Core.Transports
             }
             if (sessionHandler != null)
             {
-                return SwallowException(sessionHandler.SessionHandler.FinaliseCloseAsync(cause));
+                return SwallowException(sessionHandler.SessionHandler.FinaliseDisposalAsync(cause));
             }
             return PromiseApi.Resolve(VoidType.Instance);
         }
 
         public virtual AbstractPromise<VoidType> CloseSessionsAsync(GenericNetworkIdentifier remoteEndpoint,
-            SessionCloseException cause)
+            SessionDisposedException cause)
         {
             List<SessionHandlerWrapper> sessionHandlers;
             lock (_sessionHandlerStore)
@@ -256,7 +256,7 @@ namespace ScalableIPC.Core.Transports
             foreach (var sessionHandler in sessionHandlers)
             {
                 retVal = retVal.ThenCompose(_ => SwallowException(
-                    sessionHandler.SessionHandler.FinaliseCloseAsync(cause)));
+                    sessionHandler.SessionHandler.FinaliseDisposalAsync(cause)));
             }
             return retVal;
         }

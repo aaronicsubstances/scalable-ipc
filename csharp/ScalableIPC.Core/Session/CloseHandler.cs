@@ -19,13 +19,23 @@ namespace ScalableIPC.Core.Session
 
         public bool SendInProgress { get; set; }
 
-        public void Shutdown(Exception error)
+        public void PrepareForDispose(SessionDisposedException cause)
+        {
+            // nothing to do
+        }
+
+        public void Dispose(SessionDisposedException cause)
         {
             foreach (var cb in _pendingPromiseCallbacks)
             {
                 cb.CompleteSuccessfully(VoidType.Instance);
             }
             _pendingPromiseCallbacks.Clear();
+        }
+
+        public void QueueCallback(PromiseCompletionSource<VoidType> promiseCb)
+        {
+            _pendingPromiseCallbacks.Add(promiseCb);
         }
 
         public bool ProcessReceive(ProtocolDatagram message)
@@ -46,35 +56,34 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
-        public bool ProcessClose(bool closeGracefully, PromiseCompletionSource<VoidType> promiseCb)
-        {
-            _sessionHandler.Log("1469844c-255b-4b44-bd54-0578310798c8", null,
-                "Close request accepted for processing in close handler",
-                "closeGracefully", closeGracefully);
-            _pendingPromiseCallbacks.Add(promiseCb);
-            if (closeGracefully && _sessionHandler.SessionState < DefaultSessionHandler.StateClosing)
-            {
-                ProcessSendClose();
-            }
-            else
-            {
-                HandleSendSuccessOrError(false);
-            }
-            return true;
-        }
-
         private void ProcessReceiveClose(ProtocolDatagram message)
         {
-            // process termination message regardless of session state.
-            var error = new SessionCloseException(SessionCloseException.ReasonCloseReceived,
-                message.Options?.ErrorCode);
-            _sessionHandler.InitiateClose(error);
+            if (message.Options?.AbortCode == null || message.Options?.AbortCode == ProtocolDatagram.AbortCodeNormalClose)
+            {
+                // validate window id for normal close.
+                if (message.SequenceNumber != 0 || !ProtocolDatagram.IsReceivedWindowIdValid(message.WindowId, _sessionHandler.LastWindowIdReceived))
+                {
+                    _sessionHandler.Log("2cf44189-3193-4c45-a433-0aa1b077a484", message,
+                        "Rejecting close message with invalid window id or sequence number");
+                    _sessionHandler.DiscardReceivedMessage(message);
+                    return;
+                }
+            }
+
+            var error = new SessionDisposedException(true, message.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose);
+            _sessionHandler.ContinueDisposal(error);
         }
 
-        private void ProcessSendClose()
-        {
-            // process termination message regardless of session state.
-            _sessionHandler.Log("6e462e36-a9b9-4ea3-8735-c389e3dd0d36", "Sending closing message");
+        public void ProcessSendClose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb)
+        {            
+            _sessionHandler.Log("89d4c052-a99a-4e49-9116-9c80553ec594", "Send Close request accepted for processing in close handler",
+                "cause", cause);
+
+            // promiseCb may be null if timeout triggered.
+            if (promiseCb != null)
+            {
+                _pendingPromiseCallbacks.Add(promiseCb);
+            }
 
             // send but ignore errors.
             var message = new ProtocolDatagram
@@ -83,24 +92,29 @@ namespace ScalableIPC.Core.Session
                 SessionId = _sessionHandler.SessionId,
                 WindowId = _sessionHandler.NextWindowIdToSend
             };
+            if (cause.AbortCode != ProtocolDatagram.AbortCodeNormalClose)
+            {
+                message.Options = new ProtocolDatagramOptions
+                {
+                    AbortCode = cause.AbortCode
+                };
+            }
             _sessionHandler.NetworkInterface.HandleSendAsync(_sessionHandler.RemoteEndpoint, message)
                 .CatchCompose(_ => _voidReturnPromise)
-                .Then(_ => HandleSendSuccessOrError(true));
+                .Then(_ => HandleSendSuccessOrError(cause));
             SendInProgress = true;
         }
 
-        private VoidType HandleSendSuccessOrError(bool closeGracefully)
+        private VoidType HandleSendSuccessOrError(SessionDisposedException cause)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {
                 SendInProgress = false;
 
                 _sessionHandler.Log("63a2eff5-d376-44c9-8d98-fd752f4a0c7b", 
-                    "Shutting down" + (closeGracefully ? " after sending closing message" : ""));
+                    "Continuing after sending closing message");
 
-                _sessionHandler.InitiateClose(new SessionCloseException(closeGracefully ? 
-                    SessionCloseException.ReasonGracefulUserRequest
-                    : SessionCloseException.ReasonForcefulUserRequest));
+                _sessionHandler.ContinueDisposal(cause);
             });
 
             return VoidType.Instance;

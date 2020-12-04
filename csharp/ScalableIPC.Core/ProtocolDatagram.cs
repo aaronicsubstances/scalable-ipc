@@ -22,6 +22,14 @@ namespace ScalableIPC.Core
         public const byte OpCodeClose = 0x7e;
         public const byte OpCodeCloseAll = 0x7f;
 
+        public const int AbortCodeNormalClose = 0;
+        public const int AbortCodeTimeout = 1;
+        public const int AbortCodeForceClose = 2;
+        public const int AbortCodeCloseAll = 3;
+        public const int AbortCodeShutdown = 4;
+        public const int AbortCodeError = 5;
+        public const int AbortCodeWindowGroupOverflow = 6;
+
         public const byte NullTerminator = 0;
         public const byte FalseIndicatorByte = 0;
         public const byte TrueIndicatorByte = 0xff;
@@ -35,6 +43,7 @@ namespace ScalableIPC.Core
         // the 2 length indicator booleans, expected length, sessionId, opCode, window id, 
         // sequence number, null separator are always present.
         public const int MinDatagramSize = 2 + 4 + MinSessionIdLength + 1 + 4 + 4 + 1;
+        public const int MaxDatagramSize = 65_507;
 
         public int ExpectedDatagramLength { get; set; }
         public string SessionId { get; set; }
@@ -194,6 +203,11 @@ namespace ScalableIPC.Core
 
         public byte[] ToRawDatagram()
         {
+            if (DataBytes != null && DataLength > MaxDatagramSize)
+            {
+                throw new Exception("data payload too large to be valid");
+            }
+
             byte[] rawBytes;
             using (var ms = new MemoryStream())
             {
@@ -268,6 +282,11 @@ namespace ScalableIPC.Core
             }
 
             InsertExpectedDataLength(rawBytes);
+
+            if (rawBytes.Length > MaxDatagramSize)
+            {
+                throw new Exception("datagram too large to be valid");
+            }
 
             return rawBytes;
         }
@@ -433,21 +452,19 @@ namespace ScalableIPC.Core
             var memoryStream = new MemoryStream();
             foreach (var msg in messages)
             {
-                if (msg == null)
-                {
-                    break;
-                }
+                windowAsMessage.ExpectedDatagramLength += msg.ExpectedDatagramLength;
                 windowAsMessage.OpCode = msg.OpCode;
                 windowAsMessage.SessionId = msg.SessionId;
                 windowAsMessage.WindowId = msg.WindowId;
-                windowAsMessage.SequenceNumber = msg.SequenceNumber;
+                windowAsMessage.SequenceNumber = 0;
                 if (msg.Options != null)
                 {
                     foreach (var pair in msg.Options.GenerateList())
                     {
                         windowAsMessage.Options.AddOption(pair[0], pair[1], false);
                     }
-                    windowAsMessage.Options.IdleTimeoutSecs = msg.Options.IdleTimeoutSecs;
+
+                    msg.Options.TransferKnownOptions(windowAsMessage.Options);
                 }
                 memoryStream.Write(msg.DataBytes, msg.DataOffset, msg.DataLength);
             }
@@ -456,6 +473,24 @@ namespace ScalableIPC.Core
             windowAsMessage.DataBytes = data;
             windowAsMessage.DataLength = data.Length;
             return windowAsMessage;
+        }
+
+        public static string FormatAbortCode(int code)
+        {
+            if (code == AbortCodeNormalClose)
+                return "NORMAL CLOSE";
+            else if (code == AbortCodeTimeout)
+                return "TIMEOUT";
+            else if (code == AbortCodeForceClose)
+                return "FORCED CLOSE";
+            else if (code == AbortCodeCloseAll)
+                return "CLOSE ALL";
+            else if (code == AbortCodeShutdown)
+                return "SHUTTING DOWN";
+            else if (code == AbortCodeError)
+                return "INTERNAL ERROR";
+            else
+                return "UNSPECIFIED";
         }
     }
 }

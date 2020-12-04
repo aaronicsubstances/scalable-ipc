@@ -20,7 +20,6 @@ namespace ScalableIPC.Tests.Core.Transports.Test
             _accraEndpoint = new SimulatedNetworkTransport
             {
                 LocalEndpoint = _accraAddr,
-                MaximumTransferUnitSize = 0, // doesn't send in chunks.
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler))
             };
 
@@ -28,7 +27,6 @@ namespace ScalableIPC.Tests.Core.Transports.Test
             _kumasiEndpoint = new SimulatedNetworkTransport
             {
                 LocalEndpoint = _kumasiAddr,
-                MaximumTransferUnitSize = 512, // sends in chunks.
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler))
             };
             _accraEndpoint.ConnectedNetworks.Add(_kumasiAddr, _kumasiEndpoint);
@@ -36,7 +34,7 @@ namespace ScalableIPC.Tests.Core.Transports.Test
         }
 
         [Fact]
-        public async Task TrialTestWithoutChunking()
+        public async Task TrialTest()
         {
             var openPromise = _accraEndpoint.OpenSessionAsync(_kumasiAddr, Guid.NewGuid().ToString("n"),
                 new TestSessionHandler());
@@ -53,37 +51,6 @@ namespace ScalableIPC.Tests.Core.Transports.Test
             await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
 
             dataToSend = ProtocolDatagram.ConvertStringToBytes(" from Accra.");
-            message = new ProtocolDatagram
-            {
-                OpCode = ProtocolDatagram.OpCodeData,
-                DataBytes = dataToSend,
-                DataLength = dataToSend.Length
-            };
-            pendingPromise = sessionHandler.ProcessSendAsync(message);
-            await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
-
-            pendingPromise = sessionHandler.CloseAsync();
-            await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
-        }
-
-        [Fact]
-        public async Task TrialTestWithChunking()
-        {
-            var openPromise = _kumasiEndpoint.OpenSessionAsync(_accraAddr, Guid.NewGuid().ToString("n"),
-                new TestSessionHandler());
-            var sessionHandler = await ((DefaultPromise<ISessionHandler>)openPromise).WrappedTask;
-
-            var dataToSend = ProtocolDatagram.ConvertStringToBytes("Akwaaba");
-            var message = new ProtocolDatagram
-            {
-                OpCode = ProtocolDatagram.OpCodeData,
-                DataBytes = dataToSend,
-                DataLength = dataToSend.Length
-            };
-            var pendingPromise = sessionHandler.ProcessSendAsync(message);
-            await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
-
-            dataToSend = ProtocolDatagram.ConvertStringToBytes(" oo!");
             message = new ProtocolDatagram
             {
                 OpCode = ProtocolDatagram.OpCodeData,
