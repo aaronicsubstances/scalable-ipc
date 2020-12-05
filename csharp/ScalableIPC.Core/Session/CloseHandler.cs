@@ -71,7 +71,7 @@ namespace ScalableIPC.Core.Session
             }
 
             var error = new SessionDisposedException(true, message.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose);
-            _sessionHandler.ContinueDisposal(error);
+            _sessionHandler.ContinueDispose(error);
         }
 
         public void ProcessSendClose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb)
@@ -114,7 +114,7 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.Log("63a2eff5-d376-44c9-8d98-fd752f4a0c7b", 
                     "Continuing after sending closing message");
 
-                _sessionHandler.ContinueDisposal(cause);
+                _sessionHandler.ContinueDispose(cause);
             });
 
             return VoidType.Instance;

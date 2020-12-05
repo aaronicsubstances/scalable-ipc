@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ScalableIPC.Core.ConcreteComponents
+namespace ScalableIPC.Core.Concurrency
 {
     // Taken from https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler?view=netcore-3.1
     // on 2020-10-28

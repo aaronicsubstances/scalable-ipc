@@ -350,7 +350,7 @@ namespace ScalableIPC.Core.Session
             _closeHandler.ProcessSendClose(cause, cb);
         }
 
-        public virtual void ContinueDisposal(SessionDisposedException cause)
+        public virtual void ContinueDispose(SessionDisposedException cause)
         {
             Log("65c44e33-acd9-43fa-986d-7de9044f6124", "Continuing session disposal");
             SessionState = StateDisposeAwaiting;
@@ -365,7 +365,7 @@ namespace ScalableIPC.Core.Session
             NetworkInterface.OnCloseSession(RemoteEndpoint, SessionId, cause);
         }
 
-        public virtual AbstractPromise<VoidType> FinaliseDisposalAsync(SessionDisposedException cause)
+        public virtual AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();

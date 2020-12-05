@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ScalableIPC.Core.ConcreteComponents
+namespace ScalableIPC.Core.Concurrency
 {
     public class DefaultPromiseApi : AbstractPromiseApi
     {
@@ -28,14 +28,6 @@ namespace ScalableIPC.Core.ConcreteComponents
         {
             return new DefaultPromise<VoidType>(Task.Delay(secs * 100)
                 .ContinueWith(_ => VoidType.Instance));
-        }
-
-        public AbstractPromise<T> Race<T>(params AbstractPromise<T>[] competitors)
-        {
-            var tasks = competitors.Select(c => ((DefaultPromise<T>)c).WrappedTask)
-                .ToArray();
-            int firstToFinish = Task.WaitAny(tasks);
-            return new DefaultPromise<T>(tasks[firstToFinish]);
         }
     }
 

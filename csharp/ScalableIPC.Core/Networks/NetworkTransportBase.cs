@@ -1,11 +1,11 @@
 ﻿using ScalableIPC.Core.Abstractions;
-using ScalableIPC.Core.ConcreteComponents;
+using ScalableIPC.Core.Concurrency;
 using ScalableIPC.Core.Session;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ScalableIPC.Core.Transports
+namespace ScalableIPC.Core.Networks
 {
     public abstract class NetworkTransportBase : INetworkTransportInterface
     {
@@ -57,7 +57,6 @@ namespace ScalableIPC.Core.Transports
             // to associate connections with new sessions.
             return PrepareReceiveDataAsync(remoteEndpoint, message)
                 .ThenCompose(_ => CompleteReceiveDataAsync(remoteEndpoint, message));
-            
         }
 
         protected virtual AbstractPromise<VoidType> PrepareReceiveDataAsync(GenericNetworkIdentifier remoteEndpoint,
@@ -178,15 +177,16 @@ namespace ScalableIPC.Core.Transports
             // stop receiving new sessions.
             _isShuttingDown = true;
 
-            // interpret non positive waitSecs to mean
-            // wait for tear down of sessions to complete.
-            if (waitSecs < 1)
+            // interpret positive waitSecs to mean
+            // wait for existing sessions to complete on their own,
+            // before tearing them down forcefully.
+            if (waitSecs > 0)
             {
-                return ShutdownSessionsAsync();
+                return PromiseApi.Delay(waitSecs).ThenCompose(_ => ShutdownSessionsAsync());
             }
             else
             {
-                return PromiseApi.Race(PromiseApi.Delay(waitSecs), ShutdownSessionsAsync());
+                return ShutdownSessionsAsync();
             }
         }
 
@@ -238,7 +238,7 @@ namespace ScalableIPC.Core.Transports
             }
             if (sessionHandler != null)
             {
-                return SwallowException(sessionHandler.SessionHandler.FinaliseDisposalAsync(cause));
+                return SwallowException(sessionHandler.SessionHandler.FinaliseDisposeAsync(cause));
             }
             return PromiseApi.Resolve(VoidType.Instance);
         }
@@ -256,7 +256,7 @@ namespace ScalableIPC.Core.Transports
             foreach (var sessionHandler in sessionHandlers)
             {
                 retVal = retVal.ThenCompose(_ => SwallowException(
-                    sessionHandler.SessionHandler.FinaliseDisposalAsync(cause)));
+                    sessionHandler.SessionHandler.FinaliseDisposeAsync(cause)));
             }
             return retVal;
         }

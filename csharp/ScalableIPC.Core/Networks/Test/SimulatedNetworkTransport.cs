@@ -1,10 +1,10 @@
 ﻿using ScalableIPC.Core.Abstractions;
-using ScalableIPC.Core.ConcreteComponents;
+using ScalableIPC.Core.Concurrency;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace ScalableIPC.Core.Transports.Test
+namespace ScalableIPC.Core.Networks.Test
 {
     public class SimulatedNetworkTransport : NetworkTransportBase
     {

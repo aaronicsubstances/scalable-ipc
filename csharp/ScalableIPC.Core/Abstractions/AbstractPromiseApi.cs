@@ -25,7 +25,6 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<T> Resolve<T>(T value);
         AbstractPromise<VoidType> Reject(Exception reason);
         AbstractPromise<VoidType> Delay(int waitSecs);
-        AbstractPromise<T> Race<T>(params AbstractPromise<T>[] competitors);
     }
 
     public interface AbstractPromise<T>
@@ -39,7 +38,7 @@ namespace ScalableIPC.Core.Abstractions
         // Also couldn't cast AbstractPromise of VoidType to DefaultPromise of object
         // at runtime, even though object is a supertype of VoidType.
         // Hence these constraints forced us to this design of the method in which the type returned by
-        // onRejected is the same as that of this one. Also had to remove covariance of T.
+        // onRejected is the same as that of this one.
         AbstractPromise<T> CatchCompose(Func<Exception, AbstractPromise<T>> onRejected);
         AbstractPromise<U> ThenOrCatchCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
             Func<Exception, AbstractPromise<U>> onRejected);

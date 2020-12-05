@@ -1,13 +1,14 @@
 ﻿using ScalableIPC.Core;
 using ScalableIPC.Core.Abstractions;
-using ScalableIPC.Core.ConcreteComponents;
-using ScalableIPC.Core.Transports.Test;
+using ScalableIPC.Core.Concurrency;
+using ScalableIPC.Core.Session;
+using ScalableIPC.Core.Networks.Test;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace ScalableIPC.Tests.Core.Transports.Test
+namespace ScalableIPC.Tests.Core.Networks.Test
 {
     public class SimulatedNetworkTransportTest
     {

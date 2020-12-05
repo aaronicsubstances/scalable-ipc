@@ -3,7 +3,7 @@ using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Session;
 using System;
 
-namespace ScalableIPC.Tests.Core.Transports.Test
+namespace ScalableIPC.Tests.Core.Networks.Test
 {
     class TestSessionHandler : DefaultSessionHandler
     {

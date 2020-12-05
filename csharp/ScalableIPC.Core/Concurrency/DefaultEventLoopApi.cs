@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ScalableIPC.Core.ConcreteComponents
+namespace ScalableIPC.Core.Concurrency
 {
     public class DefaultEventLoopApi : AbstractEventLoopApi
     {

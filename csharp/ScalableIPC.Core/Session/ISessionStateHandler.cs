@@ -1,8 +1,8 @@
-﻿using ScalableIPC.Core.Session;
+﻿using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
 
-namespace ScalableIPC.Core.Abstractions
+namespace ScalableIPC.Core.Session
 {
     public interface ISessionStateHandler
     {

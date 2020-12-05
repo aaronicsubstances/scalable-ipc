@@ -53,8 +53,8 @@ namespace ScalableIPC.Core.Abstractions
         void CancelAckTimeout();
         void DiscardReceivedMessage(ProtocolDatagram message);
         void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb);
-        void ContinueDisposal(SessionDisposedException cause);
-        AbstractPromise<VoidType> FinaliseDisposalAsync(SessionDisposedException cause);
+        void ContinueDispose(SessionDisposedException cause);
+        AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause);
         void Log(string logPosition, string message, params object[] args);
         void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args);
 

@@ -1,10 +1,10 @@
-﻿using ScalableIPC.Core.ConcreteComponents;
+﻿using ScalableIPC.Core.Concurrency;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace ScalableIPC.Tests.Core.ConcreteComponents
+namespace ScalableIPC.Tests.Core.Concurrency
 {
     public class DefaultEventLoopApiTest
     {
