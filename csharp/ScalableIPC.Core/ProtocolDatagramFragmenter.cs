@@ -13,7 +13,8 @@ namespace ScalableIPC.Core
         private static readonly List<string> DefaultOptionsToSkip = new List<string>
         {
             ProtocolDatagramOptions.OptionNameIsLastInWindow, ProtocolDatagramOptions.OptionNameIsWindowFull,
-            ProtocolDatagramOptions.OptionNameAbortCode, ProtocolDatagramOptions.OptionNameIsLastInWindowGroup
+            ProtocolDatagramOptions.OptionNameAbortCode, ProtocolDatagramOptions.OptionNameIsLastInWindowGroup,
+            EncodedOptionNamePrefix
         };
 
         private static readonly int DefaultReservedSpace = ProtocolDatagram.MinDatagramSize
@@ -24,7 +25,9 @@ namespace ScalableIPC.Core
             + 1 // for null terminator
             + 2 // for option value length indicator
             + Math.Max(true.ToString().Length, false.ToString().Length)
-            ) * 2;
+            ) * 2
+            + 50 // slack/margin
+            ;
 
         private readonly ProtocolMessage _message;
         private readonly int _maxFragmentSize;
@@ -196,7 +199,8 @@ namespace ScalableIPC.Core
             int totalSize = 0;
             foreach (var kvp in attributes)
             {
-                if (optionsToSkip.Contains(kvp.Key))
+                // treat options to skip as prefix filters
+                if (optionsToSkip.Any(s => s.StartsWith(kvp.Key)))
                 {
                     continue;
                 }
