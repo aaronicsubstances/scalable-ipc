@@ -1,4 +1,5 @@
 ﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Concurrency;
 using System;
 using System.Collections.Generic;
 
@@ -7,14 +8,12 @@ namespace ScalableIPC.Core.Session
     public class SendHandlerAssistant
     {
         private readonly ISessionHandler _sessionHandler;
-        private readonly AbstractPromise<VoidType> _voidReturnPromise;
 
         private int _sentPduCount;
 
         public SendHandlerAssistant(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _voidReturnPromise = _sessionHandler.NetworkInterface.PromiseApi.Resolve(VoidType.Instance);
         }
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
@@ -57,8 +56,17 @@ namespace ScalableIPC.Core.Session
 
             _sessionHandler.Log("e289253e-bc8b-4d84-b337-8e3627b2759c", nextMessage, "Sending next message", 
                 "sentPduCount", _sentPduCount);
-            _sessionHandler.NetworkInterface.HandleSendAsync(_sessionHandler.RemoteEndpoint, nextMessage)
-                .ThenOrCatchCompose(_ => HandleSendSuccess(nextMessage), e => HandleSendError(nextMessage, e));
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextMessage, e =>
+            {
+                if (e == null)
+                {
+                    HandleSendSuccess(nextMessage);
+                }
+                else
+                {
+                    HandleSendError(nextMessage, e);
+                }
+            });
             _sentPduCount++;
         }
 
@@ -138,7 +146,7 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        private AbstractPromise<VoidType> HandleSendSuccess(ProtocolDatagram message)
+        private void HandleSendSuccess(ProtocolDatagram message)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {
@@ -162,10 +170,9 @@ namespace ScalableIPC.Core.Session
                     ContinueSending();
                 }
             });
-            return _voidReturnPromise;
         }
 
-        private AbstractPromise<VoidType> HandleSendError(ProtocolDatagram message, Exception error)
+        private void HandleSendError(ProtocolDatagram message, Exception error)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {
@@ -182,7 +189,6 @@ namespace ScalableIPC.Core.Session
                     _sessionHandler.InitiateDispose(new SessionDisposedException(error), null);
                 }
             });
-            return _voidReturnPromise;
         }
 
         private void ProcessAckTimeout()

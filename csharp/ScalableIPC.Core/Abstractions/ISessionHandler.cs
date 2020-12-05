@@ -8,8 +8,8 @@ namespace ScalableIPC.Core.Abstractions
     {
         // beginning of public API.
         void CompleteInit(string sessionId, bool configureForInitialSend,
-            INetworkTransportInterface networkInterface, GenericNetworkIdentifier remoteEndpoint);
-        INetworkTransportInterface NetworkInterface { get; }
+            AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint);
+        AbstractNetworkApi NetworkApi { get; }
         GenericNetworkIdentifier RemoteEndpoint { get; }
         AbstractEventLoopApi EventLoop { get; }
         string SessionId { get; }

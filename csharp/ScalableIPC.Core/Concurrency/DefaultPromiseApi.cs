@@ -9,14 +9,20 @@ namespace ScalableIPC.Core.Concurrency
 {
     public class DefaultPromiseApi : AbstractPromiseApi
     {
+        // helper field for getting a void async return anywhere needed, without having to fetch an 
+        // AbstractPromiseApi instance.
+        // Is part of reference implementation API
+        public static readonly AbstractPromise<VoidType> CompletedPromise = new DefaultPromise<VoidType>(
+            Task.FromResult(VoidType.Instance));
+
         public PromiseCompletionSource<T> CreateCallback<T>(ISessionHandler sessionHandler)
         {
             return new DefaultPromiseCompletionSource<T>(sessionHandler);
         }
 
-        public AbstractPromise<VoidType> Reject(Exception reason)
+        public AbstractPromise<T> Reject<T>(Exception reason)
         {
-            return new DefaultPromise<VoidType>(Task.FromException<VoidType>(reason));
+            return new DefaultPromise<T>(Task.FromException<T>(reason));
         }
 
         public AbstractPromise<T> Resolve<T>(T value)

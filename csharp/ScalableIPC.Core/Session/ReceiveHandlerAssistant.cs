@@ -8,7 +8,6 @@ namespace ScalableIPC.Core.Session
     public class ReceiveHandlerAssistant
     {
         private readonly ISessionHandler _sessionHandler;
-        private readonly AbstractPromise<VoidType> _voidReturnPromise;
 
         private readonly List<ProtocolDatagram> _currentWindow;
         private readonly List<ProtocolDatagram> _currentWindowGroup;
@@ -18,7 +17,6 @@ namespace ScalableIPC.Core.Session
         public ReceiveHandlerAssistant(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _voidReturnPromise = _sessionHandler.NetworkInterface.PromiseApi.Resolve(VoidType.Instance);
 
             _currentWindow = new List<ProtocolDatagram>();
             _currentWindowGroup = new List<ProtocolDatagram>();
@@ -51,8 +49,13 @@ namespace ScalableIPC.Core.Session
                     "Received message from last received window. Responding with ack", 
                     "ack.seqNr", _sessionHandler.LastMaxSeqReceived);
                 // ignore success and care only about failure.
-                _sessionHandler.NetworkInterface.HandleSendAsync(_sessionHandler.RemoteEndpoint, ack)
-                    .CatchCompose(e => HandleAckSendFailure(message, e));
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, e =>
+                {
+                    if (e != null)
+                    {
+                        HandleAckSendFailure(message, e);
+                    }
+                });
                 return;
             }
             else if (!ProtocolDatagram.IsReceivedWindowIdValid(message.WindowId, _sessionHandler.LastWindowIdReceived))
@@ -102,13 +105,21 @@ namespace ScalableIPC.Core.Session
                         IsWindowFull = isWindowFull
                     }
                 };
-                _sessionHandler.NetworkInterface.HandleSendAsync(_sessionHandler.RemoteEndpoint, ack)
-                    .ThenOrCatchCompose(_ => HandleAckSendSuccess(message), 
-                        error => HandleAckSendFailure(message, error));
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, e =>
+                {
+                    if (e == null)
+                    {
+                        HandleAckSendSuccess(message);
+                    }
+                    else
+                    {
+                        HandleAckSendFailure(message, e);
+                    }
+                });
             }
         }
 
-        private AbstractPromise<VoidType> HandleAckSendFailure(ProtocolDatagram message, Exception error)
+        private void HandleAckSendFailure(ProtocolDatagram message, Exception error)
         {
             _sessionHandler.PostIfNotDisposed(() =>
             {
@@ -127,10 +138,9 @@ namespace ScalableIPC.Core.Session
                     _sessionHandler.InitiateDispose(new SessionDisposedException(error), null);
                 }
             });
-            return _voidReturnPromise;
         }
 
-        private AbstractPromise<VoidType> HandleAckSendSuccess(ProtocolDatagram message)
+        private void HandleAckSendSuccess(ProtocolDatagram message)
         {
             _sessionHandler.PostIfNotDisposed(() =>
             {
@@ -195,7 +205,6 @@ namespace ScalableIPC.Core.Session
                        "Window group is not yet full. Waiting for another window");
                 }
             });
-            return _voidReturnPromise;
         }
 
         internal static bool AddToCurrentWindow(List<ProtocolDatagram> currentWindow, int maxReceiveWindowSize,

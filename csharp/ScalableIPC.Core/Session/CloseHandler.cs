@@ -8,13 +8,12 @@ namespace ScalableIPC.Core.Session
     public class CloseHandler : ISessionStateHandler
     {
         private readonly ISessionHandler _sessionHandler;
-        private readonly AbstractPromise<VoidType> _voidReturnPromise;
-        private readonly List<PromiseCompletionSource<VoidType>> _pendingPromiseCallbacks = new List<PromiseCompletionSource<VoidType>>();
+        private readonly List<PromiseCompletionSource<VoidType>> _pendingPromiseCallbacks;
 
         public CloseHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _voidReturnPromise = _sessionHandler.NetworkInterface.PromiseApi.Resolve(VoidType.Instance);
+            _pendingPromiseCallbacks = new List<PromiseCompletionSource<VoidType>>();
         }
 
         public bool SendInProgress { get; set; }
@@ -99,13 +98,12 @@ namespace ScalableIPC.Core.Session
                     AbortCode = cause.AbortCode
                 };
             }
-            _sessionHandler.NetworkInterface.HandleSendAsync(_sessionHandler.RemoteEndpoint, message)
-                .CatchCompose(_ => _voidReturnPromise)
-                .Then(_ => HandleSendSuccessOrError(cause));
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, message,
+                _ => HandleSendSuccessOrError(cause));
             SendInProgress = true;
         }
 
-        private VoidType HandleSendSuccessOrError(SessionDisposedException cause)
+        private void HandleSendSuccessOrError(SessionDisposedException cause)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {
@@ -116,8 +114,6 @@ namespace ScalableIPC.Core.Session
 
                 _sessionHandler.ContinueDispose(cause);
             });
-
-            return VoidType.Instance;
         }
     }
 }

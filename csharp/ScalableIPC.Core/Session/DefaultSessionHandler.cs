@@ -1,4 +1,5 @@
 ﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Concurrency;
 using System;
 using System.Collections.Generic;
 
@@ -38,14 +39,14 @@ namespace ScalableIPC.Core.Session
         { }
 
         public virtual void CompleteInit(string sessionId, bool configureForInitialSend,
-            INetworkTransportInterface networkInterface, GenericNetworkIdentifier remoteEndpoint)
+            AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint)
         {
-            NetworkInterface = networkInterface;
-            EventLoop = networkInterface.EventLoop;
+            NetworkApi = networkApi;
+            EventLoop = networkApi.EventLoop;
             RemoteEndpoint = remoteEndpoint;
             SessionId = sessionId;
 
-            _promiseApi = networkInterface.PromiseApi;
+            _promiseApi = networkApi.PromiseApi;
 
             _stateHandlers = new List<ISessionStateHandler>();
             _stateHandlers.Add(new ReceiveDataHandler(this));
@@ -54,17 +55,17 @@ namespace ScalableIPC.Core.Session
             _stateHandlers.Add(_closeHandler);
 
             // initialize session management parameters from network interface config.
-            IdleTimeoutSecs = networkInterface.IdleTimeoutSecs;
-            MinRemoteIdleTimeoutSecs = networkInterface.MinRemoteIdleTimeoutSecs;
-            MaxRemoteIdleTimeoutSecs = networkInterface.MaxRemoteIdleTimeoutSecs;
-            AckTimeoutSecs = networkInterface.AckTimeoutSecs;
-            MaxRetryCount = networkInterface.MaxRetryCount;
-            MaximumTransferUnitSize = networkInterface.MaximumTransferUnitSize;
-            MaxSendWindowSize = networkInterface.MaxSendWindowSize;
-            MaxReceiveWindowSize = networkInterface.MaxReceiveWindowSize;
+            IdleTimeoutSecs = networkApi.IdleTimeoutSecs;
+            MinRemoteIdleTimeoutSecs = networkApi.MinRemoteIdleTimeoutSecs;
+            MaxRemoteIdleTimeoutSecs = networkApi.MaxRemoteIdleTimeoutSecs;
+            AckTimeoutSecs = networkApi.AckTimeoutSecs;
+            MaxRetryCount = networkApi.MaxRetryCount;
+            MaximumTransferUnitSize = networkApi.MaximumTransferUnitSize;
+            MaxSendWindowSize = networkApi.MaxSendWindowSize;
+            MaxReceiveWindowSize = networkApi.MaxReceiveWindowSize;
         }
 
-        public INetworkTransportInterface NetworkInterface { get; private set; }
+        public AbstractNetworkApi NetworkApi { get; private set; }
         public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
         public string SessionId { get; private set; }
         public AbstractEventLoopApi EventLoop { get; private set; }
@@ -130,7 +131,7 @@ namespace ScalableIPC.Core.Session
                     DiscardReceivedMessage(message);
                 }
             });
-            return _promiseApi.Resolve(VoidType.Instance);
+            return DefaultPromiseApi.CompletedPromise;
         }
 
         public virtual AbstractPromise<VoidType> ProcessSendAsync(ProtocolDatagram message)
@@ -310,7 +311,7 @@ namespace ScalableIPC.Core.Session
             CustomLoggerFacade.Log(() =>
             {
                 var customEvent = new CustomLogEvent(logPosition, message, null);
-                customEvent.FillData("localEndpoint", NetworkInterface.LocalEndpoint.ToString());
+                customEvent.FillData("localEndpoint", NetworkApi.LocalEndpoint.ToString());
                 customEvent.FillData("sessionId", SessionId);
                 customEvent.FillData(pdu);
                 customEvent.FillData(args);
@@ -323,7 +324,7 @@ namespace ScalableIPC.Core.Session
             CustomLoggerFacade.Log(() =>
             {
                 var customEvent = new CustomLogEvent(logPosition, message, null);
-                customEvent.FillData("localEndpoint", NetworkInterface.LocalEndpoint.ToString());
+                customEvent.FillData("localEndpoint", NetworkApi.LocalEndpoint.ToString());
                 customEvent.FillData("sessionId", SessionId);
                 customEvent.FillData(args);
                 return customEvent;
@@ -362,7 +363,7 @@ namespace ScalableIPC.Core.Session
                 stateHandler.PrepareForDispose(cause);
             }
 
-            NetworkInterface.OnCloseSession(RemoteEndpoint, SessionId, cause);
+            NetworkApi.RequestSessionDispose(RemoteEndpoint, SessionId, cause);
         }
 
         public virtual AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause)
