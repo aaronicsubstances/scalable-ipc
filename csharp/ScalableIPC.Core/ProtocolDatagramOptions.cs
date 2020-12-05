@@ -6,28 +6,34 @@ namespace ScalableIPC.Core
 {
     public class ProtocolDatagramOptions
     {
-        // Reserve s_ prefix for standard options at session layer.
-        public const string StandardSessionLayerOptionPrefix = "s_";
+        // Reserve s_ prefix for known options.
+        public const string KnownOptionPrefix = "s_";
 
-        // Reserve sx_ prefix for non-standard options at session layer.
-        public const string NonStandardSessionLayerOptionPrefix = "sx_";
+        public const string OptionNameIdleTimeout = KnownOptionPrefix + "idle_timeout";
+        public const string OptionNameAbortCode = KnownOptionPrefix + "abort_code";
+        public const string OptionNameIsWindowFull = KnownOptionPrefix + "window_full";
+        public const string OptionNameIsLastInWindow = KnownOptionPrefix + "last_in_window";
+        public const string OptionNameIsLastInWindowGroup = KnownOptionPrefix + "last_in_window_group";
+        public const string OptionNameTraceId = KnownOptionPrefix + "traceId";
 
-        public const string OptionNameIdleTimeout = StandardSessionLayerOptionPrefix + "idle_timeout";
-        public const string OptionNameAbortCode = StandardSessionLayerOptionPrefix + "abort_code";
-        public const string OptionNameIsWindowFull = StandardSessionLayerOptionPrefix + "window_full";
-        public const string OptionNameIsLastInWindow = StandardSessionLayerOptionPrefix + "last_in_window";
-        public const string OptionNameIsLastInWindowGroup = StandardSessionLayerOptionPrefix + "last_in_window_group";
+        public ProtocolDatagramOptions()
+        {
+            // use of Dictionary is part of reference implementation API to ensure that key insertion order 
+            // is the same as key retrieval order.
+            AllOptions = new Dictionary<string, List<string>>();
+        }
 
-        public Dictionary<string, List<string>> AllOptions { get; } = new Dictionary<string, List<string>>();
+        public IDictionary<string, List<string>> AllOptions { get; }
 
-        // Standard session layer options.
+        // Known options.
         public int? IdleTimeoutSecs { get; set; }
         public int? AbortCode { get; set; }
         public bool? IsWindowFull { get; set; }
         public bool? IsLastInWindow { get; set; }
         public bool? IsLastInWindowGroup { get; set; }
+        public string TraceId { get; set; }
 
-        public void AddOption(string name, string value, bool parseKnownOptions)
+        public void AddOption(string name, string value)
         {
             List<string> optionValues;
             if (AllOptions.ContainsKey(name))
@@ -40,33 +46,50 @@ namespace ScalableIPC.Core
                 AllOptions.Add(name, optionValues);
             }
             optionValues.Add(value);
+        }
 
-            if (!parseKnownOptions)
-            {
-                return;
-            }
-
-            // Now identify and validate standard options.
+        public void ParseKnownOptions()
+        {
+            // Now identify and validate known options.
             // In case of repetition, last one wins.
-            switch (name)
+            foreach (var name in AllOptions.Keys)
             {
-                case OptionNameIdleTimeout:
-                    IdleTimeoutSecs = ParseOptionAsInt32(value);
-                    break;
-                case OptionNameAbortCode:
-                    AbortCode = ParseOptionAsInt32(value);
-                    break;
-                case OptionNameIsLastInWindow:
-                    IsLastInWindow = ParseOptionAsBoolean(value);
-                    break;
-                case OptionNameIsWindowFull:
-                    IsWindowFull = ParseOptionAsBoolean(value);
-                    break;
-                case OptionNameIsLastInWindowGroup:
-                    IsLastInWindowGroup = ParseOptionAsBoolean(value);
-                    break;
-                default:
-                    break;
+                var values = AllOptions[name];
+                if (values.Count == 0)
+                {
+                    continue;
+                }
+                var value = values[values.Count - 1];
+                try
+                {
+                    switch (name)
+                    {
+                        case OptionNameIdleTimeout:
+                            IdleTimeoutSecs = ParseOptionAsInt32(value);
+                            break;
+                        case OptionNameAbortCode:
+                            AbortCode = ParseOptionAsInt32(value);
+                            break;
+                        case OptionNameIsLastInWindow:
+                            IsLastInWindow = ParseOptionAsBoolean(value);
+                            break;
+                        case OptionNameIsWindowFull:
+                            IsWindowFull = ParseOptionAsBoolean(value);
+                            break;
+                        case OptionNameIsLastInWindowGroup:
+                            IsLastInWindowGroup = ParseOptionAsBoolean(value);
+                            break;
+                        case OptionNameTraceId:
+                            TraceId = value;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Received invalid value for option {name}={value}", ex);
+                }
             }
         }
 
@@ -153,6 +176,10 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameIsLastInWindowGroup, IsLastInWindowGroup.ToString());
             }
+            if (TraceId != null)
+            {
+                knownOptions.Add(OptionNameTraceId, TraceId);
+            }
             return knownOptions;
         }
 
@@ -177,6 +204,10 @@ namespace ScalableIPC.Core
             if (IsLastInWindowGroup != null)
             {
                 destOptions.IsLastInWindowGroup = IsLastInWindowGroup;
+            }
+            if (TraceId != null)
+            {
+                destOptions.TraceId = TraceId;
             }
         }
     }

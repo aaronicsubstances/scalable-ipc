@@ -47,9 +47,8 @@ namespace ScalableIPC.Tests.Core.Networks
             var sessionHandler = await ((DefaultPromise<ISessionHandler>)openPromise).WrappedTask;
 
             var dataToSend = ProtocolDatagram.ConvertStringToBytes("Hello");
-            var message = new ProtocolDatagram
+            var message = new ProtocolMessage
             {
-                OpCode = ProtocolDatagram.OpCodeData,
                 DataBytes = dataToSend,
                 DataLength = dataToSend.Length
             };
@@ -57,9 +56,8 @@ namespace ScalableIPC.Tests.Core.Networks
             await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
 
             dataToSend = ProtocolDatagram.ConvertStringToBytes(" from Accra.");
-            message = new ProtocolDatagram
+            message = new ProtocolMessage
             {
-                OpCode = ProtocolDatagram.OpCodeData,
                 DataBytes = dataToSend,
                 DataLength = dataToSend.Length
             };

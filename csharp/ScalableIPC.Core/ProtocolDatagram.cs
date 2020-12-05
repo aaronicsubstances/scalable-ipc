@@ -43,7 +43,11 @@ namespace ScalableIPC.Core
         // the 2 length indicator booleans, expected length, sessionId, opCode, window id, 
         // sequence number, null separator are always present.
         public const int MinDatagramSize = 2 + 4 + MinSessionIdLength + 1 + 4 + 4 + 1;
-        public const int MaxDatagramSize = 65_507;
+        public const int MaxDatagramSize = 65_500;
+        public const int MinimumTransferUnitSize = 512;
+        public const int MaxOptionByteCount = 60_000;
+
+        private static readonly string Latin1Encoding = "ISO-8859-1";
 
         public int ExpectedDatagramLength { get; set; }
         public string SessionId { get; set; }
@@ -101,7 +105,7 @@ namespace ScalableIPC.Core
                     throw new Exception("invalid session id length indicator");
             }
 
-            parsedDatagram.SessionId = ConvertSessionIdBytesToHex(rawBytes, offset, sessionIdLen);
+            parsedDatagram.SessionId = ConvertBytesToHex(rawBytes, offset, sessionIdLen);
             offset += sessionIdLen;
 
             lenIndicator = rawBytes[offset];
@@ -142,10 +146,8 @@ namespace ScalableIPC.Core
             parsedDatagram.OpCode = rawBytes[offset];
             offset += 1;
 
-            // Now read options until we encounter null terminator for all options, 
-            // which is equivalent to empty string option name 
-            string optionName = null;
-            while (optionName != "")
+            // Now read options until we encounter null terminator for all options.
+            while (rawBytes[offset] != NullTerminator)
             {
                 // look for null terminator.
                 int nullTerminatorIndex = -1;
@@ -159,35 +161,26 @@ namespace ScalableIPC.Core
                 }
                 if (nullTerminatorIndex == -1)
                 {
-                    throw new Exception("null terminator for all options not found");
+                    throw new Exception("null terminator for option name not found");
                 }
 
-                var optionNameOrValue = ConvertBytesToString(rawBytes, offset, nullTerminatorIndex - offset);
+                var optionName = ConvertBytesToString(rawBytes, offset, nullTerminatorIndex - offset);
                 offset = nullTerminatorIndex + 1;
 
-                if (optionName == null)
-                {
-                    optionName = optionNameOrValue;
-                }
-                else
-                {
-                    if (parsedDatagram.Options == null)
-                    {
-                        parsedDatagram.Options = new ProtocolDatagramOptions();
-                    }
-                    try
-                    {
-                        parsedDatagram.Options.AddOption(optionName, optionNameOrValue, true);
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new Exception($"Received invalid value for option {optionName}: {optionNameOrValue} ({ex})");
-                    }
+                int optionValueLength = ReadUnsignedInt16BigEndian(rawBytes, offset);
+                offset += 2;
+                var optionValue = ConvertBytesToString(rawBytes, offset, optionValueLength);
+                offset += optionValueLength;
 
-                    // important for loop: reset to null
-                    optionName = null;
+                if (parsedDatagram.Options == null)
+                {
+                    parsedDatagram.Options = new ProtocolDatagramOptions();
                 }
+                parsedDatagram.Options.AddOption(optionName, optionValue);
             }
+
+            // validate known options.
+            parsedDatagram.Options?.ParseKnownOptions();
 
             parsedDatagram.DataBytes = rawBytes;
             parsedDatagram.DataOffset = offset;
@@ -220,7 +213,7 @@ namespace ScalableIPC.Core
                     writer.Write((byte)0);
 
                     // write out session id.
-                    byte[] sessionId = ConvertSessionIdHexToBytes(SessionId);
+                    byte[] sessionId = ConvertHexToBytes(SessionId);
                     if (sessionId.Length == MinSessionIdLength)
                     {
                         writer.Write(FalseIndicatorByte);
@@ -262,8 +255,8 @@ namespace ScalableIPC.Core
                             writer.Write(optionNameBytes);
                             writer.Write(NullTerminator);
                             var optionValueBytes = ConvertStringToBytes(pair[1]);
+                            WriteUnsignedInt16BigEndian(optionValueBytes.Length);
                             writer.Write(optionValueBytes);
-                            writer.Write(NullTerminator);
                         }
                     }
 
@@ -315,13 +308,23 @@ namespace ScalableIPC.Core
             return Encoding.UTF8.GetString(data, offset, length);
         }
 
-        internal static string ConvertSessionIdBytesToHex(byte[] data, int offset, int len)
+        internal static string ConvertBytesToLatin1(byte[] data, int offset, int length)
+        {
+            return Encoding.GetEncoding(Latin1Encoding).GetString(data, offset, length);
+        }
+
+        internal static byte[] ConvertLatin1ToBytes(string s)
+        {
+            return Encoding.GetEncoding(Latin1Encoding).GetBytes(s);
+        }
+
+        internal static string ConvertBytesToHex(byte[] data, int offset, int len)
         {
             // send out lower case for similarity with other platforms (Java, Python, NodeJS, etc)
             return BitConverter.ToString(data, offset, len).Replace("-", "").ToLower();
         }
 
-        internal static byte[] ConvertSessionIdHexToBytes(string hex)
+        internal static byte[] ConvertHexToBytes(string hex)
         {
             int charCount = hex.Length;
             if (charCount % 2 != 0)
@@ -335,6 +338,11 @@ namespace ScalableIPC.Core
                 bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
             }
             return bytes;
+        }
+
+        internal static byte[] WriteUnsignedInt16BigEndian(int v)
+        {
+            return WriteInt16BigEndian((short)v);
         }
 
         internal static byte[] WriteInt16BigEndian(short v)
@@ -375,6 +383,14 @@ namespace ScalableIPC.Core
             byte b = rawBytes[offset + 1];
             int v = (a << 8) | (b & 0xff);
             return (short)v;
+        }
+
+        internal static int ReadUnsignedInt16BigEndian(byte[] rawBytes, int offset)
+        {
+            byte a = rawBytes[offset];
+            byte b = rawBytes[offset + 1];
+            int v = (a << 8) | (b & 0xff);
+            return v; // NB: no cast to short.
         }
 
         internal static int ReadInt32BigEndian(byte[] rawBytes, int offset)
@@ -461,7 +477,7 @@ namespace ScalableIPC.Core
                 {
                     foreach (var pair in msg.Options.GenerateList())
                     {
-                        windowAsMessage.Options.AddOption(pair[0], pair[1], false);
+                        windowAsMessage.Options.AddOption(pair[0], pair[1]);
                     }
 
                     msg.Options.TransferKnownOptions(windowAsMessage.Options);

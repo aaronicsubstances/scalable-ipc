@@ -7,15 +7,18 @@ namespace ScalableIPC.Core.Session
 {
     public class SendDataHandler: ISessionStateHandler
     {
-        private const int MinimumMtu = 512;
         private readonly ISessionHandler _sessionHandler;
-        private DatagramChopper _datagramChopper;
+        private ProtocolDatagramFragmenter _datagramFragmenter;
         private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
         private RetrySendHandlerAssistant _sendWindowHandler;
+        private List<ProtocolDatagram> _currentWindowGroup;
+        private int _sentDatagramCountInCurrentWindowGroup;
 
         public SendDataHandler(ISessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
+            _currentWindowGroup = new List<ProtocolDatagram>();
+            _sentDatagramCountInCurrentWindowGroup = 0;
         }
 
         public bool SendInProgress { get; set; }
@@ -38,97 +41,81 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public bool ProcessReceive(ProtocolDatagram message)
+        public bool ProcessReceive(ProtocolDatagram datagram)
         {
-            if (message.OpCode != ProtocolDatagram.OpCodeAck)
+            if (datagram.OpCode != ProtocolDatagram.OpCodeAck)
             {
                 return false;
             }
 
-            // to prevent clashes with other send handlers, check that specific send in progress is on.
+            // to prevent clashes with close handler, check that specific send in progress is on.
             if (!SendInProgress)
             {
                 return false;
             }
 
-            _sessionHandler.Log("4b1d1ab5-f38a-478d-b444-b43cdf9f363a", message,
-                "Ack pdu accepted for processing in send data handler");
-            _sendWindowHandler.OnAckReceived(message);
+            _sessionHandler.Log("4b1d1ab5-f38a-478d-b444-b43cdf9f363a", datagram,
+                "Ack datagram accepted for processing in send data handler");
+            _sendWindowHandler.OnAckReceived(datagram);
             return true;
         }
 
-        public bool ProcessSend(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb)
+        public bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb)
         {
-            if (message.OpCode != ProtocolDatagram.OpCodeData)
-            {
-                return false;
-            }
-
-            _sessionHandler.Log("75cb01ea-3901-40da-b104-dfc3914e2edd", message,
-                "Pdu accepted for processing in send data handler");
+            _sessionHandler.Log("75cb01ea-3901-40da-b104-dfc3914e2edd",
+                "Message accepted for processing in send data handler");
             ProcessSendRequest(message, promiseCb);
             return true;
         }
 
-        private void ProcessSendRequest(ProtocolDatagram message,
+        private void ProcessSendRequest(ProtocolMessage message,
            PromiseCompletionSource<VoidType> promiseCb)
         {
             _pendingPromiseCallback = promiseCb;
 
-            // ensure minimum of 512 and maximum = pdu max
-            int mtu = Math.Min(Math.Max(MinimumMtu, _sessionHandler.MaximumTransferUnitSize),
-                ProtocolDatagram.MaxDatagramSize);
-            _datagramChopper = new DatagramChopper(message, mtu, null);
-            ContinueBulkSend(false);
+            // ensure minimum of 512 and maximum = datagram max length
+            int mtu = Math.Min(Math.Max(ProtocolDatagram.MinimumTransferUnitSize, 
+                _sessionHandler.MaximumTransferUnitSize), ProtocolDatagram.MaxDatagramSize);
+            _datagramFragmenter = new ProtocolDatagramFragmenter(message, mtu, null);
+
+            // reset fields used for continuation.
+            _sentDatagramCountInCurrentWindowGroup = 0;
+
+            ContinueWindowSend(false);
             SendInProgress = true;
         }
 
-        private bool ContinueBulkSend(bool haveSentBefore)
+        private bool ContinueWindowSend(bool haveSentBefore)
         {
             _sessionHandler.Log("c5b21878-ac61-4414-ba37-4248a4702084",
                 (haveSentBefore ? "Attempting to continue ": "About to start") + " sending data");
 
-            var nextWindow = new List<ProtocolDatagram>();
-            
-            // add 2 for for null bytes
-            var reserveSpace = ProtocolDatagramOptions.OptionNameIsLastInWindow.Length +
-                ProtocolDatagramOptions.OptionNameIsLastInWindowGroup.Length +
-                Math.Max(true.ToString().Length, false.ToString().Length) * 2 + 2;
-
-            int cumulativeTransferSize = 0;
-            while (_datagramChopper.HasNext(reserveSpace))
+            if (!haveSentBefore)
             {
-                // This loop is designed to be entered at least once with cooperation of
-                // datagram chopper which will always yield at least 1 pdu,
-                // and by checking for window count after addition,
-                // and by MTU not exceeding maximum allowed window size.
-
-                var nextPdu = _datagramChopper.Next();
-                nextPdu.SessionId = _sessionHandler.SessionId;
-                nextPdu.OpCode = ProtocolDatagram.OpCodeData;
-                nextWindow.Add(nextPdu);
-                cumulativeTransferSize += _datagramChopper.MaxPduSize;
-
-                // effectively minimum value of max send window size is 1
-                // even if actually zero or negative.
-                if (nextWindow.Count >= _sessionHandler.MaxSendWindowSize)
+                _currentWindowGroup = _datagramFragmenter.Next();
+                if (_currentWindowGroup.Count == 0)
                 {
-                    break;
-                }
-
-                // check that we can go another round of chopping without exceeding maximum transfer window
-                // size - which is the UDP max payload size.
-                if (cumulativeTransferSize + _datagramChopper.MaxPduSize > ProtocolDatagram.MaxDatagramSize)
-                {
-                    break;
+                    throw new Exception("Wrong fragmentation algorithm. At least one datagram must be returned");
                 }
             }
-            if (haveSentBefore && nextWindow.Count == 0)
+            else if (_sentDatagramCountInCurrentWindowGroup >= _currentWindowGroup.Count)
             {
-                _sessionHandler.Log("d7d65563-154a-4855-8efd-c19ae60817d8",
-                    "No more data pdus found for send window.");
-                return false;
+                _currentWindowGroup = _datagramFragmenter.Next();
+                if (_currentWindowGroup.Count == 0)
+                {
+                    _sessionHandler.Log("d7d65563-154a-4855-8efd-c19ae60817d8",
+                        "No more datagrams found for send window.");
+                    return false;
+                }
+                _sentDatagramCountInCurrentWindowGroup = 0;
             }
+
+            // try and fetch remainder in current window group, but respect constraint of max send window size.
+            // ensure minimum of 1 for max send window size.
+            int maxSendWindowSize = Math.Max(1, _sessionHandler.MaxSendWindowSize);
+            var nextWindow = _currentWindowGroup.GetRange(_sentDatagramCountInCurrentWindowGroup, Math.Min(maxSendWindowSize,
+                _currentWindowGroup.Count - _sentDatagramCountInCurrentWindowGroup));
+            _sentDatagramCountInCurrentWindowGroup += nextWindow.Count;
 
             var lastMsgInNextWindow = nextWindow[nextWindow.Count - 1];
             if (lastMsgInNextWindow.Options == null)
@@ -136,9 +123,16 @@ namespace ScalableIPC.Core.Session
                 lastMsgInNextWindow.Options = new ProtocolDatagramOptions();
             }
             lastMsgInNextWindow.Options.IsLastInWindow = true;
-            if (!_datagramChopper.HasNext(reserveSpace))
+            if (_sentDatagramCountInCurrentWindowGroup >= _currentWindowGroup.Count)
             {
                 lastMsgInNextWindow.Options.IsLastInWindowGroup = true;
+            }
+
+            foreach (var datagram in nextWindow)
+            {
+                datagram.OpCode = ProtocolDatagram.OpCodeData;
+                datagram.SessionId = _sessionHandler.SessionId;
+                // the rest wil be set by assistant handlers
             }
 
             _sendWindowHandler = new RetrySendHandlerAssistant(_sessionHandler)
@@ -148,7 +142,7 @@ namespace ScalableIPC.Core.Session
             };
 
             _sessionHandler.Log("d151c5bf-e922-4828-8820-8cf964dac160",
-                $"Found {nextWindow.Count} data pdus to send in next window.", 
+                $"Found {nextWindow.Count} datagrams to send in next window.", 
                 "count", nextWindow.Count);
             _sendWindowHandler.Start();
             return true;
@@ -156,10 +150,10 @@ namespace ScalableIPC.Core.Session
 
         private void OnWindowSendSuccess()
         {
-            if (ContinueBulkSend(true))
+            if (ContinueWindowSend(true))
             {
                 _sessionHandler.Log("d2dd3b31-8630-481d-9f18-4b91dd8345c3", 
-                    "Found data pdus to continue sending");
+                    "Found another window to continue sending");
                 return;
             }
 
@@ -171,7 +165,8 @@ namespace ScalableIPC.Core.Session
             // complete pending promise.
             _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
             _pendingPromiseCallback = null;
-            _datagramChopper = null;
+            _datagramFragmenter = null;
+            _currentWindowGroup = null;
         }
     }
 }

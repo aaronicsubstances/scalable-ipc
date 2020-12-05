@@ -13,8 +13,8 @@ namespace ScalableIPC.Core.Abstractions
         GenericNetworkIdentifier RemoteEndpoint { get; }
         AbstractEventLoopApi EventLoop { get; }
         string SessionId { get; }
-        AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram message);
-        AbstractPromise<VoidType> ProcessSendAsync(ProtocolDatagram message);
+        AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram);
+        AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message);
         AbstractPromise<VoidType> CloseAsync();
         AbstractPromise<VoidType> CloseAsync(bool closeGracefully);
 
@@ -51,12 +51,12 @@ namespace ScalableIPC.Core.Abstractions
 
         void ResetAckTimeout(int timeoutSecs, Action cb);
         void CancelAckTimeout();
-        void DiscardReceivedMessage(ProtocolDatagram message);
+        void DiscardReceivedDatagram(ProtocolDatagram datagram);
         void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb);
         void ContinueDispose(SessionDisposedException cause);
         AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause);
         void Log(string logPosition, string message, params object[] args);
-        void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args);
+        void Log(string logPosition, ProtocolDatagram datagram, string message, params object[] args);
 
         // application layer interface. contract here is that these should be called from event loop.
         event EventHandler<MessageReceivedEventArgs> MessageReceived;

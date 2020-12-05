@@ -95,7 +95,7 @@ namespace ScalableIPC.Core.Session
             NextWindowIdToSend = ProtocolDatagram.ComputeNextWindowIdToSend(NextWindowIdToSend);
         }
 
-        public virtual bool IsSendInProgress()
+        public bool IsSendInProgress()
         {
             foreach (var handler in _stateHandlers)
             {
@@ -107,11 +107,11 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
-        public virtual AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram message)
+        public AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram)
         {
             EventLoop.PostCallback(() =>
             {
-                Log("163c3ed3-0e9d-40a7-abff-b95310bfe200", message, "Session ProcessReceive");
+                Log("163c3ed3-0e9d-40a7-abff-b95310bfe200", datagram, "Session ProcessReceive");
 
                 bool handled = false;
                 if (SessionState < StateDisposeAwaiting)
@@ -119,7 +119,7 @@ namespace ScalableIPC.Core.Session
                     ResetIdleTimeout();
                     foreach (ISessionStateHandler stateHandler in _stateHandlers)
                     {
-                        handled = stateHandler.ProcessReceive(message);
+                        handled = stateHandler.ProcessReceive(datagram);
                         if (handled)
                         {
                             break;
@@ -128,19 +128,19 @@ namespace ScalableIPC.Core.Session
                 }
                 if (!handled)
                 {
-                    DiscardReceivedMessage(message);
+                    DiscardReceivedDatagram(datagram);
                 }
             });
             return DefaultPromiseApi.CompletedPromise;
         }
 
-        public virtual AbstractPromise<VoidType> ProcessSendAsync(ProtocolDatagram message)
+        public AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             EventLoop.PostCallback(() =>
             {
-                Log("5abd8c58-4f14-499c-ad0e-788d59c5f7e2", message, "Session ProcessSend");
+                Log("5abd8c58-4f14-499c-ad0e-788d59c5f7e2", "Session ProcessSend");
 
                 if (SessionState >= StateDisposeAwaiting)
                 {
@@ -176,7 +176,7 @@ namespace ScalableIPC.Core.Session
             return CloseAsync(true);
         }
 
-        public virtual AbstractPromise<VoidType> CloseAsync(bool closeGracefully)
+        public AbstractPromise<VoidType> CloseAsync(bool closeGracefully)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
@@ -207,7 +207,7 @@ namespace ScalableIPC.Core.Session
             return returnPromise;
         }
 
-        public virtual void PostIfNotDisposed(Action cb)
+        public void PostIfNotDisposed(Action cb)
         {
             EventLoop.PostCallback(() =>
             {
@@ -222,7 +222,7 @@ namespace ScalableIPC.Core.Session
             });
         }
 
-        public virtual void ResetAckTimeout(int timeoutSecs, Action cb)
+        public void ResetAckTimeout(int timeoutSecs, Action cb)
         {
             Log("54c44637-3efe-4a35-a674-22e8e12c48cc", "About to set ack timeout");
 
@@ -235,7 +235,7 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public virtual void ResetIdleTimeout()
+        public void ResetIdleTimeout()
         {
             Log("41f243a1-db75-4c08-82fa-b2c7ff7dfda6", "About to reset idle timeout");
             
@@ -299,27 +299,27 @@ namespace ScalableIPC.Core.Session
             cb.Invoke();
         }
 
-        public virtual void DiscardReceivedMessage(ProtocolDatagram message)
+        public void DiscardReceivedDatagram(ProtocolDatagram datagram)
         {
             // subclasses can log more.
 
-            Log("ee37084b-2201-4591-b681-25b0398aba40", message, "Discarding message");
+            Log("ee37084b-2201-4591-b681-25b0398aba40", datagram, "Discarding datagram");
         }
         
-        public virtual void Log(string logPosition, ProtocolDatagram pdu, string message, params object[] args)
+        public void Log(string logPosition, ProtocolDatagram datagram, string message, params object[] args)
         {
             CustomLoggerFacade.Log(() =>
             {
                 var customEvent = new CustomLogEvent(logPosition, message, null);
                 customEvent.FillData("localEndpoint", NetworkApi.LocalEndpoint.ToString());
                 customEvent.FillData("sessionId", SessionId);
-                customEvent.FillData(pdu);
+                customEvent.FillData(datagram);
                 customEvent.FillData(args);
                 return customEvent;
             });
         }
 
-        public virtual void Log(string logPosition, string message, params object[] args)
+        public void Log(string logPosition, string message, params object[] args)
         {
             CustomLoggerFacade.Log(() =>
             {
@@ -331,7 +331,7 @@ namespace ScalableIPC.Core.Session
             });
         }
 
-        public virtual void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> cb)
+        public void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> cb)
         {
             if (SessionState == StateDisposed)
             {
@@ -347,11 +347,10 @@ namespace ScalableIPC.Core.Session
 
             Log("890ef817-b90c-45fc-9243-b809c684c730", "Session disposal started");
             SessionState = StateClosing;
-            _disposalCause = cause;
             _closeHandler.ProcessSendClose(cause, cb);
         }
 
-        public virtual void ContinueDispose(SessionDisposedException cause)
+        public void ContinueDispose(SessionDisposedException cause)
         {
             Log("65c44e33-acd9-43fa-986d-7de9044f6124", "Continuing session disposal");
             SessionState = StateDisposeAwaiting;
@@ -366,7 +365,7 @@ namespace ScalableIPC.Core.Session
             NetworkApi.RequestSessionDispose(RemoteEndpoint, SessionId, cause);
         }
 
-        public virtual AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause)
+        public AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
@@ -404,13 +403,13 @@ namespace ScalableIPC.Core.Session
         // calls to application layer.
 
         public event EventHandler<MessageReceivedEventArgs> MessageReceived;
-        public virtual void OnMessageReceived(MessageReceivedEventArgs e)
+        public void OnMessageReceived(MessageReceivedEventArgs e)
         {
             MessageReceived?.Invoke(this, e);
         }
 
         public event EventHandler<SessionDisposedEventArgs> SessionDisposed;
-        public virtual void OnSessionDisposed(SessionDisposedEventArgs e)
+        public void OnSessionDisposed(SessionDisposedEventArgs e)
         {
             SessionDisposed?.Invoke(this, e);
         }

@@ -9,7 +9,7 @@ namespace ScalableIPC.Core.Session
         bool SendInProgress { get; }
         void PrepareForDispose(SessionDisposedException cause);
         void Dispose(SessionDisposedException cause);
-        bool ProcessReceive(ProtocolDatagram message);
-        bool ProcessSend(ProtocolDatagram message, PromiseCompletionSource<VoidType> promiseCb);
+        bool ProcessReceive(ProtocolDatagram datagram);
+        bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb);
     }
 }

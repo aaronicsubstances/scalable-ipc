@@ -24,7 +24,7 @@ namespace ScalableIPC.Core.Session
             if (RetryCount >= _sessionHandler.MaxRetryCount)
             {
                 _sessionHandler.Log("28a90da5-1113-42e5-9894-881e3e2876f5", 
-                    "Maximum retry count reached. Shutting down...", "retryCount", RetryCount);
+                    "Maximum retry count reached. Disposing...", "retryCount", RetryCount);
                 _sessionHandler.InitiateDispose(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout), null);
             }
             else
@@ -34,9 +34,9 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void OnAckReceived(ProtocolDatagram message)
+        public void OnAckReceived(ProtocolDatagram datagram)
         {
-            _currentWindowHandler.OnAckReceived(message);
+            _currentWindowHandler.OnAckReceived(datagram);
         }
 
         public void Cancel()

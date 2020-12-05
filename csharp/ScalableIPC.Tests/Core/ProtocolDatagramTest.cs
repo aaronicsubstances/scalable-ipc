@@ -9,14 +9,14 @@ namespace ScalableIPC.Tests.Core
     public class ProtocolDatagramTest
     {
         [Theory]
-        [MemberData(nameof(CreateConvertSessionIdBytesToHexData))]
-        public void TestConvertSessionIdBytesToHex(byte[] data, int offset, int length, string expected)
+        [MemberData(nameof(CreateConvertBytesToHexData))]
+        public void TestConvertBytesToHex(byte[] data, int offset, int length, string expected)
         {
-            string actual = ProtocolDatagram.ConvertSessionIdBytesToHex(data, offset, length);
+            string actual = ProtocolDatagram.ConvertBytesToHex(data, offset, length);
             Assert.Equal(expected, actual);
         }
 
-        public static List<object[]> CreateConvertSessionIdBytesToHexData()
+        public static List<object[]> CreateConvertBytesToHexData()
         {
             return new List<object[]>
             {
@@ -30,14 +30,14 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
-        [MemberData(nameof(CreateConvertSessionIdHexToBytesData))]
-        public void TestConvertSessionIdHexToBytes(string hex, byte[] expected)
+        [MemberData(nameof(CreateConvertHexToBytesData))]
+        public void TestConvertHexToBytes(string hex, byte[] expected)
         {
-            byte[] actual = ProtocolDatagram.ConvertSessionIdHexToBytes(hex);
+            byte[] actual = ProtocolDatagram.ConvertHexToBytes(hex);
             Assert.Equal(expected, actual);
         }
 
-        public static List<object[]> CreateConvertSessionIdHexToBytesData()
+        public static List<object[]> CreateConvertHexToBytesData()
         {
             return new List<object[]>
             {

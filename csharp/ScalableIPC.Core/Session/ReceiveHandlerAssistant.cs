@@ -27,9 +27,9 @@ namespace ScalableIPC.Core.Session
         public byte AckOpCode { get; set; }
         public Action<List<ProtocolDatagram>> SuccessCallback { get; set; }
 
-        public void OnReceive(ProtocolDatagram message)
+        public void OnReceive(ProtocolDatagram datagram)
         {
-            if (message.WindowId == _sessionHandler.LastWindowIdReceived)
+            if (datagram.WindowId == _sessionHandler.LastWindowIdReceived)
             {
                 // already received and passed to application layer.
                 // just send back benign acknowledgement.
@@ -45,38 +45,38 @@ namespace ScalableIPC.Core.Session
                     }
                 };
 
-                _sessionHandler.Log("b68d4dc2-52c0-4ffa-a395-82a49937a838", message,
-                    "Received message from last received window. Responding with ack", 
+                _sessionHandler.Log("b68d4dc2-52c0-4ffa-a395-82a49937a838", datagram,
+                    "Received datagram from last received window. Responding with ack", 
                     "ack.seqNr", _sessionHandler.LastMaxSeqReceived);
                 // ignore success and care only about failure.
                 _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, e =>
                 {
                     if (e != null)
                     {
-                        HandleAckSendFailure(message, e);
+                        HandleAckSendFailure(datagram, e);
                     }
                 });
                 return;
             }
-            else if (!ProtocolDatagram.IsReceivedWindowIdValid(message.WindowId, _sessionHandler.LastWindowIdReceived))
+            else if (!ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId, _sessionHandler.LastWindowIdReceived))
             {
-                _sessionHandler.Log("ea7a501f-5b11-4548-8707-4f1dd6c66698", message,
+                _sessionHandler.Log("ea7a501f-5b11-4548-8707-4f1dd6c66698", datagram,
                     "Rejecting unexpected window id");
-                _sessionHandler.DiscardReceivedMessage(message);
+                _sessionHandler.DiscardReceivedDatagram(datagram);
                 return;
             }
 
-            // save message.
-            if (!AddToCurrentWindow(_currentWindow, _sessionHandler.MaxReceiveWindowSize, message))
+            // save datagram into current window.
+            if (!AddToCurrentWindow(_currentWindow, _sessionHandler.MaxReceiveWindowSize, datagram))
             {
-                _sessionHandler.Log("2524f51b-7afe-402f-a214-9a82f955b6fb", message,
+                _sessionHandler.Log("2524f51b-7afe-402f-a214-9a82f955b6fb", datagram,
                     "Rejecting unexpected sequence number.");
-                _sessionHandler.DiscardReceivedMessage(message);
+                _sessionHandler.DiscardReceivedDatagram(datagram);
                 return;
             }
 
-            _sessionHandler.Log("5507485a-7f67-411a-a33a-97a943a5cd89", message,
-                "Successful received message into window.",
+            _sessionHandler.Log("5507485a-7f67-411a-a33a-97a943a5cd89", datagram,
+                "Successful received datagram into window.",
                 "count", _currentWindow.Count);
 
             // send back ack
@@ -85,20 +85,20 @@ namespace ScalableIPC.Core.Session
                 lastEffectiveSeqNr);
             if (lastEffectiveSeqNr == -1)
             {
-                _sessionHandler.Log("ee88b93c-c31d-4161-a75e-aa0522062905", message,
+                _sessionHandler.Log("ee88b93c-c31d-4161-a75e-aa0522062905", datagram,
                     "Skipping ack response due to empty sliding window");
             }
             else
             {
-                _sessionHandler.Log("83acb8c0-4252-47e2-9bb2-7af873c4dfff", message,
+                _sessionHandler.Log("83acb8c0-4252-47e2-9bb2-7af873c4dfff", datagram,
                     "Sending ack response for sliding window", 
                     "slidingWindowSize", lastEffectiveSeqNr + 1,
                     "windowFull", isWindowFull);
                 var ack = new ProtocolDatagram
                 {
-                    SessionId = message.SessionId,
+                    SessionId = datagram.SessionId,
                     OpCode = AckOpCode,
-                    WindowId = message.WindowId,
+                    WindowId = datagram.WindowId,
                     SequenceNumber = lastEffectiveSeqNr,
                     Options = new ProtocolDatagramOptions
                     {
@@ -109,63 +109,63 @@ namespace ScalableIPC.Core.Session
                 {
                     if (e == null)
                     {
-                        HandleAckSendSuccess(message);
+                        HandleAckSendSuccess(datagram);
                     }
                     else
                     {
-                        HandleAckSendFailure(message, e);
+                        HandleAckSendFailure(datagram, e);
                     }
                 });
             }
         }
 
-        private void HandleAckSendFailure(ProtocolDatagram message, Exception error)
+        private void HandleAckSendFailure(ProtocolDatagram datagram, Exception error)
         {
             _sessionHandler.PostIfNotDisposed(() =>
             {
                 // check if ack send callback is coming in too late.
-                if (_isComplete || _groupedWindowIds.Contains(message.WindowId))
+                if (_isComplete || _groupedWindowIds.Contains(datagram.WindowId))
                 {
-                    _sessionHandler.Log("54823b3a-a4e2-4f91-97c8-27e658a1b07d", message,
+                    _sessionHandler.Log("54823b3a-a4e2-4f91-97c8-27e658a1b07d", datagram,
                         "Ignoring ack send failure");
                     return;
                 }
                 else
                 {
-                    _sessionHandler.Log("f09fd1f8-b548-428e-a59a-01534fde8f0f", message,
-                        "Failed to send ack. Shutting down...");
+                    _sessionHandler.Log("f09fd1f8-b548-428e-a59a-01534fde8f0f", datagram,
+                        "Failed to send ack. Disposing...");
                     _isComplete = true;
                     _sessionHandler.InitiateDispose(new SessionDisposedException(error), null);
                 }
             });
         }
 
-        private void HandleAckSendSuccess(ProtocolDatagram message)
+        private void HandleAckSendSuccess(ProtocolDatagram datagram)
         {
             _sessionHandler.PostIfNotDisposed(() =>
             {
                 // check if ack send callback is coming in too late.
-                if (_isComplete || _groupedWindowIds.Contains(message.WindowId))
+                if (_isComplete || _groupedWindowIds.Contains(datagram.WindowId))
                 {
-                    _sessionHandler.Log("e36c8f41-1b0d-4c0c-9acd-2d7761c260c1", message,
+                    _sessionHandler.Log("e36c8f41-1b0d-4c0c-9acd-2d7761c260c1", datagram,
                         "Ignoring ack send success callback");
                     return;
                 }
 
-                _sessionHandler.Log("fefce993-238f-499f-88a0-dff73e0bc5b7", message,
+                _sessionHandler.Log("fefce993-238f-499f-88a0-dff73e0bc5b7", datagram,
                     "About to process ack send success callback");
 
                 int lastEffectiveSeqNr = GetLastPositionInSlidingWindow(_currentWindow);
                 if (!IsCurrentWindowFull(_currentWindow, _sessionHandler.MaxReceiveWindowSize,
                     lastEffectiveSeqNr))
                 {
-                    _sessionHandler.Log("aca0970d-6032-4c9e-ab18-c89586cd6d2b", message,
+                    _sessionHandler.Log("aca0970d-6032-4c9e-ab18-c89586cd6d2b", datagram,
                         "Window is not full so nothing to process");
                     // window is not yet full so keep on waiting for more data.
                     return;
                 }
 
-                _sessionHandler.Log("b3de3c42-0280-48ab-9334-a7ddac9e5100", message,
+                _sessionHandler.Log("b3de3c42-0280-48ab-9334-a7ddac9e5100", datagram,
                     "Window is full");
 
                 // Window is full.
@@ -174,17 +174,17 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.LastWindowIdReceived = _currentWindow[0].WindowId;
                 _sessionHandler.LastMaxSeqReceived = lastEffectiveSeqNr;
 
-                // Update window group and only pass up if last message in window has been seen.
+                // Update window group and only pass up if last datagram in window group has been seen.
                 _currentWindowGroup.AddRange(_currentWindow.GetRange(0, lastEffectiveSeqNr + 1));
                 _currentWindow.Clear();
                 _groupedWindowIds.Add(_sessionHandler.LastWindowIdReceived);
 
                 // Check if window group is becoming too large, and fail if is too much than 
-                // can fit a single UDP payload.
+                // can fit in max datagram size.
                 int cumulativeLength = _currentWindowGroup.Sum(t => t.ExpectedDatagramLength);
                 if (cumulativeLength > ProtocolDatagram.MaxDatagramSize)
                 {
-                    _sessionHandler.Log("bff758a4-f80a-48c1-ac28-8ce7ea36589e", message,
+                    _sessionHandler.Log("bff758a4-f80a-48c1-ac28-8ce7ea36589e", datagram,
                        "Window group overflow!");
                     _isComplete = true;
                     _sessionHandler.InitiateDispose(new SessionDisposedException(false, 
@@ -195,20 +195,20 @@ namespace ScalableIPC.Core.Session
                 if (_currentWindowGroup[_currentWindowGroup.Count - 1].Options?.IsLastInWindowGroup == true)
                 {
                     _isComplete = true;
-                    _sessionHandler.Log("89d4c052-a99a-4e49-9116-9c80553ec594", message,
+                    _sessionHandler.Log("89d4c052-a99a-4e49-9116-9c80553ec594", datagram,
                        "Window group is full");
                     SuccessCallback.Invoke(_currentWindowGroup);
                 }
                 else
                 {
-                    _sessionHandler.Log("3bdb8e9c-7795-480a-97ea-29b4923a8260", message,
+                    _sessionHandler.Log("3bdb8e9c-7795-480a-97ea-29b4923a8260", datagram,
                        "Window group is not yet full. Waiting for another window");
                 }
             });
         }
 
         internal static bool AddToCurrentWindow(List<ProtocolDatagram> currentWindow, int maxReceiveWindowSize,
-            ProtocolDatagram message)
+            ProtocolDatagram datagram)
         {
             // ensure minimum value of 1 for max receive window size.
             if (maxReceiveWindowSize < 1)
@@ -216,8 +216,8 @@ namespace ScalableIPC.Core.Session
                 maxReceiveWindowSize = 1;
             }
 
-            // ensure enough capacity of current window for new message.
-            if (message.SequenceNumber >= maxReceiveWindowSize)
+            // ensure enough capacity of current window for new datagram.
+            if (datagram.SequenceNumber >= maxReceiveWindowSize)
             {
                 return false;
             }
@@ -226,24 +226,24 @@ namespace ScalableIPC.Core.Session
             long? currentWindowId = currentWindow.Find(x => x != null)?.WindowId;
             if (currentWindowId != null)
             {
-                if (message.WindowId > currentWindowId)
+                if (datagram.WindowId > currentWindowId)
                 {
                     currentWindow.Clear();
                 }
-                else if (message.WindowId < currentWindowId)
+                else if (datagram.WindowId < currentWindowId)
                 {
                     // only accept greater window ids
                     return false;
                 }
             }
-            while (currentWindow.Count <= message.SequenceNumber)
+            while (currentWindow.Count <= datagram.SequenceNumber)
             {
                 currentWindow.Add(null);
             }
 
-            // before inserting new message, clear any existing message with set last_in_window option
+            // before inserting new datagram, clear any existing datagram with set last_in_window option
             // and its effects.
-            if (message.Options?.IsLastInWindow == true)
+            if (datagram.Options?.IsLastInWindow == true)
             {
                 for (int i = 0; i < currentWindow.Count; i++)
                 {
@@ -253,7 +253,7 @@ namespace ScalableIPC.Core.Session
                         {
                             currentWindow[i] = null;
                         }
-                        else if (i > message.SequenceNumber)
+                        else if (i > datagram.SequenceNumber)
                         {
                             currentWindow[i] = null;
                         }
@@ -261,7 +261,7 @@ namespace ScalableIPC.Core.Session
                 }
             }
 
-            currentWindow[message.SequenceNumber] = message;
+            currentWindow[datagram.SequenceNumber] = datagram;
             return true;
         }
 

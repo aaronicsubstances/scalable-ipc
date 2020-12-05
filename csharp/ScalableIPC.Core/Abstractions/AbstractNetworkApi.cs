@@ -28,7 +28,7 @@ namespace ScalableIPC.Core.Abstractions
         int MaxSendWindowSize { get; set; } // non-positive means use 1.
         int MaxReceiveWindowSize { get; set; } // non-positive means use 1.
         int MaxRetryCount { get; set; } // non-positive means disable retries.
-        int MaximumTransferUnitSize { get; set; } // bounded between 512 and UDP max payload size.
+        int MaximumTransferUnitSize { get; set; } // bounded between 512 and datagram max size.
         ISessionHandlerFactory SessionHandlerFactory { get; set; }
         AbstractPromise<VoidType> StartAsync();
         AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,

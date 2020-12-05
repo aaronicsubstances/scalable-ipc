@@ -6,6 +6,6 @@ namespace ScalableIPC.Core.Session
 {
     public class MessageReceivedEventArgs: EventArgs
     {
-        public ProtocolDatagram Message { get; set; }
+        public ProtocolMessage Message { get; set; }
     }
 }

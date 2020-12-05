@@ -4,7 +4,7 @@ using System.Text;
 
 namespace ScalableIPC.Tests.Core
 {
-    public class DatagramChopperTest
+    public class ProtocolDatagramFragmenterTest
     {
     }
 }

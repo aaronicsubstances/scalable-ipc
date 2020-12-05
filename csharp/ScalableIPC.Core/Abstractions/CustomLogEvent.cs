@@ -7,8 +7,6 @@ namespace ScalableIPC.Core.Abstractions
 {
     public class CustomLogEvent
     {
-        public const string PduOptionTraceId = ProtocolDatagramOptions.NonStandardSessionLayerOptionPrefix + "traceId";
-
         public CustomLogEvent(string logPosition, string message, Exception ex)
         {
             LogPosition = logPosition;
@@ -52,9 +50,9 @@ namespace ScalableIPC.Core.Abstractions
             }
         }
 
-        internal void FillData(ProtocolDatagram pdu)
+        internal void FillData(ProtocolDatagram datagram)
         {
-            if (pdu == null)
+            if (datagram == null)
             {
                 return;
             }
@@ -62,18 +60,13 @@ namespace ScalableIPC.Core.Abstractions
             {
                 Data = new Dictionary<string, object>();
             }
-            Data.Add("pdu.windowId", pdu.WindowId);
-            Data.Add("pdu.seqNr", pdu.SequenceNumber);
-            Data.Add("pdu.opCode", pdu.OpCode);
-            Data.Add("pdu.idleTimeout", pdu.Options?.IdleTimeoutSecs);
-            Data.Add("pdu.lastInWindow", pdu.Options?.IsLastInWindow);
-            Data.Add("pdu.windowFull", pdu.Options?.IsWindowFull);
-            string traceId = null;
-            if (pdu.Options?.AllOptions.ContainsKey(PduOptionTraceId) == true)
-            {
-                traceId = pdu.Options.AllOptions[PduOptionTraceId].FirstOrDefault();
-            }
-            Data.Add("pdu.traceId", traceId);
+            Data.Add("datagram.windowId", datagram.WindowId);
+            Data.Add("datagram.seqNr", datagram.SequenceNumber);
+            Data.Add("datagram.opCode", datagram.OpCode);
+            Data.Add("datagram.idleTimeout", datagram.Options?.IdleTimeoutSecs);
+            Data.Add("datagram.lastInWindow", datagram.Options?.IsLastInWindow);
+            Data.Add("datagram.windowFull", datagram.Options?.IsWindowFull);
+            Data.Add("datagram.traceId", datagram.Options?.TraceId);
         }
     }
 }

@@ -9,7 +9,7 @@ namespace ScalableIPC.Core.Session
     {
         private readonly ISessionHandler _sessionHandler;
 
-        private int _sentPduCount;
+        private int _sentDatagramCount;
 
         public SendHandlerAssistant(ISessionHandler sessionHandler)
         {
@@ -41,33 +41,33 @@ namespace ScalableIPC.Core.Session
 
         public void Start()
         {
-            _sentPduCount = PreviousSendCount;
+            _sentDatagramCount = PreviousSendCount;
 
             _sessionHandler.Log("dcbcfdb9-d486-41ca-834e-ca35db609921", "Starting another round of sending", 
-                "sentPduCount", _sentPduCount, "windowId", _sessionHandler.NextWindowIdToSend);
+                "sentCount", _sentDatagramCount, "windowId", _sessionHandler.NextWindowIdToSend);
             ContinueSending();
         }
 
         private void ContinueSending()
         {
-            var nextMessage = CurrentWindow[_sentPduCount];
-            nextMessage.WindowId = _sessionHandler.NextWindowIdToSend;
-            nextMessage.SequenceNumber = _sentPduCount - PreviousSendCount;
+            var nextDatagram = CurrentWindow[_sentDatagramCount];
+            nextDatagram.WindowId = _sessionHandler.NextWindowIdToSend;
+            nextDatagram.SequenceNumber = _sentDatagramCount - PreviousSendCount;
 
-            _sessionHandler.Log("e289253e-bc8b-4d84-b337-8e3627b2759c", nextMessage, "Sending next message", 
-                "sentPduCount", _sentPduCount);
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextMessage, e =>
+            _sessionHandler.Log("e289253e-bc8b-4d84-b337-8e3627b2759c", nextDatagram, "Sending next datagram", 
+                "sentCount", _sentDatagramCount);
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, e =>
             {
                 if (e == null)
                 {
-                    HandleSendSuccess(nextMessage);
+                    HandleSendSuccess(nextDatagram);
                 }
                 else
                 {
-                    HandleSendError(nextMessage, e);
+                    HandleSendError(nextDatagram, e);
                 }
             });
-            _sentPduCount++;
+            _sentDatagramCount++;
         }
 
         public void OnAckReceived(ProtocolDatagram ack)
@@ -77,15 +77,15 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.Log("945a983c-7f71-4739-993f-7091ab158eb9", ack,
                     "Received ack with unexpected window id",
                     "windowId", _sessionHandler.NextWindowIdToSend);
-                _sessionHandler.DiscardReceivedMessage(ack);
+                _sessionHandler.DiscardReceivedDatagram(ack);
                 return;
             }
 
-            // Receipt of an ack is interpreted as reception of message with ack's sequence number,
-            // and all preceding messages in window as well.
+            // Receipt of an ack is interpreted as reception of datagram with ack's sequence number,
+            // and all preceding datagrams in window as well.
             var receiveCount = ack.SequenceNumber + 1;
 
-            var minExpectedReceiveCount = StopAndWait ? (_sentPduCount - PreviousSendCount) : 1;
+            var minExpectedReceiveCount = StopAndWait ? (_sentDatagramCount - PreviousSendCount) : 1;
             var maxExpectedReceiveCount = CurrentWindow.Count - PreviousSendCount;
 
             _sessionHandler.Log("5fa0a2e6-b650-41b0-9d11-b8dba8ebcc70", ack,
@@ -97,14 +97,14 @@ namespace ScalableIPC.Core.Session
                 // reject.
                 _sessionHandler.Log("e813e703-cd79-4872-a536-4af3ac20f158", ack,
                     "Received ack with unexpected sequence number");
-                _sessionHandler.DiscardReceivedMessage(ack);
+                _sessionHandler.DiscardReceivedDatagram(ack);
                 return;
             }
 
             if (receiveCount == maxExpectedReceiveCount)
             {
                 _sessionHandler.Log("420af144-e772-444d-ab2d-57da89ad38b6",
-                    "All messages in window have been successfully sent and confirmed");
+                    "All datagrams in window have been successfully sent and confirmed");
 
                 // cancel ack timeout.
                 _sessionHandler.CancelAckTimeout();
@@ -135,7 +135,7 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.CancelAckTimeout();
 
                 // continue stop and wait.
-                _sentPduCount = PreviousSendCount + receiveCount;
+                _sentDatagramCount = PreviousSendCount + receiveCount;
                 ContinueSending();
             }
             else
@@ -146,22 +146,22 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        private void HandleSendSuccess(ProtocolDatagram message)
+        private void HandleSendSuccess(ProtocolDatagram datagram)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {
                 // check if not needed or arriving too late.
-                if (IsComplete || _sessionHandler.NextWindowIdToSend != message.WindowId)
+                if (IsComplete || _sessionHandler.NextWindowIdToSend != datagram.WindowId)
                 {
-                    _sessionHandler.Log("664de60b-154f-4902-85cf-5eeaee13ea59", message, 
+                    _sessionHandler.Log("664de60b-154f-4902-85cf-5eeaee13ea59", datagram, 
                         "send success callback received too late");
                     return;
                 }
 
-                _sessionHandler.Log("bbf832bb-63b7-4366-8b9d-2b4faab4e5fc", message,
+                _sessionHandler.Log("bbf832bb-63b7-4366-8b9d-2b4faab4e5fc", datagram,
                     "send success callback received in time");
 
-                if (StopAndWait || _sentPduCount >= CurrentWindow.Count)
+                if (StopAndWait || _sentDatagramCount >= CurrentWindow.Count)
                 {
                     _sessionHandler.ResetAckTimeout(AckTimeoutSecs, ProcessAckTimeout);
                 }
@@ -172,19 +172,19 @@ namespace ScalableIPC.Core.Session
             });
         }
 
-        private void HandleSendError(ProtocolDatagram message, Exception error)
+        private void HandleSendError(ProtocolDatagram datagram, Exception error)
         {
             _sessionHandler.EventLoop.PostCallback(() =>
             {
                 if (IsComplete)
                 {
-                    _sessionHandler.Log("867cfd5e-fec9-45c5-a8f8-1475ee7f9a63", message,
+                    _sessionHandler.Log("867cfd5e-fec9-45c5-a8f8-1475ee7f9a63", datagram,
                         "Ignoring send failure", "error", error);
                 }
                 else
                 {
-                    _sessionHandler.Log("c57b8654-7c31-499d-b89b-52d1d5d7dd8d", message,
-                        "Sending failed. Shutting down...", "error", error);
+                    _sessionHandler.Log("c57b8654-7c31-499d-b89b-52d1d5d7dd8d", datagram,
+                        "Sending failed. Disposing...", "error", error);
                     Cancel();
                     _sessionHandler.InitiateDispose(new SessionDisposedException(error), null);
                 }
