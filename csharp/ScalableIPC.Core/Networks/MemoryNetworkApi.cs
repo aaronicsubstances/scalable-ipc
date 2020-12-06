@@ -12,6 +12,7 @@ namespace ScalableIPC.Core.Networks
     public class MemoryNetworkApi : AbstractNetworkApi
     {
         private readonly SessionHandlerStore _sessionHandlerStore;
+        private readonly Random _randomGenerator = new Random();
         private volatile bool _isShuttingDown = false;
 
         public MemoryNetworkApi()
@@ -107,8 +108,20 @@ namespace ScalableIPC.Core.Networks
                 {
                     // Simulate transmission delay here.
                     var connectedNetwork = ConnectedNetworks[remoteEndpoint];
-                    int transmissionDelayMs = new Random().Next(connectedNetwork.MinTransmissionDelayMs,
-                        connectedNetwork.MaxTransmissionDelayMs);
+                    int transmissionDelayMs;
+                    if (connectedNetwork.MinTransmissionDelayMs > connectedNetwork.MaxTransmissionDelayMs)
+                    {
+                        transmissionDelayMs = -1;
+                    }
+                    else if (connectedNetwork.MinTransmissionDelayMs == connectedNetwork.MaxTransmissionDelayMs)
+                    {
+                        transmissionDelayMs = connectedNetwork.MinTransmissionDelayMs;
+                    }
+                    else
+                    {
+                        transmissionDelayMs = connectedNetwork._randomGenerator.Next(connectedNetwork.MinTransmissionDelayMs,
+                            connectedNetwork.MaxTransmissionDelayMs + 1);
+                    }
                     if (transmissionDelayMs > 0)
                     {
                         await Task.Delay(transmissionDelayMs);
