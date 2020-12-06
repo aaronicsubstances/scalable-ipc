@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace ScalableIPC.Core
 {
@@ -49,6 +50,9 @@ namespace ScalableIPC.Core
         public const int MaxOptionByteCount = 60_000;
 
         private static readonly string Latin1Encoding = "ISO-8859-1";
+
+        // used to generate long session ids.
+        private static int _sessionIdCounter;
 
         public int ExpectedDatagramLength { get; set; }
         public string SessionId { get; set; }
@@ -217,7 +221,27 @@ namespace ScalableIPC.Core
 
         public static string GenerateSessionId()
         {
-            return DateTime.UtcNow.ToString("yyyMMddHHmmssfff") + Guid.NewGuid().ToString("n");
+            return GenerateSessionId(true);
+        }
+
+        public static string GenerateSessionId(bool longVersion)
+        {
+            var suffix = Guid.NewGuid().ToString("n");
+            if (!longVersion)
+            {
+                return suffix;
+            }
+
+            var prefixNum = Interlocked.Increment(ref _sessionIdCounter);
+            if (prefixNum < 0)
+            {
+                // map -2^31 to -1, to 0 to 2^31-1
+                prefixNum += int.MaxValue;
+                prefixNum++;
+            }
+            var prefix = ConvertBytesToHex(WriteInt32BigEndian(prefixNum), 0, 4).PadRight(16, '0');
+            var date = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff").Substring(1);
+            return prefix + date + suffix;
         }
 
         public byte[] ToRawDatagram()
@@ -347,6 +371,7 @@ namespace ScalableIPC.Core
         internal static string ConvertBytesToHex(byte[] data, int offset, int len)
         {
             // send out lower case for similarity with other platforms (Java, Python, NodeJS, etc)
+            // ensure even length.
             return BitConverter.ToString(data, offset, len).Replace("-", "").ToLower();
         }
 
@@ -504,7 +529,7 @@ namespace ScalableIPC.Core
                 windowAsMessage.OpCode = msg.OpCode;
                 windowAsMessage.SessionId = msg.SessionId;
                 windowAsMessage.WindowId = msg.WindowId;
-                windowAsMessage.SequenceNumber = 0;
+                windowAsMessage.SequenceNumber = msg.SequenceNumber;
                 if (msg.Options != null)
                 {
                     foreach (var pair in msg.Options.GenerateList())

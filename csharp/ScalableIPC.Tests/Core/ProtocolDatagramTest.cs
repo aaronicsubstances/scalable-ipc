@@ -24,6 +24,8 @@ namespace ScalableIPC.Tests.Core
                 new object[]{ new byte[] { 0xFF }, 0, 1, "ff" },
                 new object[]{ new byte[] { 0, 0x68, 0x65, 0x6c }, 0, 4,
                     "0068656c" },
+                new object[]{ new byte[] { 0x01, 0x68, 0x65, 0x6c }, 0, 4,
+                    "0168656c" },
                 new object[]{ new byte[] { 0, 0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0 }, 1, 11, 
                     "68656c6c6f20776f726c64" },
             };
@@ -143,6 +145,27 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
+        [MemberData(nameof(CreateTestWriteUnsignedInt16BigEndianData))]
+        public void TestWriteUnsignedInt16BigEndian(int v, byte[] expected)
+        {
+            byte[] actual = ProtocolDatagram.WriteUnsignedInt16BigEndian(v);
+            Assert.Equal(expected, actual);
+        }
+
+        public static List<object[]> CreateTestWriteUnsignedInt16BigEndianData()
+        {
+            return new List<object[]>
+            {
+                new object[]{ 0, new byte[] { 0, 0 } },
+                new object[]{ 1_000, new byte[] { 3, 232 } },
+                new object[]{ 10_000, new byte[] { 39, 16 } },
+                new object[]{ 30_000, new byte[] { 117, 48 } },
+                new object[]{ 35536, new byte[] { 138, 208 } },
+                new object[]{ 65535, new byte[] { 0xff, 0xff } },
+            };
+        }
+
+        [Theory]
         [MemberData(nameof(CreateTestWriteInt32BigEndianData))]
         public void TestWriteInt32BigEndian(int v, byte[] expected)
         {
@@ -219,6 +242,27 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
+        [MemberData(nameof(CreateTestReadUnsignedInt16BigEndianData))]
+        public void TestReadUnsignedInt16BigEndian(byte[] data, int offset, int expected)
+        {
+            int actual = ProtocolDatagram.ReadUnsignedInt16BigEndian(data, offset);
+            Assert.Equal(expected, actual);
+        }
+
+        public static List<object[]> CreateTestReadUnsignedInt16BigEndianData()
+        {
+            return new List<object[]>
+            {
+                new object[]{ new byte[] { 0, 0 }, 0, 0 },
+                new object[]{ new byte[] { 3, 232 }, 0, 1000 },
+                new object[]{ new byte[] { 39, 16, 1 }, 0, 10_000 },
+                new object[]{ new byte[] { 0, 117, 48, 1 }, 1, 30_000 },
+                new object[]{ new byte[] { 0, 138, 208 }, 1, 35_536 },
+                new object[]{ new byte[] { 0xff, 0xff }, 0, 65535 }
+            };
+        }
+
+        [Theory]
         [MemberData(nameof(CreateTestReadInt32BigEndianData))]
         public void TestReadInt32BigEndian(byte[] data, int offset, int expected)
         {
@@ -272,6 +316,21 @@ namespace ScalableIPC.Tests.Core
                 new object[]{ new byte[] { 0, 127, 172, 247, 65, 157, 151, 255, 255 }, 1, 9_199_999_999_999_999_999L },
                 new object[]{ new byte[] { 0, 128, 83, 8, 190, 98, 104, 0, 1, 0 }, 1, -9_199_999_999_999_999_999L },
             };
+        }
+
+        [Fact]
+        public void TestGenerateSessionId()
+        {
+            // check that conversion to hex succeeds, and that number of bytes produced = 16 or 32.
+            var randSid = ProtocolDatagram.GenerateSessionId(false);
+            var randSidBytes = ProtocolDatagram.ConvertHexToBytes(randSid);
+            Assert.Equal(16, randSidBytes.Length);
+            randSid = ProtocolDatagram.GenerateSessionId(true);
+            randSidBytes = ProtocolDatagram.ConvertHexToBytes(randSid);
+            Assert.Equal(32, randSidBytes.Length);
+            randSid = ProtocolDatagram.GenerateSessionId();
+            randSidBytes = ProtocolDatagram.ConvertHexToBytes(randSid);
+            Assert.Equal(32, randSidBytes.Length);
         }
     }
 }
