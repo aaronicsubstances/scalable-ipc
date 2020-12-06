@@ -1,17 +1,22 @@
 ﻿using ScalableIPC.Core;
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 
-namespace ScalableIPC.Tests.Core
+namespace ScalableIPC.Tests.Helpers
 {
-    class ShallowProtocolDatagramComparer : IEqualityComparer<ProtocolDatagram>
+    public class ProtocolDatagramComparer : IEqualityComparer<ProtocolDatagram>
     {
+        public static readonly ProtocolDatagramComparer Default = new ProtocolDatagramComparer();
+
         public bool Equals(ProtocolDatagram x, ProtocolDatagram y)
         {
-            if (x == null && y == null)
+            if (x == y)
             {
                 return true;
             }
-            if (!(x != null && y != null))
+            if (x == null || y == null)
             {
                 return false;
             }
@@ -35,19 +40,7 @@ namespace ScalableIPC.Tests.Core
             {
                 return false;
             }
-            if (x.Options?.IdleTimeoutSecs != y.Options?.IdleTimeoutSecs)
-            {
-                return false;
-            }
-            if (x.Options?.IsLastInWindow != y.Options?.IsLastInWindow)
-            {
-                return false;
-            }
-            if (x.Options?.IsWindowFull != y.Options?.IsWindowFull)
-            {
-                return false;
-            }
-            if (x.Options?.AbortCode != y.Options?.AbortCode)
+            if (!ProtocolDatagramOptionsComparer.Default.Equals(x.Options, y.Options))
             {
                 return false;
             }
@@ -59,16 +52,16 @@ namespace ScalableIPC.Tests.Core
             {
                 return false;
             }
-            // From here onwards intention is to check that two options or dataBytes
-            // are equal, if both equal to null 
-            // options and dataBytes are expected to be null for this comparer.
-            if (x.Options?.AllOptions != y.Options?.AllOptions)
-            {
-                return false;
-            }
             if (x.DataBytes != y.DataBytes)
             {
-                return false;
+                if (x.DataBytes == null || y.DataBytes == null)
+                {
+                    return false;
+                }
+                if (!x.DataBytes.SequenceEqual(y.DataBytes))
+                {
+                    return false;
+                }
             }
             return true;
         }

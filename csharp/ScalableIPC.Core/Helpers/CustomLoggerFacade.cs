@@ -6,7 +6,7 @@ using System.Text;
 
 [assembly: InternalsVisibleTo("ScalableIPC.Tests")]
 
-namespace ScalableIPC.Core
+namespace ScalableIPC.Core.Helpers
 {
     public static class CustomLoggerFacade
     {

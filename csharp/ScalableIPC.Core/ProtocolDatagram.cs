@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ScalableIPC.Core.Helpers;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -59,6 +60,31 @@ namespace ScalableIPC.Core
         public byte[] DataBytes { get; set; }
         public int DataOffset { get; set; }
         public int DataLength { get; set; }
+
+        public override string ToString()
+        {
+            var sb = new StringBuilder();
+            sb.Append(nameof(ProtocolDatagram)).Append("{");
+            sb.Append(nameof(ExpectedDatagramLength)).Append("=").Append(ExpectedDatagramLength);
+            sb.Append(", ");
+            sb.Append(nameof(SessionId)).Append("=").Append(SessionId);
+            sb.Append(", ");
+            sb.Append(nameof(OpCode)).Append("=").Append(OpCode);
+            sb.Append(", ");
+            sb.Append(nameof(WindowId)).Append("=").Append(WindowId);
+            sb.Append(", ");
+            sb.Append(nameof(SequenceNumber)).Append("=").Append(SequenceNumber);
+            sb.Append(", ");
+            sb.Append(nameof(Options)).Append("=").Append(Options);
+            sb.Append(", ");
+            sb.Append(nameof(DataOffset)).Append("=").Append(DataOffset);
+            sb.Append(", ");
+            sb.Append(nameof(DataLength)).Append("=").Append(DataLength);
+            sb.Append(", ");
+            sb.Append(nameof(DataBytes)).Append("=").Append(StringUtilities.StringifyByteArray(DataBytes, DataOffset, DataLength));
+            sb.Append("}");
+            return sb.ToString();
+        }
 
         public static ProtocolDatagram Parse(byte[] rawBytes, int offset, int length)
         {
@@ -461,6 +487,12 @@ namespace ScalableIPC.Core
 
         public static ProtocolDatagram CreateMessageOutOfWindow(List<ProtocolDatagram> messages)
         {
+            // NB: As an optimization, if window contains 1 message, just return it.
+            // MemoryNetworkApi may depend on this optimization.
+            if (messages.Count == 1)
+            {
+                return messages[0];
+            }
             var windowAsMessage = new ProtocolDatagram
             {
                 Options = new ProtocolDatagramOptions()
@@ -480,7 +512,7 @@ namespace ScalableIPC.Core
                         windowAsMessage.Options.AddOption(pair[0], pair[1]);
                     }
 
-                    msg.Options.TransferKnownOptions(windowAsMessage.Options);
+                    msg.Options.TransferParsedKnownOptionsTo(windowAsMessage.Options);
                 }
                 memoryStream.Write(msg.DataBytes, msg.DataOffset, msg.DataLength);
             }

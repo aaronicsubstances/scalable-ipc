@@ -1,4 +1,4 @@
-﻿namespace ScalableIPC.Tests
+﻿namespace ScalableIPC.Tests.Helpers
 {
     public class TestConfiguration
     {

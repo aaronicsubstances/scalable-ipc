@@ -1,5 +1,6 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Concurrency;
+using ScalableIPC.Core.Helpers;
 using ScalableIPC.Core.Session;
 using System;
 using System.Collections.Generic;

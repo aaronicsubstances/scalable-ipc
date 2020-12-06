@@ -1,5 +1,6 @@
 ﻿using ScalableIPC.Core;
 using ScalableIPC.Core.Session;
+using ScalableIPC.Tests.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -105,7 +106,7 @@ namespace ScalableIPC.Tests.Core.Session
                 Assert.True(mutableWindow.Count <= maxReceiveWindowSize,
                     $"Expected {mutableWindow.Count} <= {maxReceiveWindowSize}");
             }
-            Assert.Equal(expectedWindow, mutableWindow, new ShallowProtocolDatagramComparer());
+            Assert.Equal(expectedWindow, mutableWindow, new ProtocolDatagramComparer());
         }
 
         public static List<object[]> CreateTestAddToCurrentWindowData()
