@@ -314,7 +314,7 @@ namespace ScalableIPC.Core.Session
                 var customEvent = new CustomLogEvent(logPosition, message, null);
                 customEvent.FillData("localEndpoint", NetworkApi.LocalEndpoint.ToString());
                 customEvent.FillData("sessionId", SessionId);
-                customEvent.FillData(datagram);
+                customEvent.FillData("datagram", datagram);
                 customEvent.FillData(args);
                 return customEvent;
             });

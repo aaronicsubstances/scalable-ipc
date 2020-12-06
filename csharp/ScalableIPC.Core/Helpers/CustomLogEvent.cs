@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace ScalableIPC.Core.Abstractions
+namespace ScalableIPC.Core.Helpers
 {
     public class CustomLogEvent
     {
@@ -48,25 +48,6 @@ namespace ScalableIPC.Core.Abstractions
                     Data[key] = value;
                 }
             }
-        }
-
-        internal void FillData(ProtocolDatagram datagram)
-        {
-            if (datagram == null)
-            {
-                return;
-            }
-            if (Data == null)
-            {
-                Data = new Dictionary<string, object>();
-            }
-            Data.Add("datagram.windowId", datagram.WindowId);
-            Data.Add("datagram.seqNr", datagram.SequenceNumber);
-            Data.Add("datagram.opCode", datagram.OpCode);
-            Data.Add("datagram.idleTimeout", datagram.Options?.IdleTimeoutSecs);
-            Data.Add("datagram.lastInWindow", datagram.Options?.IsLastInWindow);
-            Data.Add("datagram.windowFull", datagram.Options?.IsWindowFull);
-            Data.Add("datagram.traceId", datagram.Options?.TraceId);
         }
     }
 }

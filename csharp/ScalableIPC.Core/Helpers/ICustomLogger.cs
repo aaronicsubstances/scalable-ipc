@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace ScalableIPC.Core.Abstractions
+namespace ScalableIPC.Core.Helpers
 {
     public interface ICustomLogger
     {
