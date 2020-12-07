@@ -92,6 +92,24 @@ namespace ScalableIPC.Core
 
         public static ProtocolDatagram Parse(byte[] rawBytes, int offset, int length)
         {
+            // validate arguments.
+            if (rawBytes == null)
+            {
+                throw new ArgumentNullException(nameof(rawBytes));
+            }
+            if (offset < 0)
+            {
+                throw new ArgumentException("offset cannot be negative", nameof(offset));
+            }
+            if (length < 0)
+            {
+                throw new ArgumentException("length cannot be negative", nameof(offset));
+            }
+            if (offset + length > rawBytes.Length)
+            {
+                throw new ArgumentException("combination of offset and length exceeeds byte array size");
+            }
+
             int effectiveMinDatagramSize = MinDatagramSize;
             if (length < effectiveMinDatagramSize)
             {
@@ -215,6 +233,9 @@ namespace ScalableIPC.Core
             // validate known options.
             parsedDatagram.Options?.ParseKnownOptions();
 
+            // increment offset for null terminator of all options.
+            offset++;
+
             parsedDatagram.DataBytes = rawBytes;
             parsedDatagram.DataOffset = offset;
             parsedDatagram.DataLength = endOffset - offset;
@@ -268,10 +289,6 @@ namespace ScalableIPC.Core
             }
             if (DataBytes != null)
             {
-                if (DataOffset > DataBytes.Length)
-                {
-                    throw new Exception("data offset exceeds data bytes size");
-                }
                 if (DataOffset + DataLength > DataBytes.Length)
                 {
                     throw new Exception("data offset and length combination exceeds data bytes size");

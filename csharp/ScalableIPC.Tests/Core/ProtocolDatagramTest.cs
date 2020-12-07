@@ -1,4 +1,5 @@
 ﻿using ScalableIPC.Core;
+using ScalableIPC.Tests.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -644,6 +645,209 @@ namespace ScalableIPC.Tests.Core
                 DataBytes = new byte[3]
             };
             testData.Add(new object[] { instance });
+
+            return testData;
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateTestParseData))]
+        public void TestParse(byte[] data, int offset, int length, ProtocolDatagram expected)
+        {
+            var actual = ProtocolDatagram.Parse(data, offset, length);
+            Assert.Equal(expected, actual, ProtocolDatagramComparer.Default);
+        }
+
+        public static List<object[]> CreateTestParseData()
+        {
+            var testData = new List<object[]>();
+
+            var input = new byte[]
+            {
+                0x00, 0x1e,  // expected length
+                0x00, // indicates short session id
+                0x00, 0x00, 0x00, 0x00, // session id 
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x00, 0x00, 0x00, 0x00, // sequence number
+                0x00, // op code.
+                0x00, // null terminator for all options.
+            };
+            var sessionId = "".PadLeft(32, '0');
+            var expected = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 30,
+                SessionId = sessionId,
+                DataBytes = input,
+                DataOffset = 30
+            };
+            testData.Add(new object[] { input, 0, input.Length, expected });
+
+            input = new byte[]
+            {
+                0x00, 0x32,  // expected length
+                0xff, // indicates long session id
+                0x00, 0x00, 0x00, 0x00, // session id 
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0xff, // indicates long window id.
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x80, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, // sequence number
+                0x00, // op code.
+                0x00, // null terminator for all options.
+            };
+            sessionId = "".PadLeft(64, '0');
+            expected = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 50,
+                SessionId = sessionId,
+                WindowId = int.MaxValue + 1L,
+                DataBytes = input,
+                DataOffset = 50
+            };
+            testData.Add(new object[] { input, 0, input.Length, expected });
+
+            input = new byte[]
+            {
+                0x00, 0x45,  // expected length
+                0xff, // indicates long session id
+                0x11, 0x11, 0x11, 0x11, // session id 
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0xff, // indicates long window id.
+                0x2d, 0xa9, 0xa5, 0x45, // window id
+                0x56, 0xed, 0xac, 0xaa,
+                0x70, 0xf9, 0xe7, 0xb7, // sequence number
+                0x10, // op code.
+                (byte)'s', (byte)'_', (byte)'i', (byte)'d',
+                (byte)'l', (byte)'e', (byte)'_', (byte)'t',
+                (byte)'i', (byte)'m', (byte)'e', (byte)'o',
+                (byte)'u', (byte)'t', 0x00,
+                0x00, 0x02,
+                (byte)'2', (byte)'0',
+                0x00, // null terminator for all options.
+            };
+            sessionId = "".PadLeft(64, '1');
+            expected = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 69,
+                SessionId = sessionId,
+                WindowId = 3_290_342_720_000_601_258,
+                OpCode = ProtocolDatagram.OpCodeAck,
+                SequenceNumber = 1_895_425_975,
+                Options = new ProtocolDatagramOptions
+                {
+                    IdleTimeoutSecs = 20
+                },
+                DataBytes = input,
+                DataOffset = 69
+            };
+            expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout,
+                new List<string> { "20" });
+            testData.Add(new object[] { input, 0, input.Length, expected });
+
+            input = new byte[]
+            {
+                0xda, // not part
+                0x00, 0x3b,  // expected length
+                0x00, // indicates short session id
+                0x22, 0x22, 0x22, 0x22, // session id 
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x00, // indicates short window id.
+                0x2a, 0xea, 0x56, 0x59, // window id
+                0x00, 0x00, 0x03, 0xe8, // sequence number
+                0x7e, // op code.
+                (byte)'s', (byte)'_', (byte)'0', (byte)'1',
+                0x00,
+                0x00, 0x04,
+                (byte)'T', (byte)'r', (byte)'u', (byte)'e',
+                (byte)'s', (byte)'_', (byte)'a', (byte)'b', // another option
+                (byte)'o', (byte)'r', (byte)'t', (byte)'_',
+                (byte)'c', (byte)'o', (byte)'d', (byte)'e',
+                0x00,
+                0x00, 0x01,
+                (byte)'5',
+                0x00, // null terminator for all options.
+                (byte)'e', (byte) 'y' // data
+            };
+            sessionId = "".PadLeft(32, '2');
+            expected = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 59,
+                SessionId = sessionId,
+                WindowId = 720_000_601,
+                OpCode = ProtocolDatagram.OpCodeClose,
+                SequenceNumber = 1_000,
+                Options = new ProtocolDatagramOptions
+                {
+                    AbortCode = 5,
+                    IsLastInWindow = true,
+                },
+                DataBytes = input,
+                DataOffset = 58,
+                DataLength = 2
+            };
+            expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow,
+                new List<string> { "True" });
+            expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode,
+                new List<string> { "5" });
+            testData.Add(new object[] { input, 1, input.Length - 1, expected });
+
+            input = new byte[]
+            {
+                0x00, 0x2d,  // expected length
+                0x00, // indicates short session id
+                0x33, 0x33, 0x33, 0x33, // session id 
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x01, // window id
+                0x00, 0x00, 0x00, 0x01, // sequence number
+                0x00, // op code.
+                (byte)'s', (byte)'_', (byte)'0', (byte)'2',
+                0x00,
+                0x00, 0x05,
+                (byte)'f', (byte)'a', (byte)'l', (byte)'s',
+                (byte)'e',
+                0x00, // null terminator for all options.
+                (byte)'h', (byte)'e', (byte) 'y', // data
+                0xcf, // not part
+            };
+            sessionId = "".PadLeft(32, '3');
+            expected = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 45,
+                SessionId = sessionId,
+                WindowId = 1,
+                OpCode = ProtocolDatagram.OpCodeData,
+                SequenceNumber = 1,
+                Options = new ProtocolDatagramOptions
+                {
+                    IsLastInWindowGroup = false,
+                },
+                DataBytes = input,
+                DataOffset = 42,
+                DataLength = 3
+            };
+            expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup,
+                new List<string> { "false" });
+            testData.Add(new object[] { input, 0, input.Length - 1, expected });
 
             return testData;
         }
