@@ -21,10 +21,10 @@ namespace ScalableIPC.Tests.Core
         public static List<object[]> CreateTestEqualsData()
         {
             var testData = new List<object[]>();
-            
+
             testData.Add(
                 new object[] { new ProtocolDatagramOptions(), new ProtocolDatagramOptions(), true });
-            
+
             testData.Add(
                 new object[] { new ProtocolDatagramOptions(), new ProtocolDatagramOptions { IdleTimeoutSecs = 3 }, false });
 
@@ -44,7 +44,7 @@ namespace ScalableIPC.Tests.Core
                 IsLastInWindowGroup = false,
                 TraceId = ""
             };
-            testData.Add( new object[] { firstInstance, secondInstance, true });
+            testData.Add(new object[] { firstInstance, secondInstance, true });
 
             firstInstance = new ProtocolDatagramOptions();
             firstInstance.AllOptions.Add("k1", new List<string> { "v1" });
@@ -195,6 +195,50 @@ namespace ScalableIPC.Tests.Core
             secondInstance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
             secondInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "true" });
             testData.Add(new object[] { firstInstance, secondInstance });
+
+            return testData;
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateTestParseKnownOptionsWithErrorData))]
+        public void TestParseKnownOptionsWithError(ProtocolDatagramOptions input)
+        {
+            Assert.ThrowsAny<Exception>(() => input.ParseKnownOptions());
+        }
+
+        public static List<object[]> CreateTestParseKnownOptionsWithErrorData()
+        {
+            var testData = new List<object[]>();
+
+            var instance = new ProtocolDatagramOptions();
+            instance.AllOptions.Add("k1", new List<string> { "v1" });
+            instance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "0" });
+            testData.Add(new object[] { instance });
+
+            instance = new ProtocolDatagramOptions();
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "a" });
+            testData.Add(new object[] { instance });
+
+            instance = new ProtocolDatagramOptions();
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "" });
+            testData.Add(new object[] { instance });
+
+            instance = new ProtocolDatagramOptions();
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "q" });
+            testData.Add(new object[] { instance });
+
+            instance = new ProtocolDatagramOptions();
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "" });
+            testData.Add(new object[] { instance });
+
+            instance = new ProtocolDatagramOptions();
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "" });
+            testData.Add(new object[] { instance });
+
+            instance = new ProtocolDatagramOptions();
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "10" });
+            testData.Add(new object[] { instance });
 
             return testData;
         }

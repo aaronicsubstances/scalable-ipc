@@ -1,10 +1,267 @@
-﻿using System;
+﻿using ScalableIPC.Core;
+using System;
 using System.Collections.Generic;
 using System.Text;
+using Xunit;
 
 namespace ScalableIPC.Tests.Core
 {
     public class ProtocolDatagramFragmenterTest
     {
+        [Theory]
+        [MemberData(nameof(CreateTestEncodeLongOptionData))]
+        public void TestEncodeLongOption(string name, string value, int maxFragByteCount, List<string> expected)
+        {
+            var actual = ProtocolDatagramFragmenter.EncodeLongOption(name, value, maxFragByteCount);
+            Assert.Equal(expected, actual);
+        }
+
+        public static List<object[]> CreateTestEncodeLongOptionData()
+        {
+            var testData = new List<object[]>();
+            
+            string name = "protocol";
+            string value = "http";
+            int maxFragByteCount = 2;
+            List<string> expected = new List<string>
+            {
+                "8:", "pr", "ot", "oc", "ol", "ht", "tp"
+            };
+            testData.Add(new object[] { name, value, maxFragByteCount, expected });
+
+            name = "protocol";
+            value = "ftp";
+            maxFragByteCount = 2;
+            expected = new List<string>
+            {
+                "8:", "pr", "ot", "oc", "ol", "ft", "p"
+            };
+            testData.Add(new object[] { name, value, maxFragByteCount, expected });
+
+            name = "";
+            value = "";
+            maxFragByteCount = 2;
+            expected = new List<string>
+            {
+                "0:"
+            };
+            testData.Add(new object[] { name, value, maxFragByteCount, expected });
+
+            name = "abcdefghij";
+            value = "";
+            maxFragByteCount = 1;
+            expected = new List<string>
+            {
+                "1", "0", ":", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j"
+            };
+            testData.Add(new object[] { name, value, maxFragByteCount, expected });
+
+            name = "";
+            value = "abcdefghijkl";
+            maxFragByteCount = 3;
+            expected = new List<string>
+            {
+                "0:a", "bcd", "efg", "hij", "kl"
+            };
+            testData.Add(new object[] { name, value, maxFragByteCount, expected });
+
+            // test with non-ASCII chars involved.
+            name = "poweredby";
+            value = "as\u025bmpa";
+            maxFragByteCount = 3;
+            expected = new List<string>
+            {
+                "9:p", "owe", "red", "bya", "s\u00C9", "\u009Bm", "pa"
+            };
+            testData.Add(new object[] { name, value, maxFragByteCount, expected });
+
+            name = "poweredby";
+            value = "as\u025b";
+            maxFragByteCount = 3;
+            expected = new List<string>
+            {
+                "9:p", "owe", "red", "bya", "s\u00C9", "\u009B"
+            };
+            testData.Add(new object[] { name, value, maxFragByteCount, expected });
+
+            name = "powered-by";
+            value = "ohas\u025bmpa";
+            maxFragByteCount = 3;
+            expected = new List<string>
+            {
+                "10:", "pow", "ere", "d-b", "yoh", "as", "\u00C9", "\u009Bm", "pa"
+            };
+            testData.Add(new object[] { name, value, maxFragByteCount, expected });
+
+            name = "\u0254";
+            value = "ohas\u025bmpas";
+            maxFragByteCount = 3;
+            expected = new List<string>
+            {
+                "1:", "\u00C9", "\u0094o", "has", "\u00C9", "\u009Bm", "pas"
+            };
+            testData.Add(new object[] { name, value, maxFragByteCount, expected });
+
+            name = "\u0254\u0254";
+            value = "ohas\u025b\u025bmpas";
+            maxFragByteCount = 2;
+            expected = new List<string>
+            {
+                "2:", "\u00C9", "\u0094", "\u00C9", "\u0094", "oh", "as",
+                "\u00C9", "\u009B", "\u00C9", "\u009B", "mp", "as"
+            };
+            testData.Add(new object[] { name, value, maxFragByteCount, expected });
+
+            return testData;
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateEncodeLongOptionWithErrorData))]
+        public void TestEncodeLongOptionWithError(string name, string value, int maxFragByteCount)
+        {
+            Assert.ThrowsAny<Exception>(() => ProtocolDatagramFragmenter.EncodeLongOption(name, value, maxFragByteCount));
+        }
+
+        public static List<object[]> CreateEncodeLongOptionWithErrorData()
+        {
+            var testData = new List<object[]>();
+
+            string name = "protocol";
+            string value = "http";
+            int maxFragByteCount = 0;
+            testData.Add(new object[] { name, value, maxFragByteCount });
+
+            name = "\u0254";
+            value = "ftp";
+            maxFragByteCount = 1;
+            testData.Add(new object[] { name, value, maxFragByteCount });
+
+            return testData;
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateTestDecodeLongOptionData))]
+        public void TestDecodeLongOption(List<string> values, string[] expected)
+        {
+            var actual = ProtocolDatagramFragmenter.DecodeLongOption(values);
+            Assert.Equal(expected, actual);
+        }
+
+        public static List<object[]> CreateTestDecodeLongOptionData()
+        {
+            var testData = new List<object[]>();
+
+            List<string> values = new List<string>
+            {
+                "8:", "pr", "ot", "oc", "ol", "ht", "tp"
+            };
+            string[] expected = { "protocol", "http" };
+            testData.Add(new object[] { values, expected });
+
+            values = new List<string>
+            {
+                "8:protocolhttp"
+            };
+            expected = new string[] { "protocol", "http" };
+            testData.Add(new object[] { values, expected });
+
+            values = new List<string>
+            {
+                "0:"
+            };
+            expected = new string[] { "", "" };
+            testData.Add(new object[] { values, expected });
+
+            values = new List<string>
+            {
+                "1", "0", ":", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j"
+            };
+            expected = new string[] { "abcdefghij" , "" };
+            testData.Add(new object[] { values, expected });
+
+            values = new List<string>
+            {
+                "0:a", "bcd", "efg", "hij", "kl"
+            };
+            expected = new string[] { "", "abcdefghijkl" };
+            testData.Add(new object[] { values, expected });
+
+            values = new List<string>
+            {
+                "0:a", "bcdefg", "hij", "kl"
+            };
+            expected = new string[] { "", "abcdefghijkl" };
+            testData.Add(new object[] { values, expected });
+
+            // test with non-ASCII chars involved.
+            values = new List<string>
+            {
+                "2:", "\u00C9", "\u0094", "\u00C9", "\u0094", "oh", "as",
+                "\u00C9", "\u009B", "\u00C9", "\u009B", "mp", "as"
+            };
+            expected = new string[] { "\u0254\u0254", "ohas\u025b\u025bmpas" };
+            testData.Add(new object[] { values, expected });
+
+            return testData;
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateDecodeLongOptionWithErrorData))]
+        public void TestDecodeLongOptionWithError(List<string> values)
+        {
+            Assert.ThrowsAny<Exception>(() => ProtocolDatagramFragmenter.DecodeLongOption(values));
+        }
+
+        public static List<object[]> CreateDecodeLongOptionWithErrorData()
+        {
+            return new List<object[]>
+            {
+                new object[]{ new List<string> { } },
+                new object[]{ new List<string> { "nocolon" } },
+                new object[]{ new List<string> { ":nolength" } },
+                new object[]{ new List<string> { "wronglength:", "sth" } },
+                new object[]{ new List<string> { "a:", "sth" } },
+                new object[]{ new List<string> { "13:", "sth" } },
+                new object[]{ new List<string> { "-2:", "sth" } },
+                new object[]{ new List<string> { "0:", "not latin1:\u025b" } }
+            };
+        }
+
+        [Fact]
+        public void TestEncodeDecodeLongOptions()
+        {
+            var rand = new Random();
+            int maxLen = 1000;
+            int repeatCount = 10;
+            for (int i = 0; i < repeatCount; i++)
+            {
+                string name = GenerateRandomString(rand, maxLen);
+                string value = GenerateRandomString(rand, maxLen);
+                int maxFragByteCount = rand.Next(maxLen) + 2; // ensure at least 2
+                var values = ProtocolDatagramFragmenter.EncodeLongOption(name, value, maxFragByteCount);
+
+                string[] actual = ProtocolDatagramFragmenter.DecodeLongOption(values);
+                Assert.Equal(new string[] { name, value }, actual);
+            }
+        }
+
+        private static string GenerateRandomString(Random rand, int maxLen)
+        {
+            int len = rand.Next(maxLen);
+            var sb = new StringBuilder();
+            for (int i = 0; i < len; i++)
+            {
+                // 50% prob of including non-ASCII char
+                if (rand.Next(100) >= 50)
+                {
+                    sb.Append("\u025b");
+                }
+                else
+                {
+                    sb.Append("c");
+                }
+            }
+            return sb.ToString();
+        }
     }
 }

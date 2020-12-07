@@ -288,6 +288,10 @@ namespace ScalableIPC.Core
                 {
                     chByteCount = 2; // utf8 encodes 0x80-0xff with 2 bytes
                 }
+                if (chByteCount > maxFragByteCount)
+                {
+                    throw new Exception("Cannot encode long option with insufficient max fragment size: " + maxFragByteCount);
+                }
                 if (nextFragByteCount + chByteCount > maxFragByteCount)
                 {
                     fragments.Add(latin1Encoded.Substring(lastFragIndex, i - lastFragIndex));
@@ -307,11 +311,31 @@ namespace ScalableIPC.Core
         public static string[] DecodeLongOption(List<string> values)
         {
             var latin1Encoded = string.Join("", values);
+            // validate that string contains only valid latin1 chars.
+            foreach (var c in latin1Encoded)
+            {
+                if (c > 0xff)
+                {
+                    throw new Exception("Invalid encoded long option");
+                }
+            }
             var bytes = ProtocolDatagram.ConvertLatin1ToBytes(latin1Encoded);
             var originalOptionWithLengthPrefix = ProtocolDatagram.ConvertBytesToString(bytes, 0, bytes.Length);
             var lengthDelimIdx = originalOptionWithLengthPrefix.IndexOf(":");
+            if (lengthDelimIdx == -1)
+            {
+                throw new Exception("Invalid encoded long option");
+            }
             var nameLengthStr = originalOptionWithLengthPrefix.Substring(0, lengthDelimIdx);
-            var nameLength = int.Parse(nameLengthStr);
+            int nameLength;
+            if (!int.TryParse(nameLengthStr, out nameLength))
+            {
+                throw new Exception("Invalid encoded long option");
+            }
+            if (nameLength < 0 || nameLength > originalOptionWithLengthPrefix.Length)
+            {
+                throw new Exception("Invalid encoded long option");
+            }
             var originalName = originalOptionWithLengthPrefix.Substring(lengthDelimIdx + 1, nameLength);
             var originalValue = originalOptionWithLengthPrefix.Substring(lengthDelimIdx + 1 + nameLength);
             return new string[] { originalName, originalValue };
