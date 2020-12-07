@@ -125,14 +125,14 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
-        [MemberData(nameof(CreateTestWriteInt16BigEndianData))]
-        public void TestWriteInt16BigEndian(short v, byte[] expected)
+        [MemberData(nameof(CreateTestSerializeInt16BigEndianData))]
+        public void TestSerializeInt16BigEndian(short v, byte[] expected)
         {
-            byte[] actual = ProtocolDatagram.WriteInt16BigEndian(v);
+            byte[] actual = ProtocolDatagram.SerializeInt16BigEndian(v);
             Assert.Equal(expected, actual);
         }
 
-        public static List<object[]> CreateTestWriteInt16BigEndianData()
+        public static List<object[]> CreateTestSerializeInt16BigEndianData()
         {
             return new List<object[]>
             {
@@ -145,14 +145,14 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
-        [MemberData(nameof(CreateTestWriteUnsignedInt16BigEndianData))]
-        public void TestWriteUnsignedInt16BigEndian(int v, byte[] expected)
+        [MemberData(nameof(CreateTestSerializeUnsignedInt16BigEndianData))]
+        public void TestSerializeUnsignedInt16BigEndian(int v, byte[] expected)
         {
-            byte[] actual = ProtocolDatagram.WriteUnsignedInt16BigEndian(v);
+            byte[] actual = ProtocolDatagram.SerializeUnsignedInt16BigEndian(v);
             Assert.Equal(expected, actual);
         }
 
-        public static List<object[]> CreateTestWriteUnsignedInt16BigEndianData()
+        public static List<object[]> CreateTestSerializeUnsignedInt16BigEndianData()
         {
             return new List<object[]>
             {
@@ -166,14 +166,14 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
-        [MemberData(nameof(CreateTestWriteInt32BigEndianData))]
-        public void TestWriteInt32BigEndian(int v, byte[] expected)
+        [MemberData(nameof(CreateTestSerializeInt32BigEndianData))]
+        public void TestSerializeInt32BigEndian(int v, byte[] expected)
         {
-            byte[] actual = ProtocolDatagram.WriteInt32BigEndian(v);
+            byte[] actual = ProtocolDatagram.SerializeInt32BigEndian(v);
             Assert.Equal(expected, actual);
         }
 
-        public static List<object[]> CreateTestWriteInt32BigEndianData()
+        public static List<object[]> CreateTestSerializeInt32BigEndianData()
         {
             return new List<object[]>
             {
@@ -190,14 +190,14 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
-        [MemberData(nameof(CreateTestWriteInt64BigEndianData))]
-        public void TestWriteInt64BigEndian(long v, byte[] expected)
+        [MemberData(nameof(CreateTestSerializeInt64BigEndianData))]
+        public void TestSerializeInt64BigEndian(long v, byte[] expected)
         {
-            byte[] actual = ProtocolDatagram.WriteInt64BigEndian(v);
+            byte[] actual = ProtocolDatagram.SerializeInt64BigEndian(v);
             Assert.Equal(expected, actual);
         }
 
-        public static List<object[]> CreateTestWriteInt64BigEndianData()
+        public static List<object[]> CreateTestSerializeInt64BigEndianData()
         {
             return new List<object[]>
             {
@@ -222,14 +222,14 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
-        [MemberData(nameof(CreateTestReadInt16BigEndianData))]
-        public void TestReadInt16BigEndian(byte[] data, int offset, short expected)
+        [MemberData(nameof(CreateTestDeserializeInt16BigEndianData))]
+        public void TestDeserializeInt16BigEndian(byte[] data, int offset, short expected)
         {
-            short actual = ProtocolDatagram.ReadInt16BigEndian(data, offset);
+            short actual = ProtocolDatagram.DeserializeInt16BigEndian(data, offset);
             Assert.Equal(expected, actual);
         }
 
-        public static List<object[]> CreateTestReadInt16BigEndianData()
+        public static List<object[]> CreateTestDeserializeInt16BigEndianData()
         {
             return new List<object[]>
             {
@@ -242,14 +242,14 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
-        [MemberData(nameof(CreateTestReadUnsignedInt16BigEndianData))]
-        public void TestReadUnsignedInt16BigEndian(byte[] data, int offset, int expected)
+        [MemberData(nameof(CreateTestDeserializeUnsignedInt16BigEndianData))]
+        public void TestDeserializeUnsignedInt16BigEndian(byte[] data, int offset, int expected)
         {
-            int actual = ProtocolDatagram.ReadUnsignedInt16BigEndian(data, offset);
+            int actual = ProtocolDatagram.DeserializeUnsignedInt16BigEndian(data, offset);
             Assert.Equal(expected, actual);
         }
 
-        public static List<object[]> CreateTestReadUnsignedInt16BigEndianData()
+        public static List<object[]> CreateTestDeserializeUnsignedInt16BigEndianData()
         {
             return new List<object[]>
             {
@@ -263,14 +263,14 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
-        [MemberData(nameof(CreateTestReadInt32BigEndianData))]
-        public void TestReadInt32BigEndian(byte[] data, int offset, int expected)
+        [MemberData(nameof(CreateTestDeserializeInt32BigEndianData))]
+        public void TestDeserializeInt32BigEndian(byte[] data, int offset, int expected)
         {
-            int actual = ProtocolDatagram.ReadInt32BigEndian(data, offset);
+            int actual = ProtocolDatagram.DeserializeInt32BigEndian(data, offset);
             Assert.Equal(expected, actual);
         }
 
-        public static List<object[]> CreateTestReadInt32BigEndianData()
+        public static List<object[]> CreateTestDeserializeInt32BigEndianData()
         {
             return new List<object[]>
             {
@@ -287,14 +287,14 @@ namespace ScalableIPC.Tests.Core
         }
 
         [Theory]
-        [MemberData(nameof(CreateTestReadInt64BigEndianData))]
-        public void TestReadInt64BigEndian(byte[] data, int offset, long expected)
+        [MemberData(nameof(CreateTestDeserializeInt64BigEndianData))]
+        public void TestDeserializeInt64BigEndian(byte[] data, int offset, long expected)
         {
-            long actual = ProtocolDatagram.ReadInt64BigEndian(data, offset);
+            long actual = ProtocolDatagram.DeserializeInt64BigEndian(data, offset);
             Assert.Equal(expected, actual);
         }
 
-        public static List<object[]> CreateTestReadInt64BigEndianData()
+        public static List<object[]> CreateTestDeserializeInt64BigEndianData()
         {
             return new List<object[]>
             {
@@ -331,6 +331,321 @@ namespace ScalableIPC.Tests.Core
             randSid = ProtocolDatagram.GenerateSessionId();
             randSidBytes = ProtocolDatagram.ConvertHexToBytes(randSid);
             Assert.Equal(32, randSidBytes.Length);
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateTestToRawDatagramData))]
+        public void TestToRawDatagram(ProtocolDatagram instance, byte[] expected)
+        {
+            var actual = instance.ToRawDatagram();
+            Assert.Equal(expected, actual);
+        }
+
+        public static List<object[]> CreateTestToRawDatagramData()
+        {
+            var testData = new List<object[]>();
+
+            var sessionId = "".PadLeft(32, '0');
+            var instance = new ProtocolDatagram
+            {
+                DataLength = 200,
+                SessionId = sessionId
+            };
+            var expected = new byte[]
+            { 
+                0x00, 0xe6,  // expected length
+                0x00, // indicates short session id
+                0x00, 0x00, 0x00, 0x00, // session id 
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x00, 0x00, 0x00, 0x00, // sequence number
+                0x00, // op code.
+                0x00, // null terminator for all options.
+
+            };
+            testData.Add(new object[] { instance, expected });
+
+            sessionId = "".PadLeft(64, '0');
+            instance = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 50,
+                SessionId = sessionId,
+                WindowId = int.MaxValue + 1L
+            };
+            expected = new byte[]
+            {
+                0x00, 0x32,  // expected length
+                0xff, // indicates long session id
+                0x00, 0x00, 0x00, 0x00, // session id 
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0xff, // indicates long window id.
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x80, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, // sequence number
+                0x00, // op code.
+                0x00, // null terminator for all options.
+
+            };
+            testData.Add(new object[] { instance, expected });
+
+            sessionId = "".PadLeft(64, '1');
+            instance = new ProtocolDatagram
+            {
+                SessionId = sessionId,
+                WindowId = 3_290_342_720_000_601_258,
+                OpCode = ProtocolDatagram.OpCodeAck,
+                SequenceNumber = 1_895_425_975,
+                Options = new ProtocolDatagramOptions
+                {
+                    IdleTimeoutSecs = 20
+                }
+            };
+            expected = new byte[]
+            {
+                0x00, 0x45,  // expected length
+                0xff, // indicates long session id
+                0x11, 0x11, 0x11, 0x11, // session id 
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0xff, // indicates long window id.
+                0x2d, 0xa9, 0xa5, 0x45, // window id
+                0x56, 0xed, 0xac, 0xaa,
+                0x70, 0xf9, 0xe7, 0xb7, // sequence number
+                0x10, // op code.
+                (byte)'s', (byte)'_', (byte)'i', (byte)'d',
+                (byte)'l', (byte)'e', (byte)'_', (byte)'t',
+                (byte)'i', (byte)'m', (byte)'e', (byte)'o',
+                (byte)'u', (byte)'t', 0x00,
+                0x00, 0x02, 
+                (byte)'2', (byte)'0',
+                0x00, // null terminator for all options.
+
+            };
+            testData.Add(new object[] { instance, expected });
+
+            sessionId = "".PadLeft(32, '2');
+            instance = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 59,
+                SessionId = sessionId,
+                WindowId = 720_000_601,
+                OpCode = ProtocolDatagram.OpCodeClose,
+                SequenceNumber = 1_000,
+                Options = new ProtocolDatagramOptions
+                {
+                    AbortCode = 5,
+                    IsLastInWindow = true,
+                },
+                DataBytes = new byte[] { (byte)'h', (byte)'e', (byte) 'y' },
+                DataOffset = 1,
+                DataLength = 2
+            };
+            expected = new byte[]
+            {
+                0x00, 0x3b,  // expected length
+                0x00, // indicates short session id
+                0x22, 0x22, 0x22, 0x22, // session id 
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x00, // indicates short window id.
+                0x2a, 0xea, 0x56, 0x59, // window id
+                0x00, 0x00, 0x03, 0xe8, // sequence number
+                0x7e, // op code.
+                (byte)'s', (byte)'_', (byte)'a', (byte)'b',
+                (byte)'o', (byte)'r', (byte)'t', (byte)'_',
+                (byte)'c', (byte)'o', (byte)'d', (byte)'e',
+                0x00,
+                0x00, 0x01,
+                (byte)'5',
+                (byte)'s', (byte)'_', (byte)'0', (byte)'1',
+                0x00,
+                0x00, 0x04,
+                (byte)'T', (byte)'r', (byte)'u', (byte)'e',
+                0x00, // null terminator for all options.
+                (byte)'e', (byte) 'y' // data
+            };
+            testData.Add(new object[] { instance, expected });
+
+            sessionId = "".PadLeft(32, '3');
+            instance = new ProtocolDatagram
+            {
+                SessionId = sessionId,
+                WindowId = 1,
+                OpCode = ProtocolDatagram.OpCodeData,
+                SequenceNumber = 1,
+                Options = new ProtocolDatagramOptions
+                {
+                    IsLastInWindowGroup = false,
+                },
+                DataBytes = new byte[] { (byte)'h', (byte)'e', (byte)'y' },
+                DataOffset = 0,
+                DataLength = 3
+            };
+            expected = new byte[]
+            {
+                0x00, 0x2d,  // expected length
+                0x00, // indicates short session id
+                0x33, 0x33, 0x33, 0x33, // session id 
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x01, // window id
+                0x00, 0x00, 0x00, 0x01, // sequence number
+                0x00, // op code.
+                (byte)'s', (byte)'_', (byte)'0', (byte)'2',
+                0x00,
+                0x00, 0x05,
+                (byte)'F', (byte)'a', (byte)'l', (byte)'s', 
+                (byte)'e',
+                0x00, // null terminator for all options.
+                (byte)'h', (byte)'e', (byte) 'y' // data
+            };
+            testData.Add(new object[] { instance, expected });
+
+            return testData;
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateTestToRawDatagramWithErrorData))]
+        public void TestToRawDatagramWithError(ProtocolDatagram instance)
+        {
+            Assert.ThrowsAny<Exception>(() => instance.ToRawDatagram());
+        }
+
+        public static List<object[]> CreateTestToRawDatagramWithErrorData()
+        {
+            var testData = new List<object[]>();
+
+            // data length too large.
+            var sessionId = "".PadLeft(32, '0');
+            var instance = new ProtocolDatagram
+            {
+                DataLength = 200_000,
+                SessionId = sessionId
+            };
+            testData.Add(new object[] { instance });
+
+            // expected datagram length not the same as actual, and data bytes is given.
+            sessionId = "".PadLeft(64, '0');
+            instance = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 1,
+                SessionId = sessionId,
+                WindowId = int.MaxValue + 1L,
+                DataBytes = new byte[0]
+            };
+            testData.Add(new object[] { instance });
+
+            // expected datagram length not the same as actual, and data bytes is not given.
+            sessionId = "".PadLeft(64, '1');
+            instance = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 1,
+                SessionId = sessionId,
+                WindowId = 3_290_342_720_000_601_258,
+                OpCode = ProtocolDatagram.OpCodeAck,
+                SequenceNumber = 1_895_425_975,
+                Options = new ProtocolDatagramOptions
+                {
+                    IdleTimeoutSecs = 20
+                }
+            };
+            testData.Add(new object[] { instance });
+
+            // almost ok, except that eventual datagram is too large.
+            sessionId = "".PadLeft(32, '2');
+            instance = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 65_501,
+                SessionId = sessionId,
+                WindowId = 720_000_601,
+                OpCode = ProtocolDatagram.OpCodeClose,
+                SequenceNumber = 1_000,
+                Options = new ProtocolDatagramOptions
+                {
+                    AbortCode = 5,
+                    IsLastInWindow = true,
+                },
+                DataLength = 65_444
+            };
+            testData.Add(new object[] { instance });
+
+            // invalid session id.
+            sessionId = "".PadLeft(30, '3');
+            instance = new ProtocolDatagram
+            {
+                SessionId = sessionId
+            };
+            testData.Add(new object[] { instance });
+
+            instance = new ProtocolDatagram
+            {
+                SessionId = null
+            };
+            testData.Add(new object[] { instance });
+
+            // invalid data length
+            sessionId = "".PadLeft(32, '4');
+            instance = new ProtocolDatagram
+            {
+                SessionId = sessionId,
+                DataLength = -1
+            };
+            testData.Add(new object[] { instance });
+
+            // invalid offset in data bytes.
+            sessionId = "".PadLeft(32, '5');
+            instance = new ProtocolDatagram
+            {
+                SessionId = sessionId,
+                DataOffset = -1,
+                DataBytes = new byte[0]
+            };
+            testData.Add(new object[] { instance });
+            instance = new ProtocolDatagram
+            {
+                SessionId = sessionId,
+                DataOffset = 10,
+                DataBytes = new byte[2]
+            };
+            testData.Add(new object[] { instance });
+
+            // invalid combination of data length and offset in data bytes
+            sessionId = "".PadLeft(32, '6');
+            instance = new ProtocolDatagram
+            {
+                SessionId = sessionId,
+                DataLength = 1,
+                DataBytes = new byte[0]
+            };
+            testData.Add(new object[] { instance });
+
+            instance = new ProtocolDatagram
+            {
+                SessionId = sessionId,
+                DataLength = 2,
+                DataOffset = 2,
+                DataBytes = new byte[3]
+            };
+            testData.Add(new object[] { instance });
+
+            return testData;
         }
     }
 }

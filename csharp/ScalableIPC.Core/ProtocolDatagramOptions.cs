@@ -12,9 +12,9 @@ namespace ScalableIPC.Core
 
         public const string OptionNameIdleTimeout = KnownOptionPrefix + "idle_timeout";
         public const string OptionNameAbortCode = KnownOptionPrefix + "abort_code";
-        public const string OptionNameIsWindowFull = KnownOptionPrefix + "window_full";
-        public const string OptionNameIsLastInWindow = KnownOptionPrefix + "last_in_window";
-        public const string OptionNameIsLastInWindowGroup = KnownOptionPrefix + "last_in_window_group";
+        public const string OptionNameIsWindowFull = KnownOptionPrefix + "10";
+        public const string OptionNameIsLastInWindow = KnownOptionPrefix + "01";
+        public const string OptionNameIsLastInWindowGroup = KnownOptionPrefix + "02";
         public const string OptionNameTraceId = KnownOptionPrefix + "traceId";
 
         public ProtocolDatagramOptions()

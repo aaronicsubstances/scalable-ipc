@@ -8,7 +8,7 @@ namespace ScalableIPC.Core
     public class ProtocolDatagramFragmenter
     {
         public static readonly string EncodedOptionNamePrefix = ProtocolDatagramOptions.KnownOptionPrefix +
-            "very_long_option_";
+            "e_";
 
         private static readonly List<string> DefaultOptionsToSkip = new List<string>
         {
@@ -18,15 +18,8 @@ namespace ScalableIPC.Core
         };
 
         private static readonly int DefaultReservedSpace = ProtocolDatagram.MinDatagramSize
-            + 16 // for extra bytes in long session id options
-            + 4 // for extra bytes in long window id option
-            + (Math.Max(ProtocolDatagramOptions.OptionNameIsLastInWindow.Length,
-                ProtocolDatagramOptions.OptionNameIsLastInWindowGroup.Length)
-            + 1 // for null terminator
-            + 2 // for option value length indicator
-            + Math.Max(true.ToString().Length, false.ToString().Length)
-            ) * 2
-            + 50 // slack/margin
+            + 50 // margin. must cover long versions of session id and window id, and
+                 // also the last in window and last in window group options.
             ;
 
         private readonly ProtocolMessage _message;

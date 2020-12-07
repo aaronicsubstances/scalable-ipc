@@ -44,7 +44,7 @@ namespace ScalableIPC.Core
 
         // the 2 length indicator booleans, expected length, sessionId, opCode, window id, 
         // sequence number, null separator are always present.
-        public const int MinDatagramSize = 2 + 4 + MinSessionIdLength + 1 + 4 + 4 + 1;
+        public const int MinDatagramSize = 2 + 2 + MinSessionIdLength + 1 + 4 + 4 + 1;
         public const int MaxDatagramSize = 65_500;
         public const int MinimumTransferUnitSize = 512;
         public const int MaxOptionByteCount = 60_000;
@@ -98,12 +98,15 @@ namespace ScalableIPC.Core
                 throw new Exception("datagram too small to be valid");
             }
 
-            // liberally accept any size once it made it through network without errors.
+            if (length > MaxDatagramSize)
+            {
+                throw new Exception("datagram too large to be valid");
+            }
 
             var parsedDatagram = new ProtocolDatagram();
 
-            // validate length and checksum.
-            int expectedDatagramLength = ReadInt32BigEndian(rawBytes, offset);
+            // validate length.
+            int expectedDatagramLength = DeserializeUnsignedInt16BigEndian(rawBytes, offset);
             if (expectedDatagramLength != length)
             {
                 throw new Exception("expected datagram length incorrect");
@@ -112,7 +115,7 @@ namespace ScalableIPC.Core
             int endOffset = offset + length;
 
             parsedDatagram.ExpectedDatagramLength = expectedDatagramLength;
-            offset += 4; // skip past expected data length;
+            offset += 2; // skip past expected data length;
 
             byte lenIndicator = rawBytes[offset];
             offset += 1;
@@ -145,7 +148,7 @@ namespace ScalableIPC.Core
             switch (lenIndicator)
             {
                 case FalseIndicatorByte:
-                    parsedDatagram.WindowId = ReadInt32BigEndian(rawBytes, offset);
+                    parsedDatagram.WindowId = DeserializeInt32BigEndian(rawBytes, offset);
                     windowIdLen = 4;
                     break;
                 case TrueIndicatorByte:
@@ -154,7 +157,7 @@ namespace ScalableIPC.Core
                     {
                         throw new Exception("datagram too small to be valid for extended window id");
                     }
-                    parsedDatagram.WindowId = ReadInt64BigEndian(rawBytes, offset);
+                    parsedDatagram.WindowId = DeserializeInt64BigEndian(rawBytes, offset);
                     windowIdLen = 8;
                     break;
                 default:
@@ -166,7 +169,7 @@ namespace ScalableIPC.Core
             }
             offset += windowIdLen;
 
-            parsedDatagram.SequenceNumber = ReadInt32BigEndian(rawBytes, offset);
+            parsedDatagram.SequenceNumber = DeserializeInt32BigEndian(rawBytes, offset);
             if (parsedDatagram.SequenceNumber < 0)
             {
                 throw new Exception("Negative sequence number not allowed");
@@ -197,7 +200,7 @@ namespace ScalableIPC.Core
                 var optionName = ConvertBytesToString(rawBytes, offset, nullTerminatorIndex - offset);
                 offset = nullTerminatorIndex + 1;
 
-                int optionValueLength = ReadUnsignedInt16BigEndian(rawBytes, offset);
+                int optionValueLength = DeserializeUnsignedInt16BigEndian(rawBytes, offset);
                 offset += 2;
                 var optionValue = ConvertBytesToString(rawBytes, offset, optionValueLength);
                 offset += optionValueLength;
@@ -239,16 +242,40 @@ namespace ScalableIPC.Core
                 prefixNum += int.MaxValue;
                 prefixNum++;
             }
-            var prefix = ConvertBytesToHex(WriteInt32BigEndian(prefixNum), 0, 4).PadRight(16, '0');
+            var prefix = ConvertBytesToHex(SerializeInt32BigEndian(prefixNum), 0, 4).PadRight(16, '0');
             var date = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff").Substring(1);
             return prefix + date + suffix;
         }
 
         public byte[] ToRawDatagram()
         {
-            if (DataBytes != null && DataLength > MaxDatagramSize)
+            // validate fields.
+            if (SessionId == null)
+            {
+                throw new Exception("session id must be set");
+            }
+            if (DataLength < 0)
+            {
+                throw new Exception("data length must be valid, hence cannot be negative");
+            }
+            if (DataLength > MaxDatagramSize)
             {
                 throw new Exception("data payload too large to be valid");
+            }
+            if (DataOffset < 0)
+            {
+                throw new Exception("data offset must be valid, hence cannot be negative");
+            }
+            if (DataBytes != null)
+            {
+                if (DataOffset > DataBytes.Length)
+                {
+                    throw new Exception("data offset exceeds data bytes size");
+                }
+                if (DataOffset + DataLength > DataBytes.Length)
+                {
+                    throw new Exception("data offset and length combination exceeds data bytes size");
+                }
             }
 
             byte[] rawBytes;
@@ -257,8 +284,6 @@ namespace ScalableIPC.Core
                 using (var writer = new BinaryWriter(ms))
                 {
                     // Make space for expected data length.
-                    writer.Write((byte)0);
-                    writer.Write((byte)0);
                     writer.Write((byte)0);
                     writer.Write((byte)0);
 
@@ -283,16 +308,16 @@ namespace ScalableIPC.Core
                     if (WindowId > int.MaxValue)
                     {
                         writer.Write(TrueIndicatorByte);
-                        writer.Write(WriteInt64BigEndian(WindowId));
+                        writer.Write(SerializeInt64BigEndian(WindowId));
                     }
                     else
                     {
                         // those less than 2^31 may be written as 4 or 8 bytes
                         writer.Write(FalseIndicatorByte);
-                        writer.Write(WriteInt32BigEndian((int)WindowId));
+                        writer.Write(SerializeInt32BigEndian((int)WindowId));
                     }
 
-                    writer.Write(WriteInt32BigEndian(SequenceNumber));
+                    writer.Write(SerializeInt32BigEndian(SequenceNumber));
 
                     writer.Write(OpCode);
 
@@ -305,7 +330,7 @@ namespace ScalableIPC.Core
                             writer.Write(optionNameBytes);
                             writer.Write(NullTerminator);
                             var optionValueBytes = ConvertStringToBytes(pair[1]);
-                            WriteUnsignedInt16BigEndian(optionValueBytes.Length);
+                            writer.Write(SerializeUnsignedInt16BigEndian(optionValueBytes.Length));
                             writer.Write(optionValueBytes);
                         }
                     }
@@ -319,14 +344,37 @@ namespace ScalableIPC.Core
                 rawBytes = ms.ToArray();
             }
 
-            if (ExpectedDatagramLength > 0 && ExpectedDatagramLength != rawBytes.Length)
+            // Data transfer options other than using DataBytes are supported by
+            // requiring DataLength field at all times.
+
+            // validate ExpectedDatagramLength if given.
+            if (ExpectedDatagramLength > 0)
             {
-                throw new Exception($"expected datagram length != actual ({ExpectedDatagramLength} != {rawBytes.Length})");
+                if (DataBytes != null && ExpectedDatagramLength != rawBytes.Length)
+                {
+                    throw new Exception($"expected datagram length != actual ({ExpectedDatagramLength} != {rawBytes.Length})");
+                }
+                if (DataBytes == null && ExpectedDatagramLength != rawBytes.Length + DataLength)
+                {
+                    throw new Exception($"expected datagram length != actual ({ExpectedDatagramLength} != {rawBytes.Length + DataLength})");
+                }
+            }
+            else
+            {
+                // set it depending on whether DataBytes is given.
+                if (DataBytes != null)
+                {
+                    ExpectedDatagramLength = rawBytes.Length;
+                }
+                else
+                {
+                    ExpectedDatagramLength = rawBytes.Length + DataLength;
+                }
             }
 
-            InsertExpectedDataLength(rawBytes);
+            InsertExpectedDataLength(ExpectedDatagramLength, rawBytes);
 
-            if (rawBytes.Length > MaxDatagramSize)
+            if (ExpectedDatagramLength > MaxDatagramSize)
             {
                 throw new Exception("datagram too large to be valid");
             }
@@ -334,13 +382,11 @@ namespace ScalableIPC.Core
             return rawBytes;
         }
 
-        private static void InsertExpectedDataLength(byte[] rawBytes)
+        private static void InsertExpectedDataLength(int expectedDataLen, byte[] dest)
         {
-            byte[] intBytes = WriteInt32BigEndian(rawBytes.Length);
-            rawBytes[0] = intBytes[0];
-            rawBytes[1] = intBytes[1];
-            rawBytes[2] = intBytes[2];
-            rawBytes[3] = intBytes[3];
+            byte[] intBytes = SerializeUnsignedInt16BigEndian(expectedDataLen);
+            dest[0] = intBytes[0];
+            dest[1] = intBytes[1];
         }
 
         internal static byte[] ConvertStringToBytes(string s)
@@ -391,12 +437,12 @@ namespace ScalableIPC.Core
             return bytes;
         }
 
-        internal static byte[] WriteUnsignedInt16BigEndian(int v)
+        internal static byte[] SerializeUnsignedInt16BigEndian(int v)
         {
-            return WriteInt16BigEndian((short)v);
+            return SerializeInt16BigEndian((short)v);
         }
 
-        internal static byte[] WriteInt16BigEndian(short v)
+        internal static byte[] SerializeInt16BigEndian(short v)
         {
             byte[] intBytes = new byte[2];
             intBytes[0] = (byte)(0xff & (v >> 8));
@@ -404,7 +450,7 @@ namespace ScalableIPC.Core
             return intBytes;
         }
 
-        internal static byte[] WriteInt32BigEndian(int v)
+        internal static byte[] SerializeInt32BigEndian(int v)
         {
             byte[] intBytes = new byte[4];
             intBytes[0] = (byte)(0xff & (v >> 24));
@@ -414,7 +460,7 @@ namespace ScalableIPC.Core
             return intBytes;
         }
 
-        internal static byte[] WriteInt64BigEndian(long v)
+        internal static byte[] SerializeInt64BigEndian(long v)
         {
             byte[] intBytes = new byte[8];
             intBytes[0] = (byte)(0xff & (v >> 56));
@@ -428,7 +474,7 @@ namespace ScalableIPC.Core
             return intBytes;
         }
 
-        internal static short ReadInt16BigEndian(byte[] rawBytes, int offset)
+        internal static short DeserializeInt16BigEndian(byte[] rawBytes, int offset)
         {
             byte a = rawBytes[offset];
             byte b = rawBytes[offset + 1];
@@ -436,7 +482,7 @@ namespace ScalableIPC.Core
             return (short)v;
         }
 
-        internal static int ReadUnsignedInt16BigEndian(byte[] rawBytes, int offset)
+        internal static int DeserializeUnsignedInt16BigEndian(byte[] rawBytes, int offset)
         {
             byte a = rawBytes[offset];
             byte b = rawBytes[offset + 1];
@@ -444,7 +490,7 @@ namespace ScalableIPC.Core
             return v; // NB: no cast to short.
         }
 
-        internal static int ReadInt32BigEndian(byte[] rawBytes, int offset)
+        internal static int DeserializeInt32BigEndian(byte[] rawBytes, int offset)
         {
             byte a = rawBytes[offset];
             byte b = rawBytes[offset + 1];
@@ -455,7 +501,7 @@ namespace ScalableIPC.Core
             return v;
         }
 
-        internal static long ReadInt64BigEndian(byte[] rawBytes, int offset)
+        internal static long DeserializeInt64BigEndian(byte[] rawBytes, int offset)
         {
             byte a = rawBytes[offset];
             byte b = rawBytes[offset + 1];

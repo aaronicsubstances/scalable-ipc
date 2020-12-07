@@ -4,7 +4,6 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using NLog;
 using NLog.Fluent;
-using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Helpers;
 using ScalableIPC.Tests.Helpers;
 using System;
