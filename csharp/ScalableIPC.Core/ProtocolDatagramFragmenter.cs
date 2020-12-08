@@ -18,8 +18,7 @@ namespace ScalableIPC.Core
         };
 
         private static readonly int DefaultReservedSpace = ProtocolDatagram.MinDatagramSize
-            + 50 // margin. must cover long versions of session id and window id, and
-                 // also the last in window and last in window group options.
+            + 50 // margin to cover the last in window and last in window group options.
             ;
 
         private readonly ProtocolMessage _message;
@@ -32,7 +31,7 @@ namespace ScalableIPC.Core
         private bool _done;
 
         public ProtocolDatagramFragmenter(ProtocolMessage message, int maxFragmentSize, List<string> extraOptionsToSkip)
-            :this(message, maxFragmentSize, extraOptionsToSkip, DefaultReservedSpace, DefaultOptionsToSkip,
+            : this(message, maxFragmentSize, extraOptionsToSkip, DefaultReservedSpace, DefaultOptionsToSkip,
                  ProtocolDatagram.MaxOptionByteCount, ProtocolDatagram.MaxDatagramSize)
         {
 

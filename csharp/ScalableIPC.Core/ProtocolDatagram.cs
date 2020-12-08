@@ -9,8 +9,8 @@ namespace ScalableIPC.Core
 {
     /// <summary>
     /// Protocol PDU structure was formed with the following in mind:
-    /// 1. use of sessionid removes the need for TIME_WAIT state used by TCP. by default 32-byte session ids are generated
-    ///    by combining random uuid with current timestamp. Option has been made in structure to use 16-byte session id.
+    /// 1. use of sessionid removes the need for TIME_WAIT state used by TCP. 32-byte session ids are generated
+    ///    by combining random uuid, current timestamp, and auto incrementing integer.
     /// 2. use of 32-bit sequence number separate from window id, allows a maximum bandwidth of 512 * 2G = 1TB (1024 GB), 
     ///    more than enough for networks with large bandwidth-delay product (assuming packet size of 512 bytes).
     /// 3. use of 64-bit window id is for ensuring that by the time 64-bit numbers are exhausted in max increments of 1000,
@@ -33,25 +33,22 @@ namespace ScalableIPC.Core
         public const int AbortCodeWindowGroupOverflow = 6;
 
         public const byte NullTerminator = 0;
-        public const byte FalseIndicatorByte = 0;
-        public const byte TrueIndicatorByte = 0xff;
 
-        public const int MinSessionIdLength = 16;
-        public const int MaxSessionIdLength = 32;
+        public const int SessionIdLength = 32;
 
         public const long MinWindowIdCrossOverLimit = 1_000;
         public const long MaxWindowIdCrossOverLimit = 9_000_000_000_000_000_000L;
 
-        // the 2 length indicator booleans, expected length, sessionId, opCode, window id, 
+        // the expected length, sessionId, opCode, window id, 
         // sequence number, null separator are always present.
-        public const int MinDatagramSize = 2 + 2 + MinSessionIdLength + 1 + 4 + 4 + 1;
+        public const int MinDatagramSize = 2 + SessionIdLength + 1 + 8 + 4 + 1;
         public const int MaxDatagramSize = 65_500;
         public const int MinimumTransferUnitSize = 512;
         public const int MaxOptionByteCount = 60_000;
 
         private static readonly string Latin1Encoding = "ISO-8859-1";
 
-        // used to generate long session ids.
+        // used to generate session ids.
         private static int _sessionIdCounter;
 
         public int ExpectedDatagramLength { get; set; }
@@ -110,8 +107,7 @@ namespace ScalableIPC.Core
                 throw new ArgumentException("combination of offset and length exceeeds byte array size");
             }
 
-            int effectiveMinDatagramSize = MinDatagramSize;
-            if (length < effectiveMinDatagramSize)
+            if (length < MinDatagramSize)
             {
                 throw new Exception("datagram too small to be valid");
             }
@@ -135,57 +131,15 @@ namespace ScalableIPC.Core
             parsedDatagram.ExpectedDatagramLength = expectedDatagramLength;
             offset += 2; // skip past expected data length;
 
-            byte lenIndicator = rawBytes[offset];
-            offset += 1;
+            parsedDatagram.SessionId = ConvertBytesToHex(rawBytes, offset, SessionIdLength);
+            offset += SessionIdLength;
 
-            int sessionIdLen;
-            switch (lenIndicator)
-            {
-                case FalseIndicatorByte:
-                    sessionIdLen = MinSessionIdLength;
-                    break;
-                case TrueIndicatorByte:
-                    effectiveMinDatagramSize += MaxSessionIdLength - MinSessionIdLength;
-                    if (length < effectiveMinDatagramSize)
-                    {
-                        throw new Exception("datagram too small to be valid for extended session id");
-                    }
-                    sessionIdLen = MaxSessionIdLength;
-                    break;
-                default:
-                    throw new Exception("invalid session id length indicator");
-            }
-
-            parsedDatagram.SessionId = ConvertBytesToHex(rawBytes, offset, sessionIdLen);
-            offset += sessionIdLen;
-
-            lenIndicator = rawBytes[offset];
-            offset += 1;
-
-            int windowIdLen;
-            switch (lenIndicator)
-            {
-                case FalseIndicatorByte:
-                    parsedDatagram.WindowId = DeserializeInt32BigEndian(rawBytes, offset);
-                    windowIdLen = 4;
-                    break;
-                case TrueIndicatorByte:
-                    effectiveMinDatagramSize += 4;
-                    if (length < effectiveMinDatagramSize)
-                    {
-                        throw new Exception("datagram too small to be valid for extended window id");
-                    }
-                    parsedDatagram.WindowId = DeserializeInt64BigEndian(rawBytes, offset);
-                    windowIdLen = 8;
-                    break;
-                default:
-                    throw new Exception("invalid window id length indicator");
-            }
+            parsedDatagram.WindowId = DeserializeInt64BigEndian(rawBytes, offset);
             if (parsedDatagram.WindowId < 0)
             {
                 throw new Exception("Negative window id not allowed");
             }
-            offset += windowIdLen;
+            offset += 8;
 
             parsedDatagram.SequenceNumber = DeserializeInt32BigEndian(rawBytes, offset);
             if (parsedDatagram.SequenceNumber < 0)
@@ -197,44 +151,22 @@ namespace ScalableIPC.Core
             parsedDatagram.OpCode = rawBytes[offset];
             offset += 1;
 
-            // Now read options until we encounter null terminator for all options.
-            while (rawBytes[offset] != NullTerminator)
+            // Now read options until we encounter null terminators for all options.
+            while (rawBytes[offset] != NullTerminator && rawBytes[offset+1] != NullTerminator)
             {
-                // look for null terminator.
-                int nullTerminatorIndex = -1;
-                for (int i = offset; i < endOffset; i++)
-                {
-                    if (rawBytes[i] == NullTerminator)
-                    {
-                        nullTerminatorIndex = i;
-                        break;
-                    }
-                }
-                if (nullTerminatorIndex == -1)
-                {
-                    throw new Exception("null terminator for option name not found");
-                }
+                offset = ParseNextOption(rawBytes, offset, endOffset, parsedDatagram);
 
-                var optionName = ConvertBytesToString(rawBytes, offset, nullTerminatorIndex - offset);
-                offset = nullTerminatorIndex + 1;
-
-                int optionValueLength = DeserializeUnsignedInt16BigEndian(rawBytes, offset);
-                offset += 2;
-                var optionValue = ConvertBytesToString(rawBytes, offset, optionValueLength);
-                offset += optionValueLength;
-
-                if (parsedDatagram.Options == null)
+                if (endOffset - offset < 2)
                 {
-                    parsedDatagram.Options = new ProtocolDatagramOptions();
+                    throw new Exception("null terminators for all options missing");
                 }
-                parsedDatagram.Options.AddOption(optionName, optionValue);
             }
 
             // validate known options.
             parsedDatagram.Options?.ParseKnownOptions();
 
-            // increment offset for null terminator of all options.
-            offset++;
+            // increment offset for null terminators of all options.
+            offset += 2;
 
             parsedDatagram.DataBytes = rawBytes;
             parsedDatagram.DataOffset = offset;
@@ -243,19 +175,69 @@ namespace ScalableIPC.Core
             return parsedDatagram;
         }
 
-        public static string GenerateSessionId()
+        private static int ParseNextOption(byte[] rawBytes, int offset, int endOffset,
+            ProtocolDatagram parsedDatagram)
         {
-            return GenerateSessionId(true);
-        }
-
-        public static string GenerateSessionId(bool longVersion)
-        {
-            var suffix = Guid.NewGuid().ToString("n");
-            if (!longVersion)
+            int totalLengthPlusOne = DeserializeUnsignedInt16BigEndian(rawBytes, offset);
+            if (totalLengthPlusOne < 1)
             {
-                return suffix;
+                throw new Exception("Corrupted datagram received");
+            }
+            offset += 2;
+
+            // look for null terminator.
+            int nullTerminatorIndex = -1;
+            for (int i = offset; i < endOffset; i++)
+            {
+                if (rawBytes[i] == NullTerminator)
+                {
+                    nullTerminatorIndex = i;
+                    break;
+                }
+            }
+            if (nullTerminatorIndex == -1)
+            {
+                throw new Exception("null terminator for option name not found");
             }
 
+            var optionNameLength = nullTerminatorIndex - offset;
+            if (optionNameLength >= totalLengthPlusOne)
+            {
+                throw new Exception("Corrupted datagram received");
+            }
+            var optionName = ConvertBytesToString(rawBytes, offset, optionNameLength);
+            offset = nullTerminatorIndex + 1;
+
+            if (endOffset - offset < 2)
+            {
+                throw new Exception("incomplete option specification: confirmatory length section missing");
+            }
+            var confirmatoryTotalLengthPlusOne = DeserializeUnsignedInt16BigEndian(rawBytes, offset);
+            if (totalLengthPlusOne != confirmatoryTotalLengthPlusOne)
+            {
+                throw new Exception("Corrupted datagram received");
+            }
+            offset += 2;
+
+            int optionValueLength = totalLengthPlusOne - 1 - optionNameLength;
+
+            if (endOffset - offset < optionValueLength)
+            {
+                throw new Exception("incomplete option specification: option value missing");
+            }
+            var optionValue = ConvertBytesToString(rawBytes, offset, optionValueLength);
+            offset += optionValueLength;
+
+            if (parsedDatagram.Options == null)
+            {
+                parsedDatagram.Options = new ProtocolDatagramOptions();
+            }
+            parsedDatagram.Options.AddOption(optionName, optionValue);
+            return offset;
+        }
+
+        public static string GenerateSessionId()
+        {
             var prefixNum = Interlocked.Increment(ref _sessionIdCounter);
             if (prefixNum < 0)
             {
@@ -264,7 +246,10 @@ namespace ScalableIPC.Core
                 prefixNum++;
             }
             var prefix = ConvertBytesToHex(SerializeInt32BigEndian(prefixNum), 0, 4).PadRight(16, '0');
+
             var date = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff").Substring(1);
+
+            var suffix = Guid.NewGuid().ToString("n");
             return prefix + date + suffix;
         }
 
@@ -306,33 +291,14 @@ namespace ScalableIPC.Core
 
                     // write out session id.
                     byte[] sessionId = ConvertHexToBytes(SessionId);
-                    if (sessionId.Length == MinSessionIdLength)
-                    {
-                        writer.Write(FalseIndicatorByte);
-                    }
-                    else if (sessionId.Length == MaxSessionIdLength)
-                    {
-                        writer.Write(TrueIndicatorByte);
-                    }
-                    else
+                    if (sessionId.Length != SessionIdLength)
                     {
                         throw new Exception($"Invalid session id length in bytes: {sessionId.Length}");
                     }
                     writer.Write(sessionId);
 
                     // Write out window id.
-                    // the rule is all window ids >= 2^31 MUST be written out as 8 bytes.
-                    if (WindowId > int.MaxValue)
-                    {
-                        writer.Write(TrueIndicatorByte);
-                        writer.Write(SerializeInt64BigEndian(WindowId));
-                    }
-                    else
-                    {
-                        // those less than 2^31 may be written as 4 or 8 bytes
-                        writer.Write(FalseIndicatorByte);
-                        writer.Write(SerializeInt32BigEndian((int)WindowId));
-                    }
+                    writer.Write(SerializeInt64BigEndian(WindowId));
 
                     writer.Write(SerializeInt32BigEndian(SequenceNumber));
 
@@ -343,16 +309,13 @@ namespace ScalableIPC.Core
                     {
                         foreach (var pair in Options.GenerateList())
                         {
-                            var optionNameBytes = ConvertStringToBytes(pair[0]);
-                            writer.Write(optionNameBytes);
-                            writer.Write(NullTerminator);
-                            var optionValueBytes = ConvertStringToBytes(pair[1]);
-                            writer.Write(SerializeUnsignedInt16BigEndian(optionValueBytes.Length));
-                            writer.Write(optionValueBytes);
+                            WriteOption(writer, pair);
                         }
                     }
 
                     writer.Write(NullTerminator);
+                    writer.Write(NullTerminator);
+
                     if (DataBytes != null)
                     {
                         writer.Write(DataBytes, DataOffset, DataLength);
@@ -397,6 +360,18 @@ namespace ScalableIPC.Core
             }
 
             return rawBytes;
+        }
+
+        private void WriteOption(BinaryWriter writer, string[] pair)
+        {
+            var optionNameBytes = ConvertStringToBytes(pair[0]);
+            var optionValueBytes = ConvertStringToBytes(pair[1]);
+            int totalLengthPlusOne = optionNameBytes.Length + optionValueBytes.Length + 1;
+            writer.Write(SerializeUnsignedInt16BigEndian(totalLengthPlusOne));
+            writer.Write(optionNameBytes);
+            writer.Write(NullTerminator);
+            writer.Write(SerializeUnsignedInt16BigEndian(totalLengthPlusOne));
+            writer.Write(optionValueBytes);
         }
 
         private static void InsertExpectedDataLength(int expectedDataLen, byte[] dest)

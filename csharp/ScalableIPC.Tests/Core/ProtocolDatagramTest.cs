@@ -322,15 +322,9 @@ namespace ScalableIPC.Tests.Core
         [Fact]
         public void TestGenerateSessionId()
         {
-            // check that conversion to hex succeeds, and that number of bytes produced = 16 or 32.
-            var randSid = ProtocolDatagram.GenerateSessionId(false);
+            // check that conversion to hex succeeds, and that number of bytes produced = 32.
+            var randSid = ProtocolDatagram.GenerateSessionId();
             var randSidBytes = ProtocolDatagram.ConvertHexToBytes(randSid);
-            Assert.Equal(16, randSidBytes.Length);
-            randSid = ProtocolDatagram.GenerateSessionId(true);
-            randSidBytes = ProtocolDatagram.ConvertHexToBytes(randSid);
-            Assert.Equal(32, randSidBytes.Length);
-            randSid = ProtocolDatagram.GenerateSessionId();
-            randSidBytes = ProtocolDatagram.ConvertHexToBytes(randSid);
             Assert.Equal(32, randSidBytes.Length);
         }
 
@@ -848,6 +842,250 @@ namespace ScalableIPC.Tests.Core
             expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup,
                 new List<string> { "false" });
             testData.Add(new object[] { input, 0, input.Length - 1, expected });
+
+            return testData;
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateTestParseWithErrorData))]
+        public void TestParseWithError(byte[] data, int offset, int length)
+        {
+            Assert.ThrowsAny<Exception>(() => ProtocolDatagram.Parse(data, offset, length));
+        }
+
+        public static List<object[]> CreateTestParseWithErrorData()
+        {
+            var testData = new List<object[]>();
+
+            // too short a datagram.
+            var input = new byte[]
+            {
+                0x00, 0x1e,  // expected length
+                0x00, // indicates short session id
+                0x00, 0x00, 0x00, 0x00, // session id 
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x00, 0x00, 0x00, 0x00, // sequence number
+            };
+            testData.Add(new object[] { input, 0, input.Length });
+
+            // long session indicator but shorter one actually used
+            input = new byte[]
+            {
+                0x00, 0x1e,  // expected length
+                0xff, // indicates long although short session id
+                0x00, 0x00, 0x00, 0x00, // session id 
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x00, 0x00, 0x00, 0x00, // sequence number
+                0x00, // op code.
+                0x00, // null terminator for all options.
+            };
+            testData.Add(new object[] { input, 0, input.Length });
+
+            // missing null terminator of all options.
+            input = new byte[]
+            {
+                0x00, 0x1e,  // expected length
+                0x00, // indicates short session id
+                0x00, 0x00, 0x00, 0x00, // session id 
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x00, 0x00, 0x00, 0x00, // sequence number
+                0x00, // op code.
+                0x01, // should have been null terminator for all options.
+            };
+            testData.Add(new object[] { input, 0, input.Length });
+
+            testData.Add(new object[] { null, 0, input.Length });
+
+            testData.Add(new object[] { input, 0, -1 });
+
+            testData.Add(new object[] { input, -1, 1 });
+
+            testData.Add(new object[] { input, 100, input.Length });
+
+            // negative window id.
+            input = new byte[]
+            {
+                0x00, 0x32,  // expected length
+                0xff, // indicates long session id
+                0x00, 0x00, 0x00, 0x00, // session id 
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0xff, // indicates long window id.
+                0xf0, 0x00, 0x00, 0x00, // window id
+                0x80, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, // sequence number
+                0x00, // op code.
+                0x00, // null terminator for all options.
+            };
+            testData.Add(new object[] { input, 0, input.Length });
+
+            // negative sequence number.
+            input = new byte[]
+            {
+                0x00, 0x32,  // expected length
+                0xff, // indicates long session id
+                0x77, 0x77, 0x77, 0x77, // session id 
+                0x77, 0x77, 0x77, 0x77,
+                0x77, 0x77, 0x77, 0x77,
+                0x77, 0x77, 0x77, 0x77,
+                0x77, 0x77, 0x77, 0x77,
+                0x77, 0x77, 0x77, 0x77,
+                0x77, 0x77, 0x77, 0x77,
+                0x77, 0x77, 0x77, 0x77,
+                0xff, // indicates long window id.
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x80, 0x00, 0x00, 0x00,
+                0xf0, 0x00, 0x00, 0x00, // sequence number
+                0x00, // op code.
+                0x00, // null terminator for all options.
+            };
+            testData.Add(new object[] { input, 0, input.Length });
+
+            // invalid timeout.
+            input = new byte[]
+            {
+                0x00, 0x45,  // expected length
+                0xff, // indicates long session id
+                0x11, 0x11, 0x11, 0x11, // session id 
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0x11, 0x11, 0x11, 0x11,
+                0xff, // indicates long window id.
+                0x2d, 0xa9, 0xa5, 0x45, // window id
+                0x56, 0xed, 0xac, 0xaa,
+                0x70, 0xf9, 0xe7, 0xb7, // sequence number
+                0x10, // op code.
+                (byte)'s', (byte)'_', (byte)'i', (byte)'d',
+                (byte)'l', (byte)'e', (byte)'_', (byte)'t',
+                (byte)'i', (byte)'m', (byte)'e', (byte)'o',
+                (byte)'u', (byte)'t', 0x00,
+                0x00, 0x02,
+                (byte)'2', (byte)'T',
+                0x00, // null terminator for all options.
+            };
+            testData.Add(new object[] { input, 0, input.Length });
+
+            // long window id indicator but shorter one actually used
+            input = new byte[]
+            {
+                0xda, // not part
+                0x00, 0x3b,  // expected length
+                0x00, // indicates short session id
+                0x22, 0x22, 0x22, 0x22, // session id
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0xff, // should be short window id indicator.
+                0x2a, 0xea, 0x56, 0x59, // window id
+                0x00, 0x00, 0x03, 0xe8, // sequence number
+                0x7e, // op code.
+                (byte)'s', (byte)'_', (byte)'0', (byte)'1',
+                0x00,
+                0x00, 0x04,
+                (byte)'T', (byte)'r', (byte)'u', (byte)'e',
+                (byte)'s', (byte)'_', (byte)'a', (byte)'b', // another option
+                (byte)'o', (byte)'r', (byte)'t', (byte)'_',
+                (byte)'c', (byte)'o', (byte)'d', (byte)'e',
+                0x00,
+                0x00, 0x01,
+                (byte)'5',
+                0x00, // null terminator for all options.
+                (byte)'e', (byte) 'y' // data
+            };
+            testData.Add(new object[] { input, 1, input.Length - 1 });
+
+            // incorrect expected length: 0x2e instead of 0x2d
+            input = new byte[]
+            {
+                0x00, 0x2e,  // expected length
+                0x00, // indicates short session id
+                0x33, 0x33, 0x33, 0x33, // session id 
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x01, // window id
+                0x00, 0x00, 0x00, 0x01, // sequence number
+                0x00, // op code.
+                (byte)'s', (byte)'_', (byte)'0', (byte)'2',
+                0x00,
+                0x00, 0x05,
+                (byte)'f', (byte)'a', (byte)'l', (byte)'s',
+                (byte)'e',
+                0x00, // null terminator for all options.
+                (byte)'h', (byte)'e', (byte) 'y', // data
+                0xcf, // not part
+            };
+            testData.Add(new object[] { input, 0, input.Length });
+
+            // incorrect session length indicator
+            input = new byte[]
+            {
+                0x00, 0x2d,  // expected length
+                0x01, // invalid session id indicator
+                0x33, 0x33, 0x33, 0x33, // session id
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x01, // window id
+                0x00, 0x00, 0x00, 0x01, // sequence number
+                0x00, // op code.
+                (byte)'s', (byte)'_', (byte)'0', (byte)'2',
+                0x00,
+                0x00, 0x05,
+                (byte)'f', (byte)'a', (byte)'l', (byte)'s',
+                (byte)'e',
+                0x00, // null terminator for all options.
+                (byte)'h', (byte)'e', (byte) 'y', // data
+                0xcf, // not part
+            };
+            testData.Add(new object[] { input, 0, input.Length - 1 });
+
+            // incorrect window id indicator
+            input = new byte[]
+            {
+                0x00, 0x2d,  // expected length
+                0x00, // indicator of short session id.
+                0x33, 0x33, 0x33, 0x33, // session id
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0xcc, // invalid window id indicator.
+                0x00, 0x00, 0x00, 0x01, // window id
+                0x00, 0x00, 0x00, 0x01, // sequence number
+                0x00, // op code.
+                (byte)'s', (byte)'_', (byte)'0', (byte)'2',
+                0x00,
+                0x00, 0x05,
+                (byte)'f', (byte)'a', (byte)'l', (byte)'s',
+                (byte)'e',
+                0x00, // null terminator for all options.
+                (byte)'h', (byte)'e', (byte) 'y', // data
+                0xcf, // not part
+            };
+            testData.Add(new object[] { input, 0, input.Length });
 
             return testData;
         }
