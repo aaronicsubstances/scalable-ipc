@@ -40,8 +40,8 @@ namespace ScalableIPC.Core
         public const long MaxWindowIdCrossOverLimit = 9_000_000_000_000_000_000L;
 
         // the expected length, sessionId, opCode, window id, 
-        // sequence number, null separator are always present.
-        public const int MinDatagramSize = 2 + SessionIdLength + 1 + 8 + 4 + 1;
+        // sequence number, null terminators are always present.
+        public const int MinDatagramSize = 2 + SessionIdLength + 1 + 8 + 4 + 2;
         public const int MaxDatagramSize = 65_500;
         public const int MinimumTransferUnitSize = 512;
         public const int MaxOptionByteCount = 60_000;
@@ -152,7 +152,7 @@ namespace ScalableIPC.Core
             offset += 1;
 
             // Now read options until we encounter null terminators for all options.
-            while (rawBytes[offset] != NullTerminator && rawBytes[offset+1] != NullTerminator)
+            while (!(rawBytes[offset] == NullTerminator && rawBytes[offset+1] == NullTerminator))
             {
                 offset = ParseNextOption(rawBytes, offset, endOffset, parsedDatagram);
 

@@ -340,7 +340,7 @@ namespace ScalableIPC.Tests.Core
         {
             var testData = new List<object[]>();
 
-            var sessionId = "".PadLeft(32, '0');
+            var sessionId = "".PadLeft(64, '0');
             var instance = new ProtocolDatagram
             {
                 DataLength = 200,
@@ -348,32 +348,33 @@ namespace ScalableIPC.Tests.Core
             };
             var expected = new byte[]
             { 
-                0x00, 0xe6,  // expected length
-                0x00, // indicates short session id
+                0x00, 0xf9,  // expected length
                 0x00, 0x00, 0x00, 0x00, // session id 
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
-                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, // window id
+                0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, // sequence number
                 0x00, // op code.
-                0x00, // null terminator for all options.
-
+                0x00, 0x00 // null terminator for all options.
             };
             testData.Add(new object[] { instance, expected });
 
             sessionId = "".PadLeft(64, '0');
             instance = new ProtocolDatagram
             {
-                ExpectedDatagramLength = 50,
+                ExpectedDatagramLength = 49,
                 SessionId = sessionId,
                 WindowId = int.MaxValue + 1L
             };
             expected = new byte[]
             {
-                0x00, 0x32,  // expected length
-                0xff, // indicates long session id
+                0x00, 0x31,  // expected length
                 0x00, 0x00, 0x00, 0x00, // session id 
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
@@ -382,13 +383,11 @@ namespace ScalableIPC.Tests.Core
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
-                0xff, // indicates long window id.
                 0x00, 0x00, 0x00, 0x00, // window id
                 0x80, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, // sequence number
                 0x00, // op code.
-                0x00, // null terminator for all options.
-
+                0x00, 0x00 // null terminator for all options.
             };
             testData.Add(new object[] { instance, expected });
 
@@ -406,8 +405,7 @@ namespace ScalableIPC.Tests.Core
             };
             expected = new byte[]
             {
-                0x00, 0x45,  // expected length
-                0xff, // indicates long session id
+                0x00, 0x46,  // expected length
                 0x11, 0x11, 0x11, 0x11, // session id 
                 0x11, 0x11, 0x11, 0x11,
                 0x11, 0x11, 0x11, 0x11,
@@ -416,26 +414,25 @@ namespace ScalableIPC.Tests.Core
                 0x11, 0x11, 0x11, 0x11,
                 0x11, 0x11, 0x11, 0x11,
                 0x11, 0x11, 0x11, 0x11,
-                0xff, // indicates long window id.
                 0x2d, 0xa9, 0xa5, 0x45, // window id
                 0x56, 0xed, 0xac, 0xaa,
                 0x70, 0xf9, 0xe7, 0xb7, // sequence number
                 0x10, // op code.
+                0x00, 0x11,
                 (byte)'s', (byte)'_', (byte)'i', (byte)'d',
                 (byte)'l', (byte)'e', (byte)'_', (byte)'t',
                 (byte)'i', (byte)'m', (byte)'e', (byte)'o',
                 (byte)'u', (byte)'t', 0x00,
-                0x00, 0x02, 
+                0x00, 0x11,
                 (byte)'2', (byte)'0',
-                0x00, // null terminator for all options.
-
+                0x00, 0x00 // null terminator for all options.
             };
             testData.Add(new object[] { instance, expected });
 
-            sessionId = "".PadLeft(32, '2');
+            sessionId = "".PadLeft(64, '2');
             instance = new ProtocolDatagram
             {
-                ExpectedDatagramLength = 59,
+                ExpectedDatagramLength = 82,
                 SessionId = sessionId,
                 WindowId = 720_000_601,
                 OpCode = ProtocolDatagram.OpCodeClose,
@@ -451,32 +448,37 @@ namespace ScalableIPC.Tests.Core
             };
             expected = new byte[]
             {
-                0x00, 0x3b,  // expected length
-                0x00, // indicates short session id
+                0x00, 0x52,  // expected length
                 0x22, 0x22, 0x22, 0x22, // session id 
                 0x22, 0x22, 0x22, 0x22,
                 0x22, 0x22, 0x22, 0x22,
                 0x22, 0x22, 0x22, 0x22,
-                0x00, // indicates short window id.
-                0x2a, 0xea, 0x56, 0x59, // window id
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x2a, 0xea, 0x56, 0x59,
                 0x00, 0x00, 0x03, 0xe8, // sequence number
                 0x7e, // op code.
+                0x00, 0x0e,
                 (byte)'s', (byte)'_', (byte)'a', (byte)'b',
                 (byte)'o', (byte)'r', (byte)'t', (byte)'_',
                 (byte)'c', (byte)'o', (byte)'d', (byte)'e',
                 0x00,
-                0x00, 0x01,
+                0x00, 0x0e,
                 (byte)'5',
+                0x00, 0x09,
                 (byte)'s', (byte)'_', (byte)'0', (byte)'1',
                 0x00,
-                0x00, 0x04,
+                0x00, 0x09,
                 (byte)'T', (byte)'r', (byte)'u', (byte)'e',
-                0x00, // null terminator for all options.
-                (byte)'e', (byte) 'y' // data
+                0x00, 0x00, // null terminator for all options.
+                (byte)'e', (byte)'y' // data
             };
             testData.Add(new object[] { instance, expected });
 
-            sessionId = "".PadLeft(32, '3');
+            sessionId = "".PadLeft(64, '3');
             instance = new ProtocolDatagram
             {
                 SessionId = sessionId,
@@ -493,22 +495,26 @@ namespace ScalableIPC.Tests.Core
             };
             expected = new byte[]
             {
-                0x00, 0x2d,  // expected length
-                0x00, // indicates short session id
+                0x00, 0x42,  // expected length
                 0x33, 0x33, 0x33, 0x33, // session id 
                 0x33, 0x33, 0x33, 0x33,
                 0x33, 0x33, 0x33, 0x33,
                 0x33, 0x33, 0x33, 0x33,
-                0x00, // indicates short window id.
-                0x00, 0x00, 0x00, 0x01, // window id
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x00, 0x00, 0x00, 0x01,
                 0x00, 0x00, 0x00, 0x01, // sequence number
                 0x00, // op code.
+                0x00, 0xa,
                 (byte)'s', (byte)'_', (byte)'0', (byte)'2',
                 0x00,
-                0x00, 0x05,
+                0x00, 0xa,
                 (byte)'F', (byte)'a', (byte)'l', (byte)'s', 
                 (byte)'e',
-                0x00, // null terminator for all options.
+                0x00, 0x00, // null terminator for all options.
                 (byte)'h', (byte)'e', (byte) 'y' // data
             };
             testData.Add(new object[] { instance, expected });
@@ -528,7 +534,7 @@ namespace ScalableIPC.Tests.Core
             var testData = new List<object[]>();
 
             // data length too large.
-            var sessionId = "".PadLeft(32, '0');
+            var sessionId = "".PadLeft(64, '0');
             var instance = new ProtocolDatagram
             {
                 DataLength = 200_000,
@@ -564,7 +570,7 @@ namespace ScalableIPC.Tests.Core
             testData.Add(new object[] { instance });
 
             // almost ok, except that eventual datagram is too large.
-            sessionId = "".PadLeft(32, '2');
+            sessionId = "".PadLeft(64, '2');
             instance = new ProtocolDatagram
             {
                 ExpectedDatagramLength = 65_501,
@@ -596,7 +602,7 @@ namespace ScalableIPC.Tests.Core
             testData.Add(new object[] { instance });
 
             // invalid data length
-            sessionId = "".PadLeft(32, '4');
+            sessionId = "".PadLeft(64, '4');
             instance = new ProtocolDatagram
             {
                 SessionId = sessionId,
@@ -605,7 +611,7 @@ namespace ScalableIPC.Tests.Core
             testData.Add(new object[] { instance });
 
             // invalid offset in data bytes.
-            sessionId = "".PadLeft(32, '5');
+            sessionId = "".PadLeft(64, '5');
             instance = new ProtocolDatagram
             {
                 SessionId = sessionId,
@@ -622,7 +628,7 @@ namespace ScalableIPC.Tests.Core
             testData.Add(new object[] { instance });
 
             // invalid combination of data length and offset in data bytes
-            sessionId = "".PadLeft(32, '6');
+            sessionId = "".PadLeft(64, '6');
             instance = new ProtocolDatagram
             {
                 SessionId = sessionId,
@@ -657,32 +663,34 @@ namespace ScalableIPC.Tests.Core
 
             var input = new byte[]
             {
-                0x00, 0x1e,  // expected length
-                0x00, // indicates short session id
+                0x00, 0x31,  // expected length
                 0x00, 0x00, 0x00, 0x00, // session id 
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
-                0x00, // indicates short window id.
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, // window id
+                0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, // sequence number
                 0x00, // op code.
-                0x00, // null terminator for all options.
+                0x00, 0x00 // null terminator for all options.
             };
-            var sessionId = "".PadLeft(32, '0');
+            var sessionId = "".PadLeft(64, '0');
             var expected = new ProtocolDatagram
             {
-                ExpectedDatagramLength = 30,
+                ExpectedDatagramLength = 49,
                 SessionId = sessionId,
                 DataBytes = input,
-                DataOffset = 30
+                DataOffset = 49
             };
             testData.Add(new object[] { input, 0, input.Length, expected });
 
             input = new byte[]
             {
-                0x00, 0x32,  // expected length
-                0xff, // indicates long session id
+                0x00, 0x31,  // expected length
                 0x00, 0x00, 0x00, 0x00, // session id 
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
@@ -691,28 +699,26 @@ namespace ScalableIPC.Tests.Core
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00,
-                0xff, // indicates long window id.
                 0x00, 0x00, 0x00, 0x00, // window id
                 0x80, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, // sequence number
                 0x00, // op code.
-                0x00, // null terminator for all options.
+                0x00, 0x00 // null terminator for all options.
             };
             sessionId = "".PadLeft(64, '0');
             expected = new ProtocolDatagram
             {
-                ExpectedDatagramLength = 50,
+                ExpectedDatagramLength = 49,
                 SessionId = sessionId,
                 WindowId = int.MaxValue + 1L,
                 DataBytes = input,
-                DataOffset = 50
+                DataOffset = 49
             };
             testData.Add(new object[] { input, 0, input.Length, expected });
 
             input = new byte[]
             {
-                0x00, 0x45,  // expected length
-                0xff, // indicates long session id
+                0x00, 0x46,  // expected length
                 0x11, 0x11, 0x11, 0x11, // session id 
                 0x11, 0x11, 0x11, 0x11,
                 0x11, 0x11, 0x11, 0x11,
@@ -721,23 +727,23 @@ namespace ScalableIPC.Tests.Core
                 0x11, 0x11, 0x11, 0x11,
                 0x11, 0x11, 0x11, 0x11,
                 0x11, 0x11, 0x11, 0x11,
-                0xff, // indicates long window id.
                 0x2d, 0xa9, 0xa5, 0x45, // window id
                 0x56, 0xed, 0xac, 0xaa,
                 0x70, 0xf9, 0xe7, 0xb7, // sequence number
                 0x10, // op code.
+                0x00, 0x11,
                 (byte)'s', (byte)'_', (byte)'i', (byte)'d',
                 (byte)'l', (byte)'e', (byte)'_', (byte)'t',
                 (byte)'i', (byte)'m', (byte)'e', (byte)'o',
                 (byte)'u', (byte)'t', 0x00,
-                0x00, 0x02,
+                0x00, 0x11,
                 (byte)'2', (byte)'0',
-                0x00, // null terminator for all options.
+                0x00, 0x00 // null terminator for all options.
             };
             sessionId = "".PadLeft(64, '1');
             expected = new ProtocolDatagram
             {
-                ExpectedDatagramLength = 69,
+                ExpectedDatagramLength = 70,
                 SessionId = sessionId,
                 WindowId = 3_290_342_720_000_601_258,
                 OpCode = ProtocolDatagram.OpCodeAck,
@@ -747,7 +753,7 @@ namespace ScalableIPC.Tests.Core
                     IdleTimeoutSecs = 20
                 },
                 DataBytes = input,
-                DataOffset = 69
+                DataOffset = 70
             };
             expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout,
                 new List<string> { "20" });
@@ -756,33 +762,38 @@ namespace ScalableIPC.Tests.Core
             input = new byte[]
             {
                 0xda, // not part
-                0x00, 0x3b,  // expected length
-                0x00, // indicates short session id
+                0x00, 0x52,  // expected length
                 0x22, 0x22, 0x22, 0x22, // session id 
                 0x22, 0x22, 0x22, 0x22,
                 0x22, 0x22, 0x22, 0x22,
                 0x22, 0x22, 0x22, 0x22,
-                0x00, // indicates short window id.
-                0x2a, 0xea, 0x56, 0x59, // window id
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x22, 0x22, 0x22, 0x22,
+                0x00, 0x00, 0x00, 0x00, // window id.
+                0x2a, 0xea, 0x56, 0x59,
                 0x00, 0x00, 0x03, 0xe8, // sequence number
                 0x7e, // op code.
+                0x00, 0x09,
                 (byte)'s', (byte)'_', (byte)'0', (byte)'1',
                 0x00,
-                0x00, 0x04,
+                0x00, 0x09,
                 (byte)'T', (byte)'r', (byte)'u', (byte)'e',
-                (byte)'s', (byte)'_', (byte)'a', (byte)'b', // another option
+                0x00, 0x0e,
+                (byte)'s', (byte)'_', (byte)'a', (byte)'b',
                 (byte)'o', (byte)'r', (byte)'t', (byte)'_',
                 (byte)'c', (byte)'o', (byte)'d', (byte)'e',
                 0x00,
-                0x00, 0x01,
+                0x00, 0x0e,
                 (byte)'5',
-                0x00, // null terminator for all options.
+                0x00, 0x00, // null terminator for all options.
                 (byte)'e', (byte) 'y' // data
             };
-            sessionId = "".PadLeft(32, '2');
+            sessionId = "".PadLeft(64, '2');
             expected = new ProtocolDatagram
             {
-                ExpectedDatagramLength = 59,
+                ExpectedDatagramLength = 82,
                 SessionId = sessionId,
                 WindowId = 720_000_601,
                 OpCode = ProtocolDatagram.OpCodeClose,
@@ -793,7 +804,7 @@ namespace ScalableIPC.Tests.Core
                     IsLastInWindow = true,
                 },
                 DataBytes = input,
-                DataOffset = 58,
+                DataOffset = 81,
                 DataLength = 2
             };
             expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow,
@@ -804,29 +815,33 @@ namespace ScalableIPC.Tests.Core
 
             input = new byte[]
             {
-                0x00, 0x2d,  // expected length
-                0x00, // indicates short session id
+                0x00, 0x42,  // expected length
                 0x33, 0x33, 0x33, 0x33, // session id 
                 0x33, 0x33, 0x33, 0x33,
                 0x33, 0x33, 0x33, 0x33,
                 0x33, 0x33, 0x33, 0x33,
-                0x00, // indicates short window id.
-                0x00, 0x00, 0x00, 0x01, // window id
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x33, 0x33, 0x33, 0x33,
+                0x00, 0x00, 0x00, 0x00, // window id
+                0x00, 0x00, 0x00, 0x01,
                 0x00, 0x00, 0x00, 0x01, // sequence number
                 0x00, // op code.
+                0x00, 0x0a,
                 (byte)'s', (byte)'_', (byte)'0', (byte)'2',
                 0x00,
-                0x00, 0x05,
+                0x00, 0x0a,
                 (byte)'f', (byte)'a', (byte)'l', (byte)'s',
                 (byte)'e',
-                0x00, // null terminator for all options.
+                0x00, 0x00, // null terminator for all options.
                 (byte)'h', (byte)'e', (byte) 'y', // data
                 0xcf, // not part
             };
-            sessionId = "".PadLeft(32, '3');
+            sessionId = "".PadLeft(64, '3');
             expected = new ProtocolDatagram
             {
-                ExpectedDatagramLength = 45,
+                ExpectedDatagramLength = 66,
                 SessionId = sessionId,
                 WindowId = 1,
                 OpCode = ProtocolDatagram.OpCodeData,
@@ -836,7 +851,7 @@ namespace ScalableIPC.Tests.Core
                     IsLastInWindowGroup = false,
                 },
                 DataBytes = input,
-                DataOffset = 42,
+                DataOffset = 63,
                 DataLength = 3
             };
             expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup,

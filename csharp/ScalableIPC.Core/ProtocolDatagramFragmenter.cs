@@ -17,9 +17,8 @@ namespace ScalableIPC.Core
             EncodedOptionNamePrefix
         };
 
-        private static readonly int DefaultReservedSpace = ProtocolDatagram.MinDatagramSize
-            + 50 // margin to cover the last in window and last in window group options.
-            ;
+        // reserve space to cover minimum datagram size, the last in window and last in window group options.
+        private static readonly int DefaultReservedSpace = 100;
 
         private readonly ProtocolMessage _message;
         private readonly int _maxFragmentSize;
