@@ -179,10 +179,6 @@ namespace ScalableIPC.Core
             ProtocolDatagram parsedDatagram)
         {
             int totalLengthPlusOne = DeserializeUnsignedInt16BigEndian(rawBytes, offset);
-            if (totalLengthPlusOne < 1)
-            {
-                throw new Exception("Corrupted datagram received");
-            }
             offset += 2;
 
             // look for null terminator.
