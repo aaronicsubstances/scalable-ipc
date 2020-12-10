@@ -20,6 +20,10 @@ namespace ScalableIPC.Core
         // reserve space to cover minimum datagram size, the last in window and last in window group options.
         private static readonly int DefaultReservedSpace = 100;
 
+        private static readonly int OptionOverhead = 4 // for option length indicators
+                        + 1 // null terminator
+                        ;
+
         private readonly ProtocolMessage _message;
         private readonly int _maxFragmentSize;
         private readonly int _maxFragmentBatchSize;
@@ -59,6 +63,11 @@ namespace ScalableIPC.Core
             {
                 return new List<ProtocolDatagram>();
             }
+
+            // The requirement of the fragmentation algorithm is to include the attributes of a message
+            // in each window group returned from this method.
+            // As such create and validate the options once, ensuring that it fits into max datagram size,
+            // and then add data to clone of the options to create more datagrams until the data is used up.
 
             if (_optionsTemplate == null)
             {
@@ -191,17 +200,15 @@ namespace ScalableIPC.Core
             foreach (var kvp in attributes)
             {
                 // treat options to skip as prefix filters
-                if (optionsToSkip.Any(s => s.StartsWith(kvp.Key)))
+                if (optionsToSkip != null && optionsToSkip.Any(s => s.StartsWith(kvp.Key)))
                 {
                     continue;
                 }
                 int keyBytes = ProtocolDatagram.CountBytesInString(kvp.Key);
                 foreach (var attVal in kvp.Value)
                 {
-                    var minBytesNeeded = keyBytes + ProtocolDatagram.CountBytesInString(attVal)
-                        + 2 // for option value length indicator 
-                        + 1 // null terminator
-                        ;
+                    var minBytesNeeded = keyBytes + ProtocolDatagram.CountBytesInString(attVal) + OptionOverhead;
+
                     string optionName = kvp.Key;
                     List<string> optionValues;
                     int optionNameBytes;
@@ -220,15 +227,13 @@ namespace ScalableIPC.Core
                         // encode long option
                         optionName = EncodedOptionNamePrefix + encodedOptionCount;
                         optionNameBytes = ProtocolDatagram.CountBytesInString(optionName);
-                        optionValues = EncodeLongOption(kvp.Key, attVal, maxFragmentSize);
+                        optionValues = EncodeLongOption(kvp.Key, attVal, maxFragmentSize - optionNameBytes - OptionOverhead);
                         encodedOptionCount++;
                     }
                     foreach (var optionValue in optionValues)
                     {
                         var optionBytesNeeded = optionNameBytes + ProtocolDatagram.CountBytesInString(optionValue)
-                           + 2 // for option value length indicator 
-                           + 1 // null terminator
-                           ;
+                           + OptionOverhead;
                         totalSize += optionBytesNeeded;
                         if (totalSize > maxFragmentOptionsSize)
                         {
@@ -236,6 +241,10 @@ namespace ScalableIPC.Core
                         }
                         if (latestSize + optionBytesNeeded > maxFragmentSize)
                         {
+                            if (latestSize == 0)
+                            {
+                                throw new Exception("Wrong algorithm! Detected creation of empty fragment");
+                            }
                             var fragment = new ProtocolDatagram
                             {
                                 ExpectedDatagramLength = latestSize,

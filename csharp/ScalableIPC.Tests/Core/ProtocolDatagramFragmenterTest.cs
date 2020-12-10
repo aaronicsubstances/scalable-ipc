@@ -1,4 +1,5 @@
 ﻿using ScalableIPC.Core;
+using ScalableIPC.Tests.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -262,6 +263,188 @@ namespace ScalableIPC.Tests.Core
                 }
             }
             return sb.ToString();
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateTestCreateFragmentsForAttributesData))]
+        public void TestCreateFragmentsForAttributes(Dictionary<string, List<string>> attributes,
+            int maxFragmentSize, int maxFragmentOptionsSize, List<string> optionsToSkip,
+            List<ProtocolDatagram> expected)
+        {
+            var actual = ProtocolDatagramFragmenter.CreateFragmentsForAttributes(attributes,
+                maxFragmentSize, maxFragmentOptionsSize, optionsToSkip);
+            Assert.Equal(expected, actual, ProtocolDatagramComparer.Default);
+        }
+
+        public static List<object[]> CreateTestCreateFragmentsForAttributesData()
+        {
+            var testData = new List<object[]>();
+
+            Dictionary<string, List<string>> attributes = null;
+            int maxFragmentSize = 0;
+            int maxFragmentOptionsSize = 0;
+            List<string> optionsToSkip = null;
+            var expected = new List<ProtocolDatagram>();
+            testData.Add(new object[] { attributes, maxFragmentSize, maxFragmentOptionsSize, 
+                optionsToSkip, expected });
+
+            attributes = new Dictionary<string, List<string>>();
+            maxFragmentSize = 0;
+            maxFragmentOptionsSize = 0;
+            optionsToSkip = new List<string>();
+            expected = new List<ProtocolDatagram>();
+            testData.Add(new object[] { attributes, maxFragmentSize, maxFragmentOptionsSize,
+                optionsToSkip, expected });
+
+            attributes = new Dictionary<string, List<string>>
+            {
+                { "k1", new List<string>{ "v1" } }
+            };
+            maxFragmentSize = 10;
+            maxFragmentOptionsSize = 1000;
+            optionsToSkip = new List<string>();
+            var item1 = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 9,
+                Options = new ProtocolDatagramOptions()
+            };
+            item1.Options.AllOptions.Add("k1", new List<string> { "v1" });
+            expected = new List<ProtocolDatagram>
+            {
+                item1
+            };
+            testData.Add(new object[] { attributes, maxFragmentSize, maxFragmentOptionsSize,
+                optionsToSkip, expected });
+
+            attributes = new Dictionary<string, List<string>>
+            {
+                { "k1", new List<string>{ "v1", "v21" } }
+            };
+            maxFragmentSize = 10;
+            maxFragmentOptionsSize = 1000;
+            optionsToSkip = new List<string>();
+            item1 = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 9,
+                Options = new ProtocolDatagramOptions()
+            };
+            item1.Options.AllOptions.Add("k1", new List<string> { "v1" });
+            var item2 = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 10,
+                Options = new ProtocolDatagramOptions()
+            };
+            item2.Options.AllOptions.Add("k1", new List<string> { "v21" });
+            expected = new List<ProtocolDatagram>
+            {
+                item1, item2
+            };
+            testData.Add(new object[] { attributes, maxFragmentSize, maxFragmentOptionsSize,
+                optionsToSkip, expected });
+
+            attributes = new Dictionary<string, List<string>>
+            {
+                { "k1", new List<string>{ "v1", "v21" } }
+            };
+            maxFragmentSize = 20;
+            maxFragmentOptionsSize = 20;
+            optionsToSkip = new List<string>();
+            item1 = new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 19,
+                Options = new ProtocolDatagramOptions()
+            };
+            item1.Options.AllOptions.Add("k1", new List<string> { "v1", "v21" });
+            expected = new List<ProtocolDatagram>
+            {
+                item1
+            };
+            testData.Add(new object[] { attributes, maxFragmentSize, maxFragmentOptionsSize,
+                optionsToSkip, expected });
+
+            attributes = new Dictionary<string, List<string>>
+            {
+                { "k1", new List<string>{ "v1", "v21" } },
+                { "k2129709", new List<string>{ "seery", "himolim" } }
+            };
+            maxFragmentSize = 15;
+            maxFragmentOptionsSize = 120;
+            optionsToSkip = new List<string> { "k1" };
+            expected = new List<ProtocolDatagram>();
+            expected.Add(AddOptions(new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 15,
+                Options = new ProtocolDatagramOptions()
+            }, new Dictionary<string, List<string>>
+            {
+                { "s_e_0", new List<string>{ "8:k21" } }
+            }));
+            expected.Add(AddOptions(new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 15,
+                Options = new ProtocolDatagramOptions()
+            }, new Dictionary<string, List<string>>
+            {
+                { "s_e_0", new List<string>{ "29709" } }
+            }));
+            expected.Add(AddOptions(new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 15,
+                Options = new ProtocolDatagramOptions()
+            }, new Dictionary<string, List<string>>
+            {
+                { "s_e_0", new List<string>{ "seery" } }
+            }));
+            expected.Add(AddOptions(new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 15,
+                Options = new ProtocolDatagramOptions()
+            }, new Dictionary<string, List<string>>
+            {
+                { "s_e_1", new List<string>{ "8:k21" } }
+            }));
+            expected.Add(AddOptions(new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 15,
+                Options = new ProtocolDatagramOptions()
+            }, new Dictionary<string, List<string>>
+            {
+                { "s_e_1", new List<string>{ "29709" } }
+            }));
+            expected.Add(AddOptions(new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 15,
+                Options = new ProtocolDatagramOptions()
+            }, new Dictionary<string, List<string>>
+            {
+                { "s_e_1", new List<string>{ "himol" } }
+            }));
+            expected.Add(AddOptions(new ProtocolDatagram
+            {
+                ExpectedDatagramLength = 12,
+                Options = new ProtocolDatagramOptions()
+            }, new Dictionary<string, List<string>>
+            {
+                { "s_e_1", new List<string>{ "im" } }
+            }));
+            testData.Add(new object[] { attributes, maxFragmentSize, maxFragmentOptionsSize,
+                optionsToSkip, expected });
+
+            return testData;
+        }
+
+        // helper method to create without intermediate variables.
+        private static ProtocolDatagram AddOptions(ProtocolDatagram instance, Dictionary<string, List<string>> options)
+        {
+            foreach (var kvp in options)
+            {
+                if (instance.Options == null)
+                {
+                    instance.Options = new ProtocolDatagramOptions();
+                }
+                instance.Options.AllOptions.Add(kvp.Key, kvp.Value);
+            }
+            return instance;
         }
     }
 }
