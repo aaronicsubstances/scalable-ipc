@@ -20,9 +20,7 @@ namespace ScalableIPC.Core
         // reserve space to cover minimum datagram size, the last in window and last in window group options.
         private static readonly int DefaultReservedSpace = 100;
 
-        private static readonly int OptionOverhead = 4 // for option length indicators
-                        + 1 // null terminator
-                        ;
+        private static readonly int OptionOverhead = 5; // for option length indicators and null terminator.
 
         private readonly ProtocolMessage _message;
         private readonly int _maxFragmentSize;
@@ -200,7 +198,7 @@ namespace ScalableIPC.Core
             foreach (var kvp in attributes)
             {
                 // treat options to skip as prefix filters
-                if (optionsToSkip != null && optionsToSkip.Any(s => s.StartsWith(kvp.Key)))
+                if (optionsToSkip != null && optionsToSkip.Any(s => kvp.Key.StartsWith(s)))
                 {
                     continue;
                 }
@@ -222,12 +220,13 @@ namespace ScalableIPC.Core
                     {
                         if (minBytesNeeded > maxFragmentOptionsSize)
                         {
-                            throw new Exception($"Attributes too large for max option bytes: {minBytesNeeded} > {maxFragmentOptionsSize}");
+                            throw new Exception($"Single attribute too large for max option bytes: {minBytesNeeded} > {maxFragmentOptionsSize}");
                         }
                         // encode long option
                         optionName = EncodedOptionNamePrefix + encodedOptionCount;
                         optionNameBytes = ProtocolDatagram.CountBytesInString(optionName);
-                        optionValues = EncodeLongOption(kvp.Key, attVal, maxFragmentSize - optionNameBytes - OptionOverhead);
+                        var remSpace = maxFragmentSize - optionNameBytes - OptionOverhead;
+                        optionValues = EncodeLongOption(kvp.Key, attVal, remSpace, remSpace - latestSize);
                         encodedOptionCount++;
                     }
                     foreach (var optionValue in optionValues)
@@ -271,7 +270,8 @@ namespace ScalableIPC.Core
             return fragments;
         }
 
-        public static List<string> EncodeLongOption(string name, string value, int maxFragByteCount)
+        public static List<string> EncodeLongOption(string name, string value, int maxFragByteCount,
+            int spaceToConsiderForFirst)
         {
             // encoding task is greatly simplified when number of bytes per char is easily determined.
             // hence convert to Latin 1 (where subset of ASCII chars correspond to a byte, and the rest 
@@ -281,6 +281,7 @@ namespace ScalableIPC.Core
             var latin1Encoded = ProtocolDatagram.ConvertBytesToLatin1(bytes, 0, bytes.Length);
             var fragments = new List<string>();
             int lastFragIndex = 0, nextFragByteCount = 0;
+            var skipSpaceToConsiderForFirst = false;
             for (int i = 0; i < latin1Encoded.Length; i++)
             {
                 int chByteCount = 1;
@@ -288,15 +289,26 @@ namespace ScalableIPC.Core
                 {
                     chByteCount = 2; // utf8 encodes 0x80-0xff with 2 bytes
                 }
-                if (chByteCount > maxFragByteCount)
+                int maxToUse;
+                if (skipSpaceToConsiderForFirst || (i == 0 && chByteCount > spaceToConsiderForFirst))
                 {
-                    throw new Exception("Cannot encode long option with insufficient max fragment size: " + maxFragByteCount);
+                    if (chByteCount > maxFragByteCount)
+                    {
+                        throw new Exception("Cannot encode long option with insufficient max fragment size: " + maxFragByteCount);
+                    }
+                    maxToUse = maxFragByteCount;
+                    skipSpaceToConsiderForFirst = true;
                 }
-                if (nextFragByteCount + chByteCount > maxFragByteCount)
+                else
+                {
+                    maxToUse = spaceToConsiderForFirst;
+                }
+                if (nextFragByteCount + chByteCount > maxToUse)
                 {
                     fragments.Add(latin1Encoded.Substring(lastFragIndex, i - lastFragIndex));
                     lastFragIndex = i;
                     nextFragByteCount = 0;
+                    skipSpaceToConsiderForFirst = true;
                 }
                 nextFragByteCount += chByteCount;
             }
