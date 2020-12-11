@@ -65,7 +65,8 @@ namespace ScalableIPC.Core
             // The requirement of the fragmentation algorithm is to include the attributes of a message
             // in each window group returned from this method.
             // As such create and validate the options once, ensuring that it fits into max datagram size,
-            // and then add data to clone of the options to create more datagrams until the data is used up.
+            // and then add data to clones of the options, after which 
+            // create more datagrams until the data is used up.
 
             if (_optionsTemplate == null)
             {
@@ -83,19 +84,17 @@ namespace ScalableIPC.Core
             // first phase: top up.
             foreach (var nextFragment in nextFragments)
             {
+                if (_usedDataLength >= _message.DataLength)
+                {
+                    break;
+                }
                 if (bytesNeeded >= _maxFragmentBatchSize)
                 {
                     break;
                 }
-                int extraSpace = _message.DataLength - _usedDataLength;
-                if (extraSpace > _maxFragmentBatchSize - bytesNeeded)
-                {
-                    extraSpace = _maxFragmentBatchSize - bytesNeeded;
-                }
-                if (extraSpace > _maxFragmentSize - nextFragment.ExpectedDatagramLength)
-                {
-                    extraSpace = _maxFragmentSize - nextFragment.ExpectedDatagramLength;
-                }
+                int extraSpace = Math.Min(Math.Min(_message.DataLength - _usedDataLength,
+                    _maxFragmentBatchSize - bytesNeeded),
+                    _maxFragmentSize - nextFragment.ExpectedDatagramLength);
                 if (extraSpace <= 0)
                 {
                     continue;
@@ -105,30 +104,14 @@ namespace ScalableIPC.Core
                 nextFragment.DataBytes = _message.DataBytes;
                 nextFragment.DataOffset = _message.DataOffset + _usedDataLength;
                 _usedDataLength += extraSpace;
-
-                if (_usedDataLength == _message.DataLength)
-                {
-                    _done = true;
-                    break;
-                }
             }
 
-            // next phase: add new fragments till window is filled up.
-            while (!_done && bytesNeeded < _maxFragmentBatchSize)
+            // next phase: add new fragments till window is filled up or data is used up.
+            while (_usedDataLength < _message.DataLength && bytesNeeded < _maxFragmentBatchSize)
             {
-                int spaceForData = _message.DataLength - _usedDataLength;
-                if (spaceForData > _maxFragmentBatchSize - bytesNeeded)
-                {
-                    spaceForData = _maxFragmentBatchSize - bytesNeeded;
-                }
-                if (spaceForData > _maxFragmentSize)
-                {
-                    spaceForData = _maxFragmentSize;
-                }
-                if (spaceForData <= 0)
-                {
-                    break;
-                }
+                int spaceForData = Math.Min(Math.Min(_message.DataLength - _usedDataLength,
+                    _maxFragmentBatchSize - bytesNeeded),
+                    _maxFragmentSize);
                 bytesNeeded += spaceForData;
                 var nextFragment = new ProtocolDatagram();
                 nextFragments.Add(nextFragment);
@@ -136,19 +119,19 @@ namespace ScalableIPC.Core
                 nextFragment.DataBytes = _message.DataBytes;
                 nextFragment.DataOffset = _message.DataOffset + _usedDataLength;
                 _usedDataLength += spaceForData;
-
-                if (_usedDataLength == _message.DataLength)
-                {
-                    _done = true;
-                }
             }
 
             // for case of empty input, create a corresponding empty datagram.
-            if (nextFragments.Count == 0 && _message.DataLength == 0 && _optionsTemplate.Count == 0)
+            if (_message.DataLength == 0 && _optionsTemplate.Count == 0)
             {
+                if (nextFragments.Count > 0)
+                {
+                    throw new Exception("Wrong algorithm. Unexpected fragments created for empty input at this stage");
+                }
                 nextFragments.Add(new ProtocolDatagram());
-                _done = true;
             }
+
+            _done = _usedDataLength >= _message.DataLength;
 
             // Ensure progress has been made.
             if (nextFragments.Count == 0 || (!_done && _usedDataLength <= prevUsedDataLength))
