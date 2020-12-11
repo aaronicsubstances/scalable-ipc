@@ -82,7 +82,7 @@ namespace ScalableIPC.Core
             sb.Append(", ");
             sb.Append(nameof(DataLength)).Append("=").Append(DataLength);
             sb.Append(", ");
-            sb.Append(nameof(DataBytes)).Append("=").Append(StringUtilities.StringifyByteArray(DataBytes, DataOffset, DataLength));
+            sb.Append(nameof(DataBytes)).Append("=").Append(StringUtilities.StringifyByteArray(DataBytes));
             sb.Append("}");
             return sb.ToString();
         }

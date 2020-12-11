@@ -31,7 +31,7 @@ namespace ScalableIPC.Core.Helpers
             return sb.ToString();
         }
 
-        public static string StringifyByteArray(byte[] data, int offset, int length)
+        public static string StringifyByteArray(byte[] data)
         {
             if (data == null)
             {
@@ -40,13 +40,13 @@ namespace ScalableIPC.Core.Helpers
             var sb = new StringBuilder();
             sb.Append("[");
             bool loopEntered = false;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < data.Length; i++)
             {
                 if (loopEntered)
                 {
                     sb.Append(", ");
                 }
-                sb.AppendFormat("0x{0:X2}", data[offset + i]);
+                sb.AppendFormat("0x{0:X2}", data[i]);
                 loopEntered = true;
             }
             sb.Append("]");

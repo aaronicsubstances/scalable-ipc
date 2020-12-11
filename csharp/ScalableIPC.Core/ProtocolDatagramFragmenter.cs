@@ -32,7 +32,7 @@ namespace ScalableIPC.Core
         private bool _done;
 
         public ProtocolDatagramFragmenter(ProtocolMessage message, int maxFragmentSize, List<string> extraOptionsToSkip)
-            : this(message, maxFragmentSize, extraOptionsToSkip, DefaultReservedSpace, DefaultOptionsToSkip,
+            : this(message, maxFragmentSize, extraOptionsToSkip,
                  ProtocolDatagram.MaxOptionByteCount, ProtocolDatagram.MaxDatagramSize)
         {
 
@@ -40,11 +40,11 @@ namespace ScalableIPC.Core
 
         // helps with testing
         internal ProtocolDatagramFragmenter(ProtocolMessage message, int maxFragmentSize, List<string> extraOptionsToSkip,
-            int defaultReservedSpace, List<string> defaultOptionsToSkip, int maxFragmentOptionsSize, int maxFragmentBatchSize)
+            int maxFragmentOptionsSize, int maxFragmentBatchSize)
         {
             _message = message;
-            _maxFragmentSize = maxFragmentSize - defaultReservedSpace;
-            _optionsToSkip = new List<string>(defaultOptionsToSkip);
+            _maxFragmentSize = maxFragmentSize - DefaultReservedSpace;
+            _optionsToSkip = new List<string>(DefaultOptionsToSkip);
             if (extraOptionsToSkip != null)
             {
                 _optionsToSkip.AddRange(extraOptionsToSkip);
@@ -162,6 +162,7 @@ namespace ScalableIPC.Core
                 {
                     duplicate.Options.AllOptions.Add(pair.Key, new List<string>(pair.Value));
                 }
+                duplicates.Add(duplicate);
             }
             return duplicates;
         }
