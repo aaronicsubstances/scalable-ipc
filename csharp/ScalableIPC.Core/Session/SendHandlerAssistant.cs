@@ -1,17 +1,15 @@
-﻿using ScalableIPC.Core.Abstractions;
-using ScalableIPC.Core.Concurrency;
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace ScalableIPC.Core.Session
 {
     public class SendHandlerAssistant
     {
-        private readonly ISessionHandler _sessionHandler;
+        private readonly IReferenceSessionHandler _sessionHandler;
 
         private int _sentDatagramCount;
 
-        public SendHandlerAssistant(ISessionHandler sessionHandler)
+        public SendHandlerAssistant(IReferenceSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }

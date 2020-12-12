@@ -32,7 +32,7 @@ namespace ScalableIPC.Core.Concurrency
 
         public AbstractPromise<VoidType> Delay(int secs)
         {
-            return new DefaultPromise<VoidType>(Task.Delay(secs * 100)
+            return new DefaultPromise<VoidType>(Task.Delay(secs * 1000)
                 .ContinueWith(_ => VoidType.Instance));
         }
     }
@@ -142,15 +142,16 @@ namespace ScalableIPC.Core.Concurrency
         }
 
         // Contract here is that both Complete* methods should behave like notifications, and
-        // hence these should be called from event loop.
+        // hence these should be called from outside event loop if possible, but after current
+        // event in event loop has been processed.
         public void CompleteSuccessfully(T value)
         {
-            _eventLoop.PostCallback(() => WrappedSource.TrySetResult(value));
+            _eventLoop.PostCallback(() => Task.Run(() => WrappedSource.TrySetResult(value)));
         }
 
         public void CompleteExceptionally(Exception error)
         {
-            _eventLoop.PostCallback(() => WrappedSource.TrySetException(error));
+            _eventLoop.PostCallback(() => Task.Run(() => WrappedSource.TrySetException(error)));
         }
     }
 }

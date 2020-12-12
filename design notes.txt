@@ -2,7 +2,7 @@ ScalableIPC Notes
 ===========
 C#.NET Core implementation
 - exception stacktrace in promise rejection (e.g during send if prev send pending) not showing in tests. Will they also be missing outside test environment?
-- which interface methods are going to be virtual, or all? Session handler, Endpoint handler, etc? 
+- which interface methods are going to be virtual, or all? Prefer containment to inheritance.
 - add try catch as much as possible for robustness
 
 Event Loop Libraries

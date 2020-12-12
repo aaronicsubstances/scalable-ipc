@@ -3,6 +3,7 @@ using ScalableIPC.Core.Concurrency;
 using ScalableIPC.Core.Helpers;
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Session
 {
@@ -13,7 +14,7 @@ namespace ScalableIPC.Core.Session
     /// should only use AbstractPromise.
     /// <para>
     /// Also this implementation is intended to be interoperable with counterparts on other programming platforms.
-    /// As such it makes certain assumptions and is largely closed for modification. It assumes
+    /// As such it makes certain assumptions and is closed for modification. It assumes
     /// 1. Limited non-extensible number of states.
     /// 2. The only opcodes around are data, ack and close.
     /// 3. congestion control is concern of the underlying network transport.
@@ -21,7 +22,7 @@ namespace ScalableIPC.Core.Session
     /// 5. constant max retry count throughout its operation.
     /// </para>
     /// </summary>
-    public class DefaultSessionHandler : ISessionHandler
+    public class DefaultSessionHandler : IReferenceSessionHandler
     {
         public static readonly int StateOpen = 1;
         public static readonly int StateClosing = 2;
@@ -39,7 +40,7 @@ namespace ScalableIPC.Core.Session
         public DefaultSessionHandler()
         { }
 
-        public virtual void CompleteInit(string sessionId, bool configureForInitialSend,
+        public void CompleteInit(string sessionId, bool configureForInitialSend,
             AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint)
         {
             NetworkApi = networkApi;
@@ -91,7 +92,7 @@ namespace ScalableIPC.Core.Session
         public int LastMaxSeqReceived { get; set; }
         public int? RemoteIdleTimeoutSecs { get; set; }
 
-        public virtual void IncrementNextWindowIdToSend()
+        public void IncrementNextWindowIdToSend()
         {
             NextWindowIdToSend = ProtocolDatagram.ComputeNextWindowIdToSend(NextWindowIdToSend);
         }
@@ -172,7 +173,7 @@ namespace ScalableIPC.Core.Session
             return returnPromise;
         }
 
-        public virtual AbstractPromise<VoidType> CloseAsync()
+        public AbstractPromise<VoidType> CloseAsync()
         {
             return CloseAsync(true);
         }
@@ -268,7 +269,7 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public virtual void CancelAckTimeout()
+        public void CancelAckTimeout()
         {
             if (_lastAckTimeoutId != null)
             {
@@ -392,9 +393,8 @@ namespace ScalableIPC.Core.Session
 
                     Log("bd25f41a-32b0-4f5d-bd93-d8f348bd3e83", "Session disposal completed");
 
-                    // pass on to application layer. NB: all calls to application layer must go through
-                    // event loop.
-                    EventLoop.PostCallback(() => OnSessionDisposed(new SessionDisposedEventArgs { Cause = cause }));
+                    // pass on to application layer.
+                    OnSessionDisposed(new SessionDisposedEventArgs { Cause = cause });
                 }
                 promiseCb.CompleteSuccessfully(VoidType.Instance);
             });
@@ -402,17 +402,20 @@ namespace ScalableIPC.Core.Session
         }
 
         // calls to application layer.
+        // Contract here is that both calls should behave like notifications, and
+        // hence these should be called from outside event loop if possible, but after current
+        // event in event loop has been processed.
 
         public event EventHandler<MessageReceivedEventArgs> MessageReceived;
         public void OnMessageReceived(MessageReceivedEventArgs e)
         {
-            MessageReceived?.Invoke(this, e);
+            EventLoop.PostCallback(() => Task.Run(() => MessageReceived?.Invoke(this, e)));
         }
 
         public event EventHandler<SessionDisposedEventArgs> SessionDisposed;
         public void OnSessionDisposed(SessionDisposedEventArgs e)
         {
-            SessionDisposed?.Invoke(this, e);
+            EventLoop.PostCallback(() => Task.Run(() => SessionDisposed?.Invoke(this, e)));
         }
     }
 }

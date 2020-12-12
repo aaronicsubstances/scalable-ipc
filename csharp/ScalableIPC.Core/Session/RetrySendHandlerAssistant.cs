@@ -7,10 +7,10 @@ namespace ScalableIPC.Core.Session
 {
     public class RetrySendHandlerAssistant
     {
-        private readonly ISessionHandler _sessionHandler;
+        private readonly IReferenceSessionHandler _sessionHandler;
         private SendHandlerAssistant _currentWindowHandler;
 
-        public RetrySendHandlerAssistant(ISessionHandler sessionHandler)
+        public RetrySendHandlerAssistant(IReferenceSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }
@@ -19,7 +19,7 @@ namespace ScalableIPC.Core.Session
         public Action SuccessCallback { get; set; }
         protected internal int RetryCount { get; set; }
 
-        public virtual void OnWindowSendTimeout()
+        public void OnWindowSendTimeout()
         {
             if (RetryCount >= _sessionHandler.MaxRetryCount)
             {
@@ -44,7 +44,7 @@ namespace ScalableIPC.Core.Session
             _currentWindowHandler?.Cancel();
         }
 
-        public virtual void Start()
+        public void Start()
         {
             RetrySend(_sessionHandler.AckTimeoutSecs);
         }

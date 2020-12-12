@@ -1,5 +1,4 @@
-﻿using ScalableIPC.Core.Abstractions;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -7,14 +6,14 @@ namespace ScalableIPC.Core.Session
 {
     public class ReceiveHandlerAssistant
     {
-        private readonly ISessionHandler _sessionHandler;
+        private readonly IReferenceSessionHandler _sessionHandler;
 
         private readonly List<ProtocolDatagram> _currentWindow;
         private readonly List<ProtocolDatagram> _currentWindowGroup;
         private readonly List<long> _groupedWindowIds;
         private bool _isComplete;
 
-        public ReceiveHandlerAssistant(ISessionHandler sessionHandler)
+        public ReceiveHandlerAssistant(IReferenceSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
 

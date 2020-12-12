@@ -6,10 +6,10 @@ namespace ScalableIPC.Core.Session
 {
     public class ReceiveDataHandler : ISessionStateHandler
     {
-        private readonly ISessionHandler _sessionHandler;
+        private readonly IReferenceSessionHandler _sessionHandler;
         private ReceiveHandlerAssistant _currentWindowHandler;
 
-        public ReceiveDataHandler(ISessionHandler sessionHandler)
+        public ReceiveDataHandler(IReferenceSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }
@@ -102,9 +102,8 @@ namespace ScalableIPC.Core.Session
                     }
                 }
 
-                // ready to pass on to application layer, and should be called from event loop.
-                _sessionHandler.EventLoop.PostCallback(() => _sessionHandler.OnMessageReceived(
-                    new MessageReceivedEventArgs { Message = messageForApp }));
+                // ready to pass on to application layer.
+                _sessionHandler.OnMessageReceived(new MessageReceivedEventArgs { Message = messageForApp });
 
                 // now window handler is not needed any more
                 _currentWindowHandler = null;
