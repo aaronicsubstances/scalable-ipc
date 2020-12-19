@@ -1,5 +1,4 @@
-﻿using ScalableIPC.Core.Abstractions;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -24,8 +23,7 @@ namespace ScalableIPC.Core.Session
         {
             if (_retryCount >= _sessionHandler.MaxRetryCount)
             {
-                _sessionHandler.Log("28a90da5-1113-42e5-9894-881e3e2876f5", 
-                    "Maximum retry count reached. Disposing...", "retryCount", _retryCount);
+                // maximum retry count reached. begin disposing
                 DisposeCallback.Invoke(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
             }
             else
@@ -71,10 +69,6 @@ namespace ScalableIPC.Core.Session
                 PreviousSendCount = previousSendCount,
                 StopAndWait = stopAndWait
             };
-            _sessionHandler.Log("ea2d46d1-8baf-4e31-9c1a-5740ad5529cd", 
-                _retryCount > 0 ? "Retry sending window" : "Start sending window",
-                "retryCount", _retryCount, "prevSendCount", _currentWindowHandler.PreviousSendCount,
-                "lastInWindow", CurrentWindow[CurrentWindow.Count - 1].Options?.IsLastInWindow);
             _currentWindowHandler.Start();
         }
     }

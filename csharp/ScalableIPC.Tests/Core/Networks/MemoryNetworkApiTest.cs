@@ -65,7 +65,7 @@ namespace ScalableIPC.Tests.Core.Networks
             pendingPromise = sessionHandler.ProcessSendAsync(message);
             await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
 
-            pendingPromise = sessionHandler.CloseAsync(true);
+            pendingPromise = sessionHandler.CloseAsync();
             await ((DefaultPromise<VoidType>)pendingPromise).WrappedTask;
         }
         class TestSessionHandler : DefaultSessionHandler

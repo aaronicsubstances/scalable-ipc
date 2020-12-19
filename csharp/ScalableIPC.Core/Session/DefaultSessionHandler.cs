@@ -175,6 +175,11 @@ namespace ScalableIPC.Core.Session
             return returnPromise;
         }
 
+        public AbstractPromise<VoidType> CloseAsync()
+        {
+            return CloseAsync(true);
+        }
+
         public AbstractPromise<VoidType> CloseAsync(bool closeGracefully)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
@@ -201,25 +206,15 @@ namespace ScalableIPC.Core.Session
                     ResetIdleTimeout();
                     var cause = new SessionDisposedException(false, closeGracefully ? ProtocolDatagram.AbortCodeNormalClose :
                         ProtocolDatagram.AbortCodeForceClose);
-                    InitiateDispose(cause, promiseCb);
+
+                    InitiateDispose(cause, promiseCb, closeGracefully);
+                    if (!closeGracefully)
+                    {
+                        ContinueDispose(cause);
+                    }
                 }
             });
             return returnPromise;
-        }
-
-        public void PostIfNotDisposed(Action cb)
-        {
-            TaskExecutor.PostCallback(() =>
-            {
-                if (SessionState < StateDisposeAwaiting)
-                {
-                    cb.Invoke();
-                }
-                else
-                {
-                    Log("49678d2f-518b-4cf1-b29f-4d3ceb74f3ec", "Skipping callback processing because session is disposed or about to be");
-                }
-            });
         }
 
         public void ResetAckTimeout(int timeoutSecs, Action cb)
@@ -282,7 +277,7 @@ namespace ScalableIPC.Core.Session
 
             Log("33b0e81b-c4fa-4a78-9cb7-0900e60afe3e", "Idle timeout has occured on session");
 
-            InitiateDispose(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout), null);
+            InitiateDispose(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
         }
 
         private void ProcessAckTimeout(Action cb)
@@ -331,29 +326,28 @@ namespace ScalableIPC.Core.Session
             });
         }
 
-        public void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> cb)
+        public void InitiateDispose(SessionDisposedException cause)
         {
-            if (SessionState == StateDisposed)
-            {
-                Log("3f2b1897-7c52-4693-95e6-413c6de47915", "Session already disposed, so skipping dispose initation");
-                return;
-            }
+            InitiateDispose(cause, null, true);
+        }
 
+        public void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> cb,
+            bool sendClose)
+        {
             if (SessionState >= StateClosing)
             {
-                Log("ed8793fb-2fbe-4f14-b385-d134817f1554", "Session already disposing, so skipping dispose initation");
                 return;
             }
 
-            Log("890ef817-b90c-45fc-9243-b809c684c730", "Session disposal started");
             SessionState = StateClosing;
-            _closeHandler.ProcessSendClose(cause, cb);
+            if (sendClose)
+            {
+                _closeHandler.ProcessSendClose(cause, cb);
+            }
         }
 
         public void ContinueDispose(SessionDisposedException cause)
         {
-            Log("65c44e33-acd9-43fa-986d-7de9044f6124", "Continuing session disposal");
-            SessionState = StateDisposeAwaiting;
             _disposalCause = cause;
 
             // cancel all data handling activities.
@@ -362,6 +356,7 @@ namespace ScalableIPC.Core.Session
                 stateHandler.PrepareForDispose(cause);
             }
 
+            SessionState = StateDisposeAwaiting;
             NetworkApi.RequestSessionDispose(RemoteEndpoint, SessionId, cause);
         }
 

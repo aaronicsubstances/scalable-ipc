@@ -34,11 +34,11 @@ namespace ScalableIPC.Core.Session
             if (datagram.WindowId == _sessionHandler.LastWindowIdReceived)
             {
                 // already received and passed to application layer.
-                // just send back benign acknowledgement.
-                var benignAck = new ProtocolDatagram
+                // just send back repeat acknowledgement.
+                var repeatAck = new ProtocolDatagram
                 {
                     SessionId = _sessionHandler.SessionId,
-                    OpCode = ProtocolDatagram.OpCodeAck,
+                    OpCode = ProtocolDatagram.OpCodeDataAck,
                     WindowId = _sessionHandler.LastWindowIdReceived,
                     SequenceNumber = _sessionHandler.LastMaxSeqReceived,
                     Options = new ProtocolDatagramOptions
@@ -50,7 +50,7 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.Log("b68d4dc2-52c0-4ffa-a395-82a49937a838", datagram,
                     "Received datagram from last received window. Responding with ack", 
                     "ack.seqNr", _sessionHandler.LastMaxSeqReceived);
-                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, benignAck, e =>
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, repeatAck, e =>
                 {
                     // ignore success and care only about failure.
                     if (e != null)
@@ -104,7 +104,7 @@ namespace ScalableIPC.Core.Session
             var ack = new ProtocolDatagram
             {
                 SessionId = datagram.SessionId,
-                OpCode = ProtocolDatagram.OpCodeAck,
+                OpCode = ProtocolDatagram.OpCodeDataAck,
                 WindowId = datagram.WindowId,
                 SequenceNumber = lastEffectiveSeqNr
             };
@@ -120,21 +120,20 @@ namespace ScalableIPC.Core.Session
 
         private void HandleAckSendFailure(ProtocolDatagram datagram, Exception error)
         {
-            _sessionHandler.PostIfNotDisposed(() =>
+            _sessionHandler.TaskExecutor.PostCallback(() =>
             {
                 // check if ack send callback is coming in too late.
                 if (IsComplete || _groupedWindowIds.Contains(datagram.WindowId))
                 {
                     _sessionHandler.Log("54823b3a-a4e2-4f91-97c8-27e658a1b07d", datagram,
                         "Ignoring ack send failure");
-                    return;
                 }
                 else
                 {
                     _sessionHandler.Log("f09fd1f8-b548-428e-a59a-01534fde8f0f", datagram,
                         "Failed to send ack. Disposing...");
                     IsComplete = true;
-                    _sessionHandler.InitiateDispose(new SessionDisposedException(error), null);
+                    _sessionHandler.InitiateDispose(new SessionDisposedException(error));
                 }
             });
         }
@@ -156,7 +155,7 @@ namespace ScalableIPC.Core.Session
                    "Window group overflow!");
                 IsComplete = true;
                 _sessionHandler.InitiateDispose(new SessionDisposedException(false,
-                    ProtocolDatagram.AbortCodeWindowGroupOverflow), null);
+                    ProtocolDatagram.AbortCodeWindowGroupOverflow));
                 return;
             }
 
@@ -196,7 +195,7 @@ namespace ScalableIPC.Core.Session
             var ack = new ProtocolDatagram
             {
                 SessionId = datagram.SessionId,
-                OpCode = ProtocolDatagram.OpCodeAck,
+                OpCode = ProtocolDatagram.OpCodeDataAck,
                 WindowId = datagram.WindowId,
                 SequenceNumber = lastEffectiveSeqNr,
                 Options = new ProtocolDatagramOptions

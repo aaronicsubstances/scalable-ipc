@@ -20,8 +20,9 @@ namespace ScalableIPC.Core
     public class ProtocolDatagram
     {
         public const byte OpCodeData = 0x00;
-        public const byte OpCodeAck = 0x10;
-        public const byte OpCodeClose = 0x7e;
+        public const byte OpCodeDataAck = 0x01;
+        public const byte OpCodeClose = 0x02;
+        public const byte OpCodeCloseAck = 0x03;
         public const byte OpCodeCloseAll = 0x7f;
 
         public const int AbortCodeNormalClose = 0;

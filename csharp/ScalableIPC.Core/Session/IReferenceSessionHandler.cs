@@ -21,7 +21,6 @@ namespace ScalableIPC.Core.Session
         int LastMaxSeqReceived { get; set; }
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();
-        void PostIfNotDisposed(Action cb);
 
         int? RemoteIdleTimeoutSecs { get; set; }
 
@@ -30,7 +29,9 @@ namespace ScalableIPC.Core.Session
         void ResetAckTimeout(int timeoutSecs, Action cb);
         void CancelAckTimeout();
         void DiscardReceivedDatagram(ProtocolDatagram datagram);
-        void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb);
+        void InitiateDispose(SessionDisposedException cause);
+        void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb,
+            bool sendClose);
         void ContinueDispose(SessionDisposedException cause);
         void Log(string logPosition, string message, params object[] args);
         void Log(string logPosition, ProtocolDatagram datagram, string message, params object[] args);

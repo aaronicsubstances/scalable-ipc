@@ -43,7 +43,7 @@ namespace ScalableIPC.Core.Session
 
         public bool ProcessReceive(ProtocolDatagram datagram)
         {
-            if (datagram.OpCode != ProtocolDatagram.OpCodeAck)
+            if (datagram.OpCode != ProtocolDatagram.OpCodeDataAck)
             {
                 return false;
             }
@@ -173,7 +173,7 @@ namespace ScalableIPC.Core.Session
 
         private void OnWindowSendError(SessionDisposedException error)
         {
-            _sessionHandler.InitiateDispose(error, null);
+            _sessionHandler.InitiateDispose(error);
         }
     }
 }

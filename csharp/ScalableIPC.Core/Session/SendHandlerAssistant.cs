@@ -47,8 +47,6 @@ namespace ScalableIPC.Core.Session
             nextDatagram.WindowId = _sessionHandler.NextWindowIdToSend;
             nextDatagram.SequenceNumber = _sentDatagramCount - PreviousSendCount;
 
-            _sessionHandler.Log("e289253e-bc8b-4d84-b337-8e3627b2759c", nextDatagram, "Sending next datagram", 
-                "sentCount", _sentDatagramCount);
             _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, e =>
             {
                 if (e == null)

@@ -9,6 +9,7 @@ namespace ScalableIPC.Core.Session
     {
         private readonly IReferenceSessionHandler _sessionHandler;
         private readonly List<PromiseCompletionSource<VoidType>> _pendingPromiseCallbacks;
+        private RetrySendHandlerAssistant _sendWindowHandler;
 
         public CloseHandler(IReferenceSessionHandler sessionHandler)
         {
@@ -25,6 +26,7 @@ namespace ScalableIPC.Core.Session
 
         public void Dispose(SessionDisposedException cause)
         {
+            _sendWindowHandler?.Cancel();
             foreach (var cb in _pendingPromiseCallbacks)
             {
                 _sessionHandler.TaskExecutor.CompletePromiseCallbackSuccessfully(cb, VoidType.Instance);
@@ -39,15 +41,24 @@ namespace ScalableIPC.Core.Session
 
         public bool ProcessReceive(ProtocolDatagram datagram)
         {
-            if (datagram.OpCode != ProtocolDatagram.OpCodeClose)
+            if (datagram.OpCode == ProtocolDatagram.OpCodeCloseAck)
             {
-                return false;
+                if (_sendWindowHandler != null)
+                {
+                    _sendWindowHandler.OnAckReceived(datagram);
+                }
+                else
+                {
+                    _sessionHandler.DiscardReceivedDatagram(datagram);
+                }
+                return true;
             }
-
-            _sessionHandler.Log("7b79fdc3-e704-4dba-8e92-1621b78c4e18", datagram,
-                "Datagram received for processing in close handler");
-            ProcessReceiveClose(datagram);
-            return true;
+            else if (datagram.OpCode == ProtocolDatagram.OpCodeClose)
+            {
+                ProcessReceiveClose(datagram);
+                return true;
+            }
+            return false;
         }
 
         public bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb)
@@ -57,28 +68,53 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessReceiveClose(ProtocolDatagram datagram)
         {
-            if (datagram.Options?.AbortCode == null || datagram.Options?.AbortCode == ProtocolDatagram.AbortCodeNormalClose)
+            var cause = new SessionDisposedException(true, datagram.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose);
+
+            // if graceful close, then try and validate before proceeding with close.
+            if (cause.AbortCode == ProtocolDatagram.AbortCodeNormalClose)
             {
-                // validate window id for normal close.
-                if (datagram.SequenceNumber != 0 || !ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId,
+                // Reject close datagram with invalid window id or sequence number.
+                if (datagram.SequenceNumber == 0 && ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId,
                     _sessionHandler.LastWindowIdReceived))
                 {
-                    _sessionHandler.Log("2cf44189-3193-4c45-a433-0aa1b077a484", datagram,
-                        "Rejecting close datagram with invalid window id or sequence number");
+                    // all is set to reply with an ack.
+                }
+                else
+                {
                     _sessionHandler.DiscardReceivedDatagram(datagram);
                     return;
                 }
             }
 
-            var error = new SessionDisposedException(true, datagram.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose);
-            _sessionHandler.ContinueDispose(error);
+            // use to reject follow up close requests
+            _sessionHandler.LastMaxSeqReceived = datagram.SequenceNumber;
+            _sessionHandler.LastWindowIdReceived = datagram.WindowId;
+
+            _sessionHandler.InitiateDispose(cause, null, false);
+
+            // send back acknowledgement if closing gracefully.
+            if (cause.AbortCode == ProtocolDatagram.AbortCodeNormalClose)
+            {
+                var ack = new ProtocolDatagram
+                {
+                    SessionId = _sessionHandler.SessionId,
+                    OpCode = ProtocolDatagram.OpCodeCloseAck,
+                    WindowId = datagram.WindowId,
+                    Options = new ProtocolDatagramOptions
+                    {
+                        IsWindowFull = true
+                    }
+                };
+
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack,
+                    _ => { /* ignore any error */ });
+            }
+
+            _sessionHandler.ContinueDispose(cause);
         }
 
         public void ProcessSendClose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb)
-        {            
-            _sessionHandler.Log("89d4c052-a99a-4e49-9116-9c80553ec594", "Send Close request accepted for processing in close handler",
-                "cause", cause);
-
+        {
             // promiseCb may be null if timeout triggered.
             if (promiseCb != null)
             {
@@ -99,22 +135,22 @@ namespace ScalableIPC.Core.Session
                     AbortCode = cause.AbortCode
                 };
             }
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, closeDatagram,
-                _ => HandleSendSuccessOrError(cause));
+            _sendWindowHandler = new RetrySendHandlerAssistant(_sessionHandler)
+            {
+                CurrentWindow = new List<ProtocolDatagram> { closeDatagram },
+                SuccessCallback = () => OnSendSuccessOrError(cause),
+                DisposeCallback = _ => OnSendSuccessOrError(cause),
+            };
+            _sendWindowHandler.Start();
+
             SendInProgress = true;
         }
 
-        private void HandleSendSuccessOrError(SessionDisposedException cause)
+        private void OnSendSuccessOrError(SessionDisposedException cause)
         {
-            _sessionHandler.TaskExecutor.PostCallback(() =>
-            {
-                SendInProgress = false;
-
-                _sessionHandler.Log("63a2eff5-d376-44c9-8d98-fd752f4a0c7b", 
-                    "Continuing after sending closing datagram");
-
-                _sessionHandler.ContinueDispose(cause);
-            });
+            SendInProgress = false;
+            _sendWindowHandler = null;
+            _sessionHandler.ContinueDispose(cause);
         }
     }
 }

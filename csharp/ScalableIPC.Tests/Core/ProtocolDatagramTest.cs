@@ -396,7 +396,7 @@ namespace ScalableIPC.Tests.Core
             {
                 SessionId = sessionId,
                 WindowId = 3_290_342_720_000_601_258,
-                OpCode = ProtocolDatagram.OpCodeAck,
+                OpCode = ProtocolDatagram.OpCodeDataAck,
                 SequenceNumber = 1_895_425_975,
                 Options = new ProtocolDatagramOptions
                 {
@@ -417,7 +417,7 @@ namespace ScalableIPC.Tests.Core
                 0x2d, 0xa9, 0xa5, 0x45, // window id
                 0x56, 0xed, 0xac, 0xaa,
                 0x70, 0xf9, 0xe7, 0xb7, // sequence number
-                0x10, // op code.
+                0x01, // op code.
                 0x00, 0x11,
                 (byte)'s', (byte)'_', (byte)'i', (byte)'d',
                 (byte)'l', (byte)'e', (byte)'_', (byte)'t',
@@ -460,7 +460,7 @@ namespace ScalableIPC.Tests.Core
                 0x00, 0x00, 0x00, 0x00, // window id
                 0x2a, 0xea, 0x56, 0x59,
                 0x00, 0x00, 0x03, 0xe8, // sequence number
-                0x7e, // op code.
+                0x02, // op code.
                 0x00, 0x0e,
                 (byte)'s', (byte)'_', (byte)'a', (byte)'b',
                 (byte)'o', (byte)'r', (byte)'t', (byte)'_',
@@ -560,7 +560,7 @@ namespace ScalableIPC.Tests.Core
                 ExpectedDatagramLength = 1,
                 SessionId = sessionId,
                 WindowId = 3_290_342_720_000_601_258,
-                OpCode = ProtocolDatagram.OpCodeAck,
+                OpCode = ProtocolDatagram.OpCodeDataAck,
                 SequenceNumber = 1_895_425_975,
                 Options = new ProtocolDatagramOptions
                 {
@@ -730,7 +730,7 @@ namespace ScalableIPC.Tests.Core
                 0x2d, 0xa9, 0xa5, 0x45, // window id
                 0x56, 0xed, 0xac, 0xaa,
                 0x70, 0xf9, 0xe7, 0xb7, // sequence number
-                0x10, // op code.
+                0x01, // op code.
                 0x00, 0x11,
                 (byte)'s', (byte)'_', (byte)'i', (byte)'d',
                 (byte)'l', (byte)'e', (byte)'_', (byte)'t',
@@ -746,7 +746,7 @@ namespace ScalableIPC.Tests.Core
                 ExpectedDatagramLength = 70,
                 SessionId = sessionId,
                 WindowId = 3_290_342_720_000_601_258,
-                OpCode = ProtocolDatagram.OpCodeAck,
+                OpCode = ProtocolDatagram.OpCodeDataAck,
                 SequenceNumber = 1_895_425_975,
                 Options = new ProtocolDatagramOptions
                 {
@@ -774,7 +774,7 @@ namespace ScalableIPC.Tests.Core
                 0x00, 0x00, 0x00, 0x00, // window id.
                 0x2a, 0xea, 0x56, 0x59,
                 0x00, 0x00, 0x03, 0xe8, // sequence number
-                0x7e, // op code.
+                0x02, // op code.
                 0x00, 0x09,
                 (byte)'s', (byte)'_', (byte)'0', (byte)'1',
                 0x00,
@@ -984,7 +984,7 @@ namespace ScalableIPC.Tests.Core
                 0x2d, 0xa9, 0xa5, 0x45, // window id
                 0x56, 0xed, 0xac, 0xaa,
                 0x70, 0xf9, 0xe7, 0xb7, // sequence number
-                0x10, // op code.
+                0x03, // op code.
                 0x00, 0x11,
                 (byte)'s', (byte)'_', (byte)'i', (byte)'d',
                 (byte)'l', (byte)'e', (byte)'_', (byte)'t',
@@ -1014,7 +1014,7 @@ namespace ScalableIPC.Tests.Core
                 0x00, 0x00, 0x00, 0x00, // window id
                 0x2a, 0xea, 0x56, 0x59,
                 0x00, 0x00, 0x03, 0xe8, // sequence number
-                0x7e, // op code.
+                0x7f, // op code.
                 0x00, 0x04,
                 (byte)'s', (byte)'_', (byte)'0', (byte)'1'
             };
