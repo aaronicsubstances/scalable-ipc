@@ -16,8 +16,9 @@ namespace ScalableIPC.Core.Session
     /// Also this implementation is intended to be interoperable with counterparts on other programming platforms.
     /// As such it makes certain assumptions and is closed for modification. It assumes
     /// 1. Limited non-extensible number of states.
-    /// 2. The only opcodes around are data, ack and close.
-    /// 3. congestion control is concern of the underlying network transport.
+    /// 2. The only opcodes around are data, close and their acks.
+    /// 3. congestion control and data integrity are responsibilities of the underlying network transport
+    ///    (except for duplication of previously sent PDUs, which it handles)
     /// 4. constant timeout values throughout its operation.
     /// 5. constant max retry count throughout its operation.
     /// </para>
@@ -315,7 +316,12 @@ namespace ScalableIPC.Core.Session
             }
 
             SessionState = StateClosing;
-            _closeHandler.ProcessSendClose(cause, cb);
+            // check if null. may be timeout triggered.
+            if (cb != null)
+            {
+                _closeHandler.QueueCallback(cb);
+            }
+            _closeHandler.ProcessSendClose(cause);
         }
 
         public void ContinueDispose(SessionDisposedException cause)

@@ -106,14 +106,8 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.ContinueDispose(cause);
         }
 
-        public void ProcessSendClose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb)
+        public void ProcessSendClose(SessionDisposedException cause)
         {
-            // promiseCb may be null if timeout triggered.
-            if (promiseCb != null)
-            {
-                _pendingPromiseCallbacks.Add(promiseCb);
-            }
-
             // send but ignore errors.
             var closeDatagram = new ProtocolDatagram
             {

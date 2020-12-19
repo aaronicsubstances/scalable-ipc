@@ -235,19 +235,19 @@ namespace ScalableIPC.Core
 
         public static string GenerateSessionId()
         {
-            var prefixNum = Interlocked.Increment(ref _sessionIdCounter);
-            if (prefixNum < 0)
+            var prefix = Guid.NewGuid().ToString("n");
+            var suffix = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff").Substring(1);
+
+            var idx = Interlocked.Increment(ref _sessionIdCounter);
+            if (idx < 0)
             {
                 // map -2^31 to -1, to 0 to 2^31-1
-                prefixNum += int.MaxValue;
-                prefixNum++;
+                idx += int.MaxValue;
+                idx++;
             }
-            var prefix = ConvertBytesToHex(SerializeInt32BigEndian(prefixNum), 0, 4).PadRight(16, '0');
+            var mid = ConvertBytesToHex(SerializeInt32BigEndian(idx), 0, 4).PadRight(16, '0');
 
-            var date = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff").Substring(1);
-
-            var suffix = Guid.NewGuid().ToString("n");
-            return prefix + date + suffix;
+            return prefix + mid + suffix;
         }
 
         public byte[] ToRawDatagram()
@@ -597,6 +597,8 @@ namespace ScalableIPC.Core
                 return "SHUTTING DOWN";
             else if (code == AbortCodeError)
                 return "INTERNAL ERROR";
+            else if (code == AbortCodeWindowGroupOverflow)
+                return "WINDOW GROUP OVERLFOW";
             else
                 return "UNSPECIFIED";
         }
