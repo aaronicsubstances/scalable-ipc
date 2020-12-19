@@ -68,31 +68,22 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessReceiveClose(ProtocolDatagram datagram)
         {
-            var cause = new SessionDisposedException(true, datagram.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose);
-
             // if graceful close, then try and validate before proceeding with close.
-            if (cause.AbortCode == ProtocolDatagram.AbortCodeNormalClose)
+            if (datagram.Options?.AbortCode == null || datagram.Options.AbortCode == ProtocolDatagram.AbortCodeNormalClose)
             {
                 // Reject close datagram with invalid window id or sequence number.
-                if (datagram.SequenceNumber == 0 && ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId,
-                    _sessionHandler.LastWindowIdReceived))
-                {
-                    // all is set to reply with an ack.
-                }
-                else
+                if (!(datagram.SequenceNumber == 0 && ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId,
+                    _sessionHandler.LastWindowIdReceived)))
                 {
                     _sessionHandler.DiscardReceivedDatagram(datagram);
                     return;
                 }
             }
 
-            // use to reject follow up close requests
-            _sessionHandler.LastMaxSeqReceived = datagram.SequenceNumber;
-            _sessionHandler.LastWindowIdReceived = datagram.WindowId;
+            var cause = new SessionDisposedException(true, datagram.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose);
 
-            _sessionHandler.InitiateDispose(cause, null, false);
-
-            // send back acknowledgement if closing gracefully.
+            // send back acknowledgement if closing gracefully, but don't wait
+            // for ack. also ignore errors.
             if (cause.AbortCode == ProtocolDatagram.AbortCodeNormalClose)
             {
                 var ack = new ProtocolDatagram

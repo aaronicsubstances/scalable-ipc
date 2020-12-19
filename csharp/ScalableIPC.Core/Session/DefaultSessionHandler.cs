@@ -206,9 +206,11 @@ namespace ScalableIPC.Core.Session
                     ResetIdleTimeout();
                     var cause = new SessionDisposedException(false, closeGracefully ? ProtocolDatagram.AbortCodeNormalClose :
                         ProtocolDatagram.AbortCodeForceClose);
-
-                    InitiateDispose(cause, promiseCb, closeGracefully);
-                    if (!closeGracefully)
+                    if (closeGracefully)
+                    {
+                        InitiateDispose(cause, promiseCb);
+                    }
+                    else
                     {
                         ContinueDispose(cause);
                     }
@@ -328,11 +330,10 @@ namespace ScalableIPC.Core.Session
 
         public void InitiateDispose(SessionDisposedException cause)
         {
-            InitiateDispose(cause, null, true);
+            InitiateDispose(cause, null);
         }
 
-        public void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> cb,
-            bool sendClose)
+        public void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> cb)
         {
             if (SessionState >= StateClosing)
             {
@@ -340,10 +341,7 @@ namespace ScalableIPC.Core.Session
             }
 
             SessionState = StateClosing;
-            if (sendClose)
-            {
-                _closeHandler.ProcessSendClose(cause, cb);
-            }
+            _closeHandler.ProcessSendClose(cause, cb);
         }
 
         public void ContinueDispose(SessionDisposedException cause)
@@ -357,6 +355,9 @@ namespace ScalableIPC.Core.Session
             }
 
             SessionState = StateDisposeAwaiting;
+
+            OnSessionDisposing(new SessionDisposingEventArgs { Cause = cause });
+
             NetworkApi.RequestSessionDispose(RemoteEndpoint, SessionId, cause);
         }
 
@@ -404,6 +405,12 @@ namespace ScalableIPC.Core.Session
         public void OnMessageReceived(MessageReceivedEventArgs e)
         {
             TaskExecutor.PostTask(() => MessageReceived?.Invoke(this, e));
+        }
+
+        public event EventHandler<SessionDisposingEventArgs> SessionDisposing;
+        public void OnSessionDisposing(SessionDisposingEventArgs e)
+        {
+            TaskExecutor.PostTask(() => SessionDisposing?.Invoke(this, e));
         }
 
         public event EventHandler<SessionDisposedEventArgs> SessionDisposed;

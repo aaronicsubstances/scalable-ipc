@@ -30,16 +30,17 @@ namespace ScalableIPC.Core.Session
         void CancelAckTimeout();
         void DiscardReceivedDatagram(ProtocolDatagram datagram);
         void InitiateDispose(SessionDisposedException cause);
-        void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb,
-            bool sendClose);
+        void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb);
         void ContinueDispose(SessionDisposedException cause);
         void Log(string logPosition, string message, params object[] args);
         void Log(string logPosition, ProtocolDatagram datagram, string message, params object[] args);
 
         // application layer interface. contract here is that these should be called from event loop.
         event EventHandler<MessageReceivedEventArgs> MessageReceived;
+        event EventHandler<SessionDisposingEventArgs> SessionDisposing;
         event EventHandler<SessionDisposedEventArgs> SessionDisposed;
         void OnMessageReceived(MessageReceivedEventArgs e);
+        void OnSessionDisposing(SessionDisposingEventArgs e);
         void OnSessionDisposed(SessionDisposedEventArgs e);
     }
 }
