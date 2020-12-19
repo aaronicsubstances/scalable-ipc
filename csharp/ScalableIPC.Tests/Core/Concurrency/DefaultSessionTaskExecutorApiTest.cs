@@ -6,13 +6,13 @@ using Xunit;
 
 namespace ScalableIPC.Tests.Core.Concurrency
 {
-    public class DefaultEventLoopApiTest
+    public class DefaultSessionTaskExecutorApiTest
     {
         [Theory]
         [MemberData(nameof(CreateTestTimeoutData))]
         public async Task TestTimeout(int delaySecs, bool cancel)
         {
-            var eventLoop = new DefaultEventLoopApi();
+            var eventLoop = new DefaultSessionTaskExecutor();
             var startTime = DateTime.UtcNow;
             DateTime? stopTime = null;
             object timeoutId = eventLoop.ScheduleTimeout(delaySecs, () =>

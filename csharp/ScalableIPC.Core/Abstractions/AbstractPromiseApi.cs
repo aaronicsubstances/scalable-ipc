@@ -21,7 +21,7 @@ namespace ScalableIPC.Core.Abstractions
     /// </summary>
     public interface AbstractPromiseApi
     {
-        PromiseCompletionSource<T> CreateCallback<T>(ISessionHandler sessionHandler);
+        PromiseCompletionSource<T> CreateCallback<T>();
         AbstractPromise<T> Resolve<T>(T value);
         AbstractPromise<T> Reject<T>(Exception reason);
         AbstractPromise<VoidType> Delay(int waitSecs);
@@ -47,10 +47,5 @@ namespace ScalableIPC.Core.Abstractions
     public interface PromiseCompletionSource<T>
     {
         AbstractPromise<T> Extract();
-
-        // Contract here is that both Complete* methods should behave like notifications, and
-        // hence these should be called from event loop.
-        void CompleteSuccessfully(T value);
-        void CompleteExceptionally(Exception error);
     }
 }

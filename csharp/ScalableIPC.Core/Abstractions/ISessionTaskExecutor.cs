@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ScalableIPC.Core.Abstractions
 {
@@ -18,10 +16,23 @@ namespace ScalableIPC.Core.Abstractions
     ///  2. Side-effects of executed tasks must be visible to tasks which will be run later.
     ///  3. Provide timeouts asynchronously without using dedicated timer thread.
     /// </summary>
-    public interface AbstractEventLoopApi
+    public interface ISessionTaskExecutor
     {
+        // these are the event loop operations.
         void PostCallback(Action cb);
         object ScheduleTimeout(int secs, Action cb);
         void CancelTimeout(object id);
+
+        // next are methods for executing tasks anywhere, including
+        // outside of event loop if desired.
+        void RunTask(Action task);
+        // PostTask method is like RunTask, except that it ensures cb will be started after current event loop
+        // work is completed.
+        void PostTask(Action cb);
+
+        // Contract here is that both Complete* methods should behave like notifications, and
+        // hence these should be called from event loop.
+        void CompletePromiseCallbackSuccessfully<T>(PromiseCompletionSource<T> promiseCb, T value);
+        void CompletePromiseCallbackExceptionally<T>(PromiseCompletionSource<T> promiseCb, Exception error);
     }
 }

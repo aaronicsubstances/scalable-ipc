@@ -8,15 +8,15 @@ using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Concurrency
 {
-    public class DefaultEventLoopApi : AbstractEventLoopApi
+    public class DefaultSessionTaskExecutor : ISessionTaskExecutor
     {
-        public DefaultEventLoopApi()
+        private readonly LimitedConcurrencyLevelTaskScheduler _singleThreadTaskScheduler;
+
+        public DefaultSessionTaskExecutor()
         {
             // limit parallelism to one to eliminate thread inteference errors.
-            SingleThreadTaskScheduler = new LimitedConcurrencyLevelTaskScheduler(1);
+            _singleThreadTaskScheduler = new LimitedConcurrencyLevelTaskScheduler(1);
         }
-
-        public LimitedConcurrencyLevelTaskScheduler SingleThreadTaskScheduler { get; }
 
         public void PostCallback(Action cb)
         {
@@ -33,10 +33,10 @@ namespace ScalableIPC.Core.Concurrency
                 }
                 catch (Exception ex)
                 {
-                    CustomLoggerFacade.Log(() => new CustomLogEvent("5394ab18-fb91-4ea3-b07a-e9a1aa150dd6", 
+                    CustomLoggerFacade.Log(() => new CustomLogEvent("5394ab18-fb91-4ea3-b07a-e9a1aa150dd6",
                         "Error occured on event loop", ex));
                 }
-            }, CancellationToken.None, TaskCreationOptions.None, SingleThreadTaskScheduler);
+            }, CancellationToken.None, TaskCreationOptions.None, _singleThreadTaskScheduler);
         }
 
         public object ScheduleTimeout(int secs, Action cb)
@@ -59,14 +59,39 @@ namespace ScalableIPC.Core.Concurrency
                         CustomLoggerFacade.Log(() => new CustomLogEvent("6357ee7d-eb9c-461a-a4d6-7285bae06823",
                             "Error occured on event loop during timeout processing", ex));
                     }
-                }, cts.Token, TaskCreationOptions.None, SingleThreadTaskScheduler);
+                }, cts.Token, TaskCreationOptions.None, _singleThreadTaskScheduler);
             }, TaskContinuationOptions.OnlyOnRanToCompletion);
             return cts;
         }
 
         public void CancelTimeout(object id)
         {
-            ((CancellationTokenSource) id).Cancel();
+            ((CancellationTokenSource)id).Cancel();
+        }
+
+        public void RunTask(Action task)
+        {
+            Task.Run(task);
+        }
+
+        // the remaining methods make use of the above ones. Thus it is sufficient to modify the above methods
+        // to modify the behaviour of the following ones.
+
+        public void PostTask(Action cb)
+        {
+            PostCallback(() => RunTask(cb));
+        }
+
+        // Contract here is that both Complete* methods should behave like notifications, and
+        // hence these should be called from outside event loop if possible, but after current
+        // event in event loop has been processed.
+        public void CompletePromiseCallbackSuccessfully<T>(PromiseCompletionSource<T> promiseCb, T value)
+        {
+            PostTask(() => ((DefaultPromiseCompletionSource<T>)promiseCb).WrappedSource.TrySetResult(value));
+        }
+        public void CompletePromiseCallbackExceptionally<T>(PromiseCompletionSource<T> promiseCb, Exception error)
+        {
+            PostTask(() => ((DefaultPromiseCompletionSource<T>) promiseCb).WrappedSource.TrySetException(error));
         }
     }
 }

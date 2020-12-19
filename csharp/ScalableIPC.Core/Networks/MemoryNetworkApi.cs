@@ -5,6 +5,7 @@ using ScalableIPC.Core.Session;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Networks
@@ -13,13 +14,16 @@ namespace ScalableIPC.Core.Networks
     {
         private readonly SessionHandlerStore _sessionHandlerStore;
         private readonly Random _randomGenerator = new Random();
-        private volatile bool _isShuttingDown = false;
+
+        // behaves like a boolean but for use with Interlocked.Read, has to be
+        // a long.
+        private long _isShuttingDown = 0;
 
         public MemoryNetworkApi()
         {
             _sessionHandlerStore = new SessionHandlerStore();
             PromiseApi = new DefaultPromiseApi();
-            EventLoop = new DefaultEventLoopApi();
+            SessionTaskExecutor = new DefaultSessionTaskExecutor();
             ConnectedNetworks = new Dictionary<GenericNetworkIdentifier, MemoryNetworkApi>();
         }
 
@@ -30,7 +34,7 @@ namespace ScalableIPC.Core.Networks
 
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
         public AbstractPromiseApi PromiseApi { get; set; }
-        public AbstractEventLoopApi EventLoop { get; set; }
+        public ISessionTaskExecutor SessionTaskExecutor { get; set; }
         public int IdleTimeoutSecs { get; set; }
         public int MinRemoteIdleTimeoutSecs { get; set; }
         public int MaxRemoteIdleTimeoutSecs { get; set; }
@@ -52,7 +56,7 @@ namespace ScalableIPC.Core.Networks
         {
             try
             {
-                if (_isShuttingDown)
+                if (IsShuttingDown())
                 {
                     throw new Exception("Cannot start new session due to shutdown");
                 }
@@ -150,7 +154,7 @@ namespace ScalableIPC.Core.Networks
                     }
                     else
                     {
-                        if (_isShuttingDown)
+                        if (IsShuttingDown())
                         {
                             // silently ignore new session if shutting down.
                             return Task.CompletedTask;
@@ -218,8 +222,13 @@ namespace ScalableIPC.Core.Networks
         public AbstractPromise<VoidType> ShutdownAsync(int waitSecs)
         {
             // it is enough to prevent creation of new session handlers
-            _isShuttingDown = false;
+            Interlocked.Exchange(ref _isShuttingDown, 1);
             return DefaultPromiseApi.CompletedPromise;
+        }
+
+        public bool IsShuttingDown()
+        {
+            return Interlocked.Read(ref _isShuttingDown) != 0;
         }
 
         /*public virtual AbstractPromise<VoidType> CloseSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,

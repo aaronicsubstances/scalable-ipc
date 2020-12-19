@@ -27,7 +27,7 @@ namespace ScalableIPC.Core.Session
         {
             foreach (var cb in _pendingPromiseCallbacks)
             {
-                cb.CompleteSuccessfully(VoidType.Instance);
+                _sessionHandler.TaskExecutor.CompletePromiseCallbackSuccessfully(cb, VoidType.Instance);
             }
             _pendingPromiseCallbacks.Clear();
         }
@@ -106,7 +106,7 @@ namespace ScalableIPC.Core.Session
 
         private void HandleSendSuccessOrError(SessionDisposedException cause)
         {
-            _sessionHandler.EventLoop.PostCallback(() =>
+            _sessionHandler.TaskExecutor.PostCallback(() =>
             {
                 SendInProgress = false;
 

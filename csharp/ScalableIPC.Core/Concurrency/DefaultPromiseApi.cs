@@ -15,9 +15,9 @@ namespace ScalableIPC.Core.Concurrency
         public static readonly AbstractPromise<VoidType> CompletedPromise = new DefaultPromise<VoidType>(
             Task.FromResult(VoidType.Instance));
 
-        public PromiseCompletionSource<T> CreateCallback<T>(ISessionHandler sessionHandler)
+        public PromiseCompletionSource<T> CreateCallback<T>()
         {
-            return new DefaultPromiseCompletionSource<T>(sessionHandler);
+            return new DefaultPromiseCompletionSource<T>();
         }
 
         public AbstractPromise<T> Reject<T>(Exception reason)
@@ -125,10 +125,8 @@ namespace ScalableIPC.Core.Concurrency
 
     public class DefaultPromiseCompletionSource<T> : PromiseCompletionSource<T>
     {
-        private readonly AbstractEventLoopApi _eventLoop;
-        public DefaultPromiseCompletionSource(ISessionHandler sessionHandler)
+        public DefaultPromiseCompletionSource()
         {
-            _eventLoop = sessionHandler.EventLoop;
             WrappedSource = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
             ExtractedPromise = new DefaultPromise<T>(WrappedSource.Task);
         }
@@ -139,19 +137,6 @@ namespace ScalableIPC.Core.Concurrency
         public AbstractPromise<T> Extract()
         {
             return ExtractedPromise;
-        }
-
-        // Contract here is that both Complete* methods should behave like notifications, and
-        // hence these should be called from outside event loop if possible, but after current
-        // event in event loop has been processed.
-        public void CompleteSuccessfully(T value)
-        {
-            _eventLoop.PostCallback(() => Task.Run(() => WrappedSource.TrySetResult(value)));
-        }
-
-        public void CompleteExceptionally(Exception error)
-        {
-            _eventLoop.PostCallback(() => Task.Run(() => WrappedSource.TrySetException(error)));
         }
     }
 }

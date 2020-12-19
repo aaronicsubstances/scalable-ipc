@@ -10,7 +10,7 @@ namespace ScalableIPC.Core.Abstractions
             AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint);
         AbstractNetworkApi NetworkApi { get; }
         GenericNetworkIdentifier RemoteEndpoint { get; }
-        AbstractEventLoopApi EventLoop { get; }
+        ISessionTaskExecutor TaskExecutor { get; }
         string SessionId { get; }
         AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram);
         AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message);

@@ -20,7 +20,7 @@ namespace ScalableIPC.Core.Abstractions
     {
         GenericNetworkIdentifier LocalEndpoint { get; set; }
         AbstractPromiseApi PromiseApi { get; set; }
-        AbstractEventLoopApi EventLoop { get; set; }
+        ISessionTaskExecutor SessionTaskExecutor { get; set; }
         int IdleTimeoutSecs { get; set; } // non-positive means disable idle timer 
         int MinRemoteIdleTimeoutSecs { get; set; }
         int MaxRemoteIdleTimeoutSecs { get; set; }
@@ -39,5 +39,6 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             SessionDisposedException cause);
         AbstractPromise<VoidType> ShutdownAsync(int waitSecs);
+        bool IsShuttingDown();
     }
 }

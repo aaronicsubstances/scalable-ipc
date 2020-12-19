@@ -26,18 +26,19 @@ namespace ScalableIPC.Core.Session
         public void PrepareForDispose(SessionDisposedException cause)
         {
             _sendWindowHandler?.Cancel();
-        }
-
-        public void Dispose(SessionDisposedException cause)
-        {
             SendInProgress = false;
             if (_pendingPromiseCallback != null)
             {
                 _sessionHandler.Log("9316f65d-f2bd-4877-b929-a9f02b545d3c", "Send data failed");
 
-                _pendingPromiseCallback.CompleteExceptionally(cause);
+                _sessionHandler.TaskExecutor.CompletePromiseCallbackExceptionally(_pendingPromiseCallback, cause);
                 _pendingPromiseCallback = null;
             }
+        }
+
+        public void Dispose(SessionDisposedException cause)
+        {
+            // nothing to do
         }
 
         public bool ProcessReceive(ProtocolDatagram datagram)
@@ -163,7 +164,8 @@ namespace ScalableIPC.Core.Session
                 "sendInProgress", _sessionHandler.IsSendInProgress());
 
             // complete pending promise.
-            _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
+            _sessionHandler.TaskExecutor.CompletePromiseCallbackSuccessfully(_pendingPromiseCallback,
+                VoidType.Instance);
             _pendingPromiseCallback = null;
             _datagramFragmenter = null;
             _currentWindowGroup = null;
