@@ -24,7 +24,7 @@ namespace ScalableIPC.Core.Session
 
         public void PrepareForDispose(SessionDisposedException cause)
         {
-            // nothing to do
+            _currentWindowHandler?.Cancel();
         }
 
         public void Dispose(SessionDisposedException cause)
@@ -57,7 +57,6 @@ namespace ScalableIPC.Core.Session
             {
                 _currentWindowHandler = new ReceiveHandlerAssistant(_sessionHandler)
                 {
-                    AckOpCode = ProtocolDatagram.OpCodeAck,
                     SuccessCallback = OnWindowReceiveSuccess
                 };
             }

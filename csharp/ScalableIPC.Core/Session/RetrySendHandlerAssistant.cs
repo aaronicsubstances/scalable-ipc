@@ -9,6 +9,7 @@ namespace ScalableIPC.Core.Session
     {
         private readonly IReferenceSessionHandler _sessionHandler;
         private SendHandlerAssistant _currentWindowHandler;
+        private int _retryCount;
 
         public RetrySendHandlerAssistant(IReferenceSessionHandler sessionHandler)
         {
@@ -17,19 +18,19 @@ namespace ScalableIPC.Core.Session
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
         public Action SuccessCallback { get; set; }
-        protected internal int RetryCount { get; set; }
+        public Action<SessionDisposedException> DisposeCallback { get; set; }
 
         public void OnWindowSendTimeout()
         {
-            if (RetryCount >= _sessionHandler.MaxRetryCount)
+            if (_retryCount >= _sessionHandler.MaxRetryCount)
             {
                 _sessionHandler.Log("28a90da5-1113-42e5-9894-881e3e2876f5", 
-                    "Maximum retry count reached. Disposing...", "retryCount", RetryCount);
-                _sessionHandler.InitiateDispose(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout), null);
+                    "Maximum retry count reached. Disposing...", "retryCount", _retryCount);
+                DisposeCallback.Invoke(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
             }
             else
             {
-                RetryCount++;
+                _retryCount++;
                 RetrySend(_sessionHandler.AckTimeoutSecs);
             }
         }
@@ -65,13 +66,14 @@ namespace ScalableIPC.Core.Session
                 CurrentWindow = CurrentWindow,
                 TimeoutCallback = OnWindowSendTimeout,
                 SuccessCallback = SuccessCallback,
+                DisposeCallback = DisposeCallback,
                 AckTimeoutSecs = ackTimeoutSecs,
                 PreviousSendCount = previousSendCount,
                 StopAndWait = stopAndWait
             };
             _sessionHandler.Log("ea2d46d1-8baf-4e31-9c1a-5740ad5529cd", 
-                RetryCount > 0 ? "Retry sending window" : "Start sending window",
-                "retryCount", RetryCount, "prevSendCount", _currentWindowHandler.PreviousSendCount,
+                _retryCount > 0 ? "Retry sending window" : "Start sending window",
+                "retryCount", _retryCount, "prevSendCount", _currentWindowHandler.PreviousSendCount,
                 "lastInWindow", CurrentWindow[CurrentWindow.Count - 1].Options?.IsLastInWindow);
             _currentWindowHandler.Start();
         }

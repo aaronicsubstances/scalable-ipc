@@ -11,7 +11,6 @@ namespace ScalableIPC.Core.Session
         private readonly List<ProtocolDatagram> _currentWindow;
         private readonly List<ProtocolDatagram> _currentWindowGroup;
         private readonly List<long> _groupedWindowIds;
-        private bool _isComplete;
 
         public ReceiveHandlerAssistant(IReferenceSessionHandler sessionHandler)
         {
@@ -20,11 +19,15 @@ namespace ScalableIPC.Core.Session
             _currentWindow = new List<ProtocolDatagram>();
             _currentWindowGroup = new List<ProtocolDatagram>();
             _groupedWindowIds = new List<long>();
-            _isComplete = false;
         }
 
-        public byte AckOpCode { get; set; }
         public Func<List<ProtocolDatagram>, bool> SuccessCallback { get; set; }
+        public bool IsComplete { get; set; } = false;
+
+        public void Cancel()
+        {
+            IsComplete = true;
+        }
 
         public void OnReceive(ProtocolDatagram datagram)
         {
@@ -35,7 +38,7 @@ namespace ScalableIPC.Core.Session
                 var benignAck = new ProtocolDatagram
                 {
                     SessionId = _sessionHandler.SessionId,
-                    OpCode = AckOpCode,
+                    OpCode = ProtocolDatagram.OpCodeAck,
                     WindowId = _sessionHandler.LastWindowIdReceived,
                     SequenceNumber = _sessionHandler.LastMaxSeqReceived,
                     Options = new ProtocolDatagramOptions
@@ -101,7 +104,7 @@ namespace ScalableIPC.Core.Session
             var ack = new ProtocolDatagram
             {
                 SessionId = datagram.SessionId,
-                OpCode = AckOpCode,
+                OpCode = ProtocolDatagram.OpCodeAck,
                 WindowId = datagram.WindowId,
                 SequenceNumber = lastEffectiveSeqNr
             };
@@ -120,7 +123,7 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.PostIfNotDisposed(() =>
             {
                 // check if ack send callback is coming in too late.
-                if (_isComplete || _groupedWindowIds.Contains(datagram.WindowId))
+                if (IsComplete || _groupedWindowIds.Contains(datagram.WindowId))
                 {
                     _sessionHandler.Log("54823b3a-a4e2-4f91-97c8-27e658a1b07d", datagram,
                         "Ignoring ack send failure");
@@ -130,7 +133,7 @@ namespace ScalableIPC.Core.Session
                 {
                     _sessionHandler.Log("f09fd1f8-b548-428e-a59a-01534fde8f0f", datagram,
                         "Failed to send ack. Disposing...");
-                    _isComplete = true;
+                    IsComplete = true;
                     _sessionHandler.InitiateDispose(new SessionDisposedException(error), null);
                 }
             });
@@ -151,7 +154,7 @@ namespace ScalableIPC.Core.Session
             {
                 _sessionHandler.Log("bff758a4-f80a-48c1-ac28-8ce7ea36589e", datagram,
                    "Window group overflow!");
-                _isComplete = true;
+                IsComplete = true;
                 _sessionHandler.InitiateDispose(new SessionDisposedException(false,
                     ProtocolDatagram.AbortCodeWindowGroupOverflow), null);
                 return;
@@ -172,7 +175,7 @@ namespace ScalableIPC.Core.Session
                     return;
                 }
 
-                _isComplete = true;
+                IsComplete = true;
                 _sessionHandler.Log("89d4c052-a99a-4e49-9116-9c80553ec594", datagram,
                    "Window group is full");
             }
@@ -193,7 +196,7 @@ namespace ScalableIPC.Core.Session
             var ack = new ProtocolDatagram
             {
                 SessionId = datagram.SessionId,
-                OpCode = AckOpCode,
+                OpCode = ProtocolDatagram.OpCodeAck,
                 WindowId = datagram.WindowId,
                 SequenceNumber = lastEffectiveSeqNr,
                 Options = new ProtocolDatagramOptions

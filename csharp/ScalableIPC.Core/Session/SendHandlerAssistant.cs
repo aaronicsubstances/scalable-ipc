@@ -18,24 +18,19 @@ namespace ScalableIPC.Core.Session
         public int PreviousSendCount { get; set; }
 
         /// <summary>
-        /// Used to alternate between stop and wait flow control, or go back N, in between timeouts. 
+        /// Used to alternate between stop and wait flow control, and go back N in between timeouts. 
         /// </summary>
         public bool StopAndWait { get; set; }
         public int AckTimeoutSecs { get; set; }
         public Action SuccessCallback { get; set; }
+        public Action<SessionDisposedException> DisposeCallback { get; set; }
         public Action TimeoutCallback { get; set; }
+        public bool IsComplete { get; set; } = false;
 
         public void Cancel()
         {
-            if (!IsComplete)
-            {
-                IsCancelled = true;
-                IsComplete = true;
-            }
+            IsComplete = true;
         }
-
-        public bool IsCancelled { get; set; } = false;
-        public bool IsComplete { get; set; } = false;
 
         public void Start()
         {
@@ -183,8 +178,8 @@ namespace ScalableIPC.Core.Session
                 {
                     _sessionHandler.Log("c57b8654-7c31-499d-b89b-52d1d5d7dd8d", datagram,
                         "Sending failed. Disposing...", "error", error);
-                    Cancel();
-                    _sessionHandler.InitiateDispose(new SessionDisposedException(error), null);
+                    IsComplete = true;
+                    DisposeCallback.Invoke(new SessionDisposedException(error));
                 }
             });
         }
@@ -200,7 +195,7 @@ namespace ScalableIPC.Core.Session
             {
                 _sessionHandler.Log("3b2ebb8c-15fe-49cb-a657-55df547806eb",
                     "Ack receipt wait timed out");
-                Cancel();
+                IsComplete = true;
                 TimeoutCallback.Invoke();
             }
         }

@@ -173,11 +173,6 @@ namespace ScalableIPC.Core.Session
             return returnPromise;
         }
 
-        public AbstractPromise<VoidType> CloseAsync()
-        {
-            return CloseAsync(true);
-        }
-
         public AbstractPromise<VoidType> CloseAsync(bool closeGracefully)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(this);

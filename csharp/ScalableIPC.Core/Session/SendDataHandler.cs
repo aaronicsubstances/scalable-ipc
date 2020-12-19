@@ -30,7 +30,6 @@ namespace ScalableIPC.Core.Session
 
         public void Dispose(SessionDisposedException cause)
         {
-            _sendWindowHandler?.Cancel();
             SendInProgress = false;
             if (_pendingPromiseCallback != null)
             {
@@ -138,7 +137,8 @@ namespace ScalableIPC.Core.Session
             _sendWindowHandler = new RetrySendHandlerAssistant(_sessionHandler)
             {
                 CurrentWindow = nextWindow,
-                SuccessCallback = OnWindowSendSuccess
+                SuccessCallback = OnWindowSendSuccess,
+                DisposeCallback = OnWindowSendError
             };
 
             _sessionHandler.Log("d151c5bf-e922-4828-8820-8cf964dac160",
@@ -167,6 +167,11 @@ namespace ScalableIPC.Core.Session
             _pendingPromiseCallback = null;
             _datagramFragmenter = null;
             _currentWindowGroup = null;
+        }
+
+        private void OnWindowSendError(SessionDisposedException error)
+        {
+            _sessionHandler.InitiateDispose(error, null);
         }
     }
 }

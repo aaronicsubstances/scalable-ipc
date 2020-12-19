@@ -14,7 +14,6 @@ namespace ScalableIPC.Core.Abstractions
         string SessionId { get; }
         AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram);
         AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message);
-        AbstractPromise<VoidType> CloseAsync();
         AbstractPromise<VoidType> CloseAsync(bool closeGracefully);
         AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause);
         int MaxReceiveWindowSize { get; set; }
