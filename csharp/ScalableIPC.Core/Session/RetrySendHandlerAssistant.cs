@@ -1,16 +1,16 @@
-﻿using System;
+﻿using ScalableIPC.Core.Session.Abstractions;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace ScalableIPC.Core.Session
 {
-    public class RetrySendHandlerAssistant
+    public class RetrySendHandlerAssistant: IRetrySendHandlerAssistant
     {
-        private readonly IReferenceSessionHandler _sessionHandler;
-        private SendHandlerAssistant _currentWindowHandler;
-        private int _retryCount;
+        private readonly IDefaultSessionHandler _sessionHandler;
+        private ISendHandlerAssistant _currentWindowHandler;
 
-        public RetrySendHandlerAssistant(IReferenceSessionHandler sessionHandler)
+        public RetrySendHandlerAssistant(IDefaultSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }
@@ -18,19 +18,11 @@ namespace ScalableIPC.Core.Session
         public List<ProtocolDatagram> CurrentWindow { get; set; }
         public Action SuccessCallback { get; set; }
         public Action<SessionDisposedException> DisposeCallback { get; set; }
+        public int RetryCount { get; set; }
 
-        public void OnWindowSendTimeout()
+        public void Start()
         {
-            if (_retryCount >= _sessionHandler.MaxRetryCount)
-            {
-                // maximum retry count reached. begin disposing
-                DisposeCallback.Invoke(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
-            }
-            else
-            {
-                _retryCount++;
-                RetrySend(_sessionHandler.AckTimeoutSecs);
-            }
+            RetrySend(_sessionHandler.AckTimeoutSecs);
         }
 
         public void OnAckReceived(ProtocolDatagram datagram)
@@ -43,12 +35,21 @@ namespace ScalableIPC.Core.Session
             _currentWindowHandler?.Cancel();
         }
 
-        public void Start()
+        private void OnWindowSendTimeout()
         {
-            RetrySend(_sessionHandler.AckTimeoutSecs);
+            if (RetryCount >= _sessionHandler.MaxRetryCount)
+            {
+                // maximum retry count reached. begin disposing
+                DisposeCallback.Invoke(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
+            }
+            else
+            {
+                RetryCount++;
+                RetrySend(_sessionHandler.AckTimeoutSecs);
+            }
         }
 
-        public void RetrySend(int ackTimeoutSecs)
+        private void RetrySend(int ackTimeoutSecs)
         {
             int previousSendCount = 0;
             bool stopAndWait = false;
@@ -59,16 +60,14 @@ namespace ScalableIPC.Core.Session
                 // should always use stop and wait flow control.
                 stopAndWait = true;
             }
-            _currentWindowHandler = new SendHandlerAssistant(_sessionHandler)
-            {
-                CurrentWindow = CurrentWindow,
-                TimeoutCallback = OnWindowSendTimeout,
-                SuccessCallback = SuccessCallback,
-                DisposeCallback = DisposeCallback,
-                AckTimeoutSecs = ackTimeoutSecs,
-                PreviousSendCount = previousSendCount,
-                StopAndWait = stopAndWait
-            };
+            _currentWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
+            _currentWindowHandler.CurrentWindow = CurrentWindow;
+            _currentWindowHandler.TimeoutCallback = OnWindowSendTimeout;
+            _currentWindowHandler.SuccessCallback = SuccessCallback;
+            _currentWindowHandler.DisposeCallback = DisposeCallback;
+            _currentWindowHandler.AckTimeoutSecs = ackTimeoutSecs;
+            _currentWindowHandler.PreviousSendCount = previousSendCount;
+            _currentWindowHandler.StopAndWait = stopAndWait;
             _currentWindowHandler.Start();
         }
     }

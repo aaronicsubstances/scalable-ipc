@@ -3,10 +3,14 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ScalableIPC.Core.Session
+namespace ScalableIPC.Core.Session.Abstractions
 {
-    public interface IReferenceSessionHandler: ISessionHandler
+    public interface IDefaultSessionHandler: ISessionHandler
     {
+        ISendHandlerAssistant CreateSendHandlerAssistant();
+        IRetrySendHandlerAssistant CreateRetrySendHandlerAssistant();
+        IReceiveHandlerAssistant CreateReceiveHandlerAssistant();
+
         int SessionState { get; set; }
 
         // Rules for window id changes are:
@@ -32,8 +36,6 @@ namespace ScalableIPC.Core.Session
         void InitiateDispose(SessionDisposedException cause);
         void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb);
         void ContinueDispose(SessionDisposedException cause);
-        void Log(string logPosition, string message, params object[] args);
-        void Log(string logPosition, ProtocolDatagram datagram, string message, params object[] args);
 
         // application layer interface. contract here is that these should be called from event loop.
         event EventHandler<MessageReceivedEventArgs> MessageReceived;

@@ -1,9 +1,9 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Concurrency;
 using ScalableIPC.Core.Helpers;
+using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Session
 {
@@ -22,7 +22,7 @@ namespace ScalableIPC.Core.Session
     /// 5. constant max retry count throughout its operation.
     /// </para>
     /// </summary>
-    public class DefaultSessionHandler : IReferenceSessionHandler
+    public class DefaultSessionHandler : IDefaultSessionHandler
     {
         public static readonly int StateOpen = 1;
         public static readonly int StateClosing = 2;
@@ -65,6 +65,21 @@ namespace ScalableIPC.Core.Session
             MaximumTransferUnitSize = networkApi.MaximumTransferUnitSize;
             MaxSendWindowSize = networkApi.MaxSendWindowSize;
             MaxReceiveWindowSize = networkApi.MaxReceiveWindowSize;
+        }
+
+        public ISendHandlerAssistant CreateSendHandlerAssistant()
+        {
+            return new SendHandlerAssistant(this);
+        }
+
+        public IRetrySendHandlerAssistant CreateRetrySendHandlerAssistant()
+        {
+            return new RetrySendHandlerAssistant(this);
+        }
+
+        public IReceiveHandlerAssistant CreateReceiveHandlerAssistant()
+        {
+            return new ReceiveHandlerAssistant(this);
         }
 
         public AbstractNetworkApi NetworkApi { get; private set; }
@@ -113,8 +128,6 @@ namespace ScalableIPC.Core.Session
         {
             TaskExecutor.PostCallback(() =>
             {
-                Log("163c3ed3-0e9d-40a7-abff-b95310bfe200", datagram, "Session ProcessReceive");
-
                 bool handled = false;
                 if (SessionState < StateDisposeAwaiting)
                 {
@@ -142,8 +155,6 @@ namespace ScalableIPC.Core.Session
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             TaskExecutor.PostCallback(() =>
             {
-                Log("5abd8c58-4f14-499c-ad0e-788d59c5f7e2", "Session ProcessSend");
-
                 if (SessionState >= StateDisposeAwaiting)
                 {
                     TaskExecutor.CompletePromiseCallbackExceptionally(promiseCb, _disposalCause);
@@ -186,8 +197,6 @@ namespace ScalableIPC.Core.Session
             AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             TaskExecutor.PostCallback(() =>
             {
-                Log("0447a0ef-5963-457c-a290-7026bed7f372", null, "Session Close");
-
                 if (SessionState == StateDisposed)
                 {
                     TaskExecutor.CompletePromiseCallbackSuccessfully(promiseCb, VoidType.Instance);
@@ -221,9 +230,8 @@ namespace ScalableIPC.Core.Session
 
         public void ResetAckTimeout(int timeoutSecs, Action cb)
         {
-            Log("54c44637-3efe-4a35-a674-22e8e12c48cc", "About to set ack timeout");
-
             CancelAckTimeout();
+
             // interpret non positive timeout as disable ack timeout.
             if (timeoutSecs > 0)
             {
@@ -234,8 +242,6 @@ namespace ScalableIPC.Core.Session
 
         public void ResetIdleTimeout()
         {
-            Log("41f243a1-db75-4c08-82fa-b2c7ff7dfda6", "About to reset idle timeout");
-            
             CancelIdleTimeout();
 
             int effectiveIdleTimeoutSecs = IdleTimeoutSecs;
@@ -276,56 +282,24 @@ namespace ScalableIPC.Core.Session
         private void ProcessIdleTimeout()
         {
             _lastIdleTimeoutId = null;
-
-            Log("33b0e81b-c4fa-4a78-9cb7-0900e60afe3e", "Idle timeout has occured on session");
-
             InitiateDispose(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
         }
 
         private void ProcessAckTimeout(Action cb)
         {
             _lastAckTimeoutId = null;
-            if (SessionState >= StateDisposeAwaiting)
+            if (SessionState < StateDisposeAwaiting)
             {
-                Log("deec47ed-7c13-4e4e-9fd6-030aad245458", "Ignoring ack timeout since session is disposed or about to be");
-                return;
+                cb.Invoke();
             }
-
-            Log("4a130328-aa6e-46eb-81ca-5a705e3d0995", "Ack timeout has occured on session");
-
-            cb.Invoke();
         }
 
         public void DiscardReceivedDatagram(ProtocolDatagram datagram)
         {
             // subclasses can log more.
 
-            Log("ee37084b-2201-4591-b681-25b0398aba40", datagram, "Discarding datagram");
-        }
-        
-        public void Log(string logPosition, ProtocolDatagram datagram, string message, params object[] args)
-        {
-            CustomLoggerFacade.Log(() =>
-            {
-                var customEvent = new CustomLogEvent(logPosition, message, null);
-                customEvent.FillData("localEndpoint", NetworkApi.LocalEndpoint.ToString());
-                customEvent.FillData("sessionId", SessionId);
-                customEvent.FillData("datagram", datagram);
-                customEvent.FillData(args);
-                return customEvent;
-            });
-        }
-
-        public void Log(string logPosition, string message, params object[] args)
-        {
-            CustomLoggerFacade.Log(() =>
-            {
-                var customEvent = new CustomLogEvent(logPosition, message, null);
-                customEvent.FillData("localEndpoint", NetworkApi.LocalEndpoint.ToString());
-                customEvent.FillData("sessionId", SessionId);
-                customEvent.FillData(args);
-                return customEvent;
-            });
+            CustomLoggerFacade.Log(() => new CustomLogEvent("ee37084b-2201-4591-b681-25b0398aba40", 
+                "Discarding datagram: " + datagram, null));
         }
 
         public void InitiateDispose(SessionDisposedException cause)
@@ -369,13 +343,10 @@ namespace ScalableIPC.Core.Session
             {
                 if (SessionState == StateDisposed)
                 {
-                    Log("7e0fcf79-0c6d-41ff-9d73-5b4103d49717", "Session is already disposed");
                     TaskExecutor.CompletePromiseCallbackSuccessfully(promiseCb, VoidType.Instance);
                 }
                 else
                 {
-                    Log("e9d228bb-e00d-4002-8fe8-81df4a21dc41", "Completing session disposal", "cause", cause);
-
                     CancelIdleTimeout();
                     CancelAckTimeout();
 
@@ -386,7 +357,6 @@ namespace ScalableIPC.Core.Session
 
                     SessionState = StateDisposed;
 
-                    Log("bd25f41a-32b0-4f5d-bd93-d8f348bd3e83", "Session disposal completed");
                     TaskExecutor.CompletePromiseCallbackSuccessfully(promiseCb, VoidType.Instance);
 
                     // pass on to application layer.

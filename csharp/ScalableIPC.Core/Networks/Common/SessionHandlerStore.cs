@@ -1,9 +1,8 @@
-﻿using ScalableIPC.Core.Abstractions;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace ScalableIPC.Core.Session
+namespace ScalableIPC.Core.Networks.Common
 {
     public class SessionHandlerStore
     {

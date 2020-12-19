@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text;
 
-namespace ScalableIPC.Core.Session
+namespace ScalableIPC.Core.Networks.Common
 {
     public class DefaultSessionHandlerFactory: ISessionHandlerFactory
     {

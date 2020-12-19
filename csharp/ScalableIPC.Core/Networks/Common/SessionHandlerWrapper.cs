@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ScalableIPC.Core.Session
+namespace ScalableIPC.Core.Networks.Common
 {
     public class SessionHandlerWrapper
     {

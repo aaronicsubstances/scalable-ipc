@@ -1,4 +1,5 @@
 ﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -7,11 +8,11 @@ namespace ScalableIPC.Core.Session
 {
     public class CloseHandler : ISessionStateHandler
     {
-        private readonly IReferenceSessionHandler _sessionHandler;
+        private readonly IDefaultSessionHandler _sessionHandler;
         private readonly List<PromiseCompletionSource<VoidType>> _pendingPromiseCallbacks;
-        private RetrySendHandlerAssistant _sendWindowHandler;
+        private IRetrySendHandlerAssistant _sendWindowHandler;
 
-        public CloseHandler(IReferenceSessionHandler sessionHandler)
+        public CloseHandler(IDefaultSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
             _pendingPromiseCallbacks = new List<PromiseCompletionSource<VoidType>>();
@@ -27,6 +28,7 @@ namespace ScalableIPC.Core.Session
         public void Dispose(SessionDisposedException cause)
         {
             _sendWindowHandler?.Cancel();
+            _sendWindowHandler = null;
             foreach (var cb in _pendingPromiseCallbacks)
             {
                 _sessionHandler.TaskExecutor.CompletePromiseCallbackSuccessfully(cb, VoidType.Instance);
@@ -82,8 +84,8 @@ namespace ScalableIPC.Core.Session
 
             var cause = new SessionDisposedException(true, datagram.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose);
 
-            // send back acknowledgement if closing gracefully, but don't wait
-            // for ack. also ignore errors.
+            // send back acknowledgement if closing gracefully, but ignore errors.
+            // also don't wait.
             if (cause.AbortCode == ProtocolDatagram.AbortCodeNormalClose)
             {
                 var ack = new ProtocolDatagram
@@ -126,12 +128,10 @@ namespace ScalableIPC.Core.Session
                     AbortCode = cause.AbortCode
                 };
             }
-            _sendWindowHandler = new RetrySendHandlerAssistant(_sessionHandler)
-            {
-                CurrentWindow = new List<ProtocolDatagram> { closeDatagram },
-                SuccessCallback = () => OnSendSuccessOrError(cause),
-                DisposeCallback = _ => OnSendSuccessOrError(cause),
-            };
+            _sendWindowHandler = _sessionHandler.CreateRetrySendHandlerAssistant();
+            _sendWindowHandler.CurrentWindow = new List<ProtocolDatagram> { closeDatagram };
+            _sendWindowHandler.SuccessCallback = () => OnSendSuccessOrError(cause);
+            _sendWindowHandler.DisposeCallback = _ => OnSendSuccessOrError(cause);
             _sendWindowHandler.Start();
 
             SendInProgress = true;

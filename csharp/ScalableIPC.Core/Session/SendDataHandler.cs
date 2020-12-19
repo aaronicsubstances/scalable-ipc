@@ -1,4 +1,5 @@
 ﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -7,30 +8,27 @@ namespace ScalableIPC.Core.Session
 {
     public class SendDataHandler: ISessionStateHandler
     {
-        private readonly IReferenceSessionHandler _sessionHandler;
+        private readonly IDefaultSessionHandler _sessionHandler;
         private ProtocolDatagramFragmenter _datagramFragmenter;
         private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
-        private RetrySendHandlerAssistant _sendWindowHandler;
-        private List<ProtocolDatagram> _currentWindowGroup;
-        private int _sentDatagramCountInCurrentWindowGroup;
+        private IRetrySendHandlerAssistant _sendWindowHandler;
 
-        public SendDataHandler(IReferenceSessionHandler sessionHandler)
+        public SendDataHandler(IDefaultSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _currentWindowGroup = new List<ProtocolDatagram>();
-            _sentDatagramCountInCurrentWindowGroup = 0;
         }
-
+        
+        internal List<ProtocolDatagram> CurrentWindowGroup { get; private set; }
+        internal int SentDatagramCountInCurrentWindowGroup { get; private set; }
         public bool SendInProgress { get; set; }
 
         public void PrepareForDispose(SessionDisposedException cause)
         {
             _sendWindowHandler?.Cancel();
+            _sendWindowHandler = null;
             SendInProgress = false;
             if (_pendingPromiseCallback != null)
             {
-                _sessionHandler.Log("9316f65d-f2bd-4877-b929-a9f02b545d3c", "Send data failed");
-
                 _sessionHandler.TaskExecutor.CompletePromiseCallbackExceptionally(_pendingPromiseCallback, cause);
                 _pendingPromiseCallback = null;
             }
@@ -54,16 +52,12 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
-            _sessionHandler.Log("4b1d1ab5-f38a-478d-b444-b43cdf9f363a", datagram,
-                "Ack datagram accepted for processing in send data handler");
             _sendWindowHandler.OnAckReceived(datagram);
             return true;
         }
 
         public bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb)
         {
-            _sessionHandler.Log("75cb01ea-3901-40da-b104-dfc3914e2edd",
-                "Message accepted for processing in send data handler");
             ProcessSendRequest(message, promiseCb);
             return true;
         }
@@ -79,7 +73,7 @@ namespace ScalableIPC.Core.Session
             _datagramFragmenter = new ProtocolDatagramFragmenter(message, mtu, null);
 
             // reset fields used for continuation.
-            _sentDatagramCountInCurrentWindowGroup = 0;
+            SentDatagramCountInCurrentWindowGroup = 0;
 
             ContinueWindowSend(false);
             SendInProgress = true;
@@ -87,35 +81,31 @@ namespace ScalableIPC.Core.Session
 
         private bool ContinueWindowSend(bool haveSentBefore)
         {
-            _sessionHandler.Log("c5b21878-ac61-4414-ba37-4248a4702084",
-                (haveSentBefore ? "Attempting to continue ": "About to start") + " sending data");
-
             if (!haveSentBefore)
             {
-                _currentWindowGroup = _datagramFragmenter.Next();
-                if (_currentWindowGroup.Count == 0)
+                CurrentWindowGroup = _datagramFragmenter.Next();
+                if (CurrentWindowGroup.Count == 0)
                 {
                     throw new Exception("Wrong fragmentation algorithm. At least one datagram must be returned");
                 }
             }
-            else if (_sentDatagramCountInCurrentWindowGroup >= _currentWindowGroup.Count)
+            else if (SentDatagramCountInCurrentWindowGroup >= CurrentWindowGroup.Count)
             {
-                _currentWindowGroup = _datagramFragmenter.Next();
-                if (_currentWindowGroup.Count == 0)
+                CurrentWindowGroup = _datagramFragmenter.Next();
+                if (CurrentWindowGroup.Count == 0)
                 {
-                    _sessionHandler.Log("d7d65563-154a-4855-8efd-c19ae60817d8",
-                        "No more datagrams found for send window.");
+                    // No more datagrams found for send window.
                     return false;
                 }
-                _sentDatagramCountInCurrentWindowGroup = 0;
+                SentDatagramCountInCurrentWindowGroup = 0;
             }
 
             // try and fetch remainder in current window group, but respect constraint of max send window size.
             // ensure minimum of 1 for max send window size.
             int maxSendWindowSize = Math.Max(1, _sessionHandler.MaxSendWindowSize);
-            var nextWindow = _currentWindowGroup.GetRange(_sentDatagramCountInCurrentWindowGroup, Math.Min(maxSendWindowSize,
-                _currentWindowGroup.Count - _sentDatagramCountInCurrentWindowGroup));
-            _sentDatagramCountInCurrentWindowGroup += nextWindow.Count;
+            var nextWindow = CurrentWindowGroup.GetRange(SentDatagramCountInCurrentWindowGroup, Math.Min(maxSendWindowSize,
+                CurrentWindowGroup.Count - SentDatagramCountInCurrentWindowGroup));
+            SentDatagramCountInCurrentWindowGroup += nextWindow.Count;
 
             var lastMsgInNextWindow = nextWindow[nextWindow.Count - 1];
             if (lastMsgInNextWindow.Options == null)
@@ -123,7 +113,7 @@ namespace ScalableIPC.Core.Session
                 lastMsgInNextWindow.Options = new ProtocolDatagramOptions();
             }
             lastMsgInNextWindow.Options.IsLastInWindow = true;
-            if (_sentDatagramCountInCurrentWindowGroup >= _currentWindowGroup.Count)
+            if (SentDatagramCountInCurrentWindowGroup >= CurrentWindowGroup.Count)
             {
                 lastMsgInNextWindow.Options.IsLastInWindowGroup = true;
             }
@@ -142,9 +132,7 @@ namespace ScalableIPC.Core.Session
                 DisposeCallback = OnWindowSendError
             };
 
-            _sessionHandler.Log("d151c5bf-e922-4828-8820-8cf964dac160",
-                $"Found {nextWindow.Count} datagrams to send in next window.", 
-                "count", nextWindow.Count);
+            // Found some datagrams to send in next window.
             _sendWindowHandler.Start();
             return true;
         }
@@ -153,22 +141,20 @@ namespace ScalableIPC.Core.Session
         {
             if (ContinueWindowSend(true))
             {
-                _sessionHandler.Log("d2dd3b31-8630-481d-9f18-4b91dd8345c3", 
-                    "Found another window to continue sending");
+                // another window was found to continue sending
                 return;
             }
 
-            SendInProgress = false;
+            // send data succeeded.
 
-            _sessionHandler.Log("edeafec4-5596-4931-9f2a-5876e1241d89", "Send data succeeded",
-                "sendInProgress", _sessionHandler.IsSendInProgress());
+            SendInProgress = false;
 
             // complete pending promise.
             _sessionHandler.TaskExecutor.CompletePromiseCallbackSuccessfully(_pendingPromiseCallback,
                 VoidType.Instance);
             _pendingPromiseCallback = null;
             _datagramFragmenter = null;
-            _currentWindowGroup = null;
+            CurrentWindowGroup = null;
         }
 
         private void OnWindowSendError(SessionDisposedException error)

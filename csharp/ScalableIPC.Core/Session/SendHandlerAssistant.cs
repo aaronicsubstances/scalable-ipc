@@ -1,25 +1,21 @@
-﻿using System;
+﻿using ScalableIPC.Core.Session.Abstractions;
+using System;
 using System.Collections.Generic;
 
 namespace ScalableIPC.Core.Session
 {
-    public class SendHandlerAssistant
+    public class SendHandlerAssistant: ISendHandlerAssistant
     {
-        private readonly IReferenceSessionHandler _sessionHandler;
+        private readonly IDefaultSessionHandler _sessionHandler;
 
-        private int _sentDatagramCount;
-
-        public SendHandlerAssistant(IReferenceSessionHandler sessionHandler)
+        public SendHandlerAssistant(IDefaultSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
         public int PreviousSendCount { get; set; }
-
-        /// <summary>
-        /// Used to alternate between stop and wait flow control, and go back N in between timeouts. 
-        /// </summary>
+        public int CurrentSendCount { get; set; }
         public bool StopAndWait { get; set; }
         public int AckTimeoutSecs { get; set; }
         public Action SuccessCallback { get; set; }
@@ -27,25 +23,22 @@ namespace ScalableIPC.Core.Session
         public Action TimeoutCallback { get; set; }
         public bool IsComplete { get; set; } = false;
 
+        public void Start()
+        {
+            CurrentSendCount = PreviousSendCount;
+            ContinueSending();
+        }
+
         public void Cancel()
         {
             IsComplete = true;
         }
 
-        public void Start()
-        {
-            _sentDatagramCount = PreviousSendCount;
-
-            _sessionHandler.Log("dcbcfdb9-d486-41ca-834e-ca35db609921", "Starting another round of sending", 
-                "sentCount", _sentDatagramCount, "windowId", _sessionHandler.NextWindowIdToSend);
-            ContinueSending();
-        }
-
         private void ContinueSending()
         {
-            var nextDatagram = CurrentWindow[_sentDatagramCount];
+            var nextDatagram = CurrentWindow[CurrentSendCount];
             nextDatagram.WindowId = _sessionHandler.NextWindowIdToSend;
-            nextDatagram.SequenceNumber = _sentDatagramCount - PreviousSendCount;
+            nextDatagram.SequenceNumber = CurrentSendCount - PreviousSendCount;
 
             _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, e =>
             {
@@ -58,16 +51,13 @@ namespace ScalableIPC.Core.Session
                     HandleSendError(nextDatagram, e);
                 }
             });
-            _sentDatagramCount++;
+            CurrentSendCount++;
         }
 
         public void OnAckReceived(ProtocolDatagram ack)
         {
             if (_sessionHandler.NextWindowIdToSend != ack.WindowId)
             {
-                _sessionHandler.Log("945a983c-7f71-4739-993f-7091ab158eb9", ack,
-                    "Received ack with unexpected window id",
-                    "windowId", _sessionHandler.NextWindowIdToSend);
                 _sessionHandler.DiscardReceivedDatagram(ack);
                 return;
             }
@@ -76,26 +66,21 @@ namespace ScalableIPC.Core.Session
             // and all preceding datagrams in window as well.
             var receiveCount = ack.SequenceNumber + 1;
 
-            var minExpectedReceiveCount = StopAndWait ? (_sentDatagramCount - PreviousSendCount) : 1;
+            var minExpectedReceiveCount = StopAndWait ? (CurrentSendCount - PreviousSendCount) : 1;
             var maxExpectedReceiveCount = CurrentWindow.Count - PreviousSendCount;
 
-            _sessionHandler.Log("5fa0a2e6-b650-41b0-9d11-b8dba8ebcc70", ack,
-                "About to validate ack",
-                "receiveCount", receiveCount, "stopAndWait", StopAndWait,
-                "min", minExpectedReceiveCount, "max", maxExpectedReceiveCount);
+            
+            // validate ack. NB: ignore op code and just assume caller has already validated that.
             if (receiveCount < minExpectedReceiveCount || receiveCount > maxExpectedReceiveCount)
             {
                 // reject.
-                _sessionHandler.Log("e813e703-cd79-4872-a536-4af3ac20f158", ack,
-                    "Received ack with unexpected sequence number");
                 _sessionHandler.DiscardReceivedDatagram(ack);
                 return;
             }
 
             if (receiveCount == maxExpectedReceiveCount)
             {
-                _sessionHandler.Log("420af144-e772-444d-ab2d-57da89ad38b6",
-                    "All datagrams in window have been successfully sent and confirmed");
+                // All datagrams in window have been successfully sent and confirmed
 
                 // cancel ack timeout.
                 _sessionHandler.CancelAckTimeout();
@@ -106,8 +91,7 @@ namespace ScalableIPC.Core.Session
             }
             else if (ack.Options?.IsWindowFull == true)
             {
-                _sessionHandler.Log("049b8b41-49ce-4ffd-8f34-8f0ffb084626",
-                    "Overflow detected in receiver window");
+                // Overflow detected in receiver window
 
                 // cancel ack timeout.
                 _sessionHandler.CancelAckTimeout();
@@ -119,21 +103,20 @@ namespace ScalableIPC.Core.Session
             }
             else if (StopAndWait)
             {
-                _sessionHandler.Log("905ae2a9-a867-4d76-bda0-c8db15a153dc",
-                    "Ack received for stop and wait mode to continue");
+                // Ack received for stop and wait mode to continue
 
                 // cancel ack timeout.
                 _sessionHandler.CancelAckTimeout();
 
                 // continue stop and wait.
-                _sentDatagramCount = PreviousSendCount + receiveCount;
+                CurrentSendCount = PreviousSendCount + receiveCount;
                 ContinueSending();
             }
             else
             {
-                _sessionHandler.Log("9c763f83-c9fe-463d-ab6f-5d939264c822", "Ack is not needed");
+                // Ack is not needed
 
-                // ignore but don't discard.
+                // ignore
             }
         }
 
@@ -144,15 +127,13 @@ namespace ScalableIPC.Core.Session
                 // check if not needed or arriving too late.
                 if (IsComplete || _sessionHandler.NextWindowIdToSend != datagram.WindowId)
                 {
-                    _sessionHandler.Log("664de60b-154f-4902-85cf-5eeaee13ea59", datagram, 
-                        "send success callback received too late");
+                    // send success callback received too late
                     return;
                 }
 
-                _sessionHandler.Log("bbf832bb-63b7-4366-8b9d-2b4faab4e5fc", datagram,
-                    "send success callback received in time");
+                // send success callback received in time
 
-                if (StopAndWait || _sentDatagramCount >= CurrentWindow.Count)
+                if (StopAndWait || CurrentSendCount >= CurrentWindow.Count)
                 {
                     _sessionHandler.ResetAckTimeout(AckTimeoutSecs, ProcessAckTimeout);
                 }
@@ -167,15 +148,8 @@ namespace ScalableIPC.Core.Session
         {
             _sessionHandler.TaskExecutor.PostCallback(() =>
             {
-                if (IsComplete)
+                if (!IsComplete)
                 {
-                    _sessionHandler.Log("867cfd5e-fec9-45c5-a8f8-1475ee7f9a63", datagram,
-                        "Ignoring send failure", "error", error);
-                }
-                else
-                {
-                    _sessionHandler.Log("c57b8654-7c31-499d-b89b-52d1d5d7dd8d", datagram,
-                        "Sending failed. Disposing...", "error", error);
                     IsComplete = true;
                     DisposeCallback.Invoke(new SessionDisposedException(error));
                 }
@@ -184,15 +158,8 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessAckTimeout()
         {
-            if (IsComplete)
+            if (!IsComplete)
             {
-                _sessionHandler.Log("37c3d8d1-06f3-44ec-b060-e622c9198ff5",
-                    "Ignoring ack timeout");
-            }
-            else
-            {
-                _sessionHandler.Log("3b2ebb8c-15fe-49cb-a657-55df547806eb",
-                    "Ack receipt wait timed out");
                 IsComplete = true;
                 TimeoutCallback.Invoke();
             }

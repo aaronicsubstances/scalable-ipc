@@ -1,4 +1,6 @@
 ﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Helpers;
+using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;
 
@@ -6,10 +8,10 @@ namespace ScalableIPC.Core.Session
 {
     public class ReceiveDataHandler : ISessionStateHandler
     {
-        private readonly IReferenceSessionHandler _sessionHandler;
-        private ReceiveHandlerAssistant _currentWindowHandler;
+        private readonly IDefaultSessionHandler _sessionHandler;
+        private IReceiveHandlerAssistant _currentWindowHandler;
 
-        public ReceiveDataHandler(IReferenceSessionHandler sessionHandler)
+        public ReceiveDataHandler(IDefaultSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }
@@ -25,6 +27,7 @@ namespace ScalableIPC.Core.Session
         public void PrepareForDispose(SessionDisposedException cause)
         {
             _currentWindowHandler?.Cancel();
+            _currentWindowHandler = null;
         }
 
         public void Dispose(SessionDisposedException cause)
@@ -40,8 +43,6 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
-            _sessionHandler.Log("cdd5a60c-239d-440d-b7cb-03516c9ed818", datagram,
-                "Datagram accepted for processing in receive handler");
             OnReceiveRequest(datagram);
             return true;
         }
@@ -55,10 +56,9 @@ namespace ScalableIPC.Core.Session
         {
             if (_currentWindowHandler == null)
             {
-                _currentWindowHandler = new ReceiveHandlerAssistant(_sessionHandler)
-                {
-                    SuccessCallback = OnWindowReceiveSuccess
-                };
+                _currentWindowHandler = _sessionHandler.CreateReceiveHandlerAssistant();
+                _currentWindowHandler.SuccessCallback = OnWindowReceiveSuccess;
+                _currentWindowHandler.DisposeCallback = OnWindowReceiveError;
             }
             _currentWindowHandler.OnReceive(datagram);
         }
@@ -69,11 +69,6 @@ namespace ScalableIPC.Core.Session
             {
                 ProtocolDatagram windowAsMessage = ProtocolDatagram.CreateMessageOutOfWindow(currentWindow);
                 ProcessCurrentWindowOptions(windowAsMessage.Options);
-
-                _sessionHandler.Log("85b3284a-7787-4949-a8de-84211f91e154",
-                    "Successfully received window group",
-                    "count", currentWindow.Count,
-                    "remoteIdleTimeout", _sessionHandler.RemoteIdleTimeoutSecs);
 
                 // now create message for application layer, and decode any long options present.
                 ProtocolMessage messageForApp = new ProtocolMessage
@@ -111,9 +106,9 @@ namespace ScalableIPC.Core.Session
             }
             catch (Exception ex)
             {
-                _sessionHandler.Log("fb19272c-9f47-4be2-9949-9ac0dd55e2c0",
-                    "Failed to pass window group to application layer",
-                    "error", ex);
+                CustomLoggerFacade.Log(() => new CustomLogEvent("be1b939b-6cb1-4961-8ac5-34639aa92b99", 
+                    "Failed to finalize processing of received window group", ex));
+                // Failed to pass window group to application layer, so notify window handler as such.
                 return false;
             }
         }
@@ -124,6 +119,11 @@ namespace ScalableIPC.Core.Session
             {
                 _sessionHandler.RemoteIdleTimeoutSecs = windowOptions.IdleTimeoutSecs;
             }
+        }
+
+        private void OnWindowReceiveError(SessionDisposedException error)
+        {
+            _sessionHandler.InitiateDispose(error);
         }
     }
 }
