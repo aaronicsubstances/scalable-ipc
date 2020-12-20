@@ -40,9 +40,9 @@ namespace ScalableIPC.Core
         public const long MinWindowIdCrossOverLimit = 1_000;
         public const long MaxWindowIdCrossOverLimit = 9_000_000_000_000_000_000L;
 
-        // the expected length, sessionId, opCode, window id, 
+        // the expected length, sessionId, sessionId prefix,  opCode, window id, 
         // sequence number, null terminators are always present.
-        public const int MinDatagramSize = 2 + SessionIdLength + 1 + 8 + 4 + 2;
+        public const int MinDatagramSize = 2 + SessionIdLength + 8 + 1 + 8 + 4 + 2;
         public const int MaxDatagramSize = 65_500;
         public const int MinimumTransferUnitSize = 512;
         public const int MaxOptionByteCount = 60_000;
@@ -93,29 +93,34 @@ namespace ScalableIPC.Core
             // validate arguments.
             if (rawBytes == null)
             {
-                throw new ArgumentNullException(nameof(rawBytes));
+                throw new ArgumentNullException(nameof(rawBytes), "6ee7a25c-090e-4321-b429-1ed4b26f3c59");
             }
             if (offset < 0)
             {
-                throw new ArgumentException("offset cannot be negative", nameof(offset));
+                throw new ArgumentException("58eacdaa-ae6f-4779-a7bd-ec3d28bbadc8: " +
+                    "offset cannot be negative", nameof(offset));
             }
             if (length < 0)
             {
-                throw new ArgumentException("length cannot be negative", nameof(offset));
+                throw new ArgumentException("02c8ef5c-9e30-4630-a1bc-c9c8dc73cfac: " +
+                    "length cannot be negative", nameof(offset));
             }
             if (offset + length > rawBytes.Length)
             {
-                throw new ArgumentException("combination of offset and length exceeeds byte array size");
+                throw new ArgumentException("cf0da519-d5e3-4bb3-b6f6-a9cb0db69fa8: " +
+                    "combination of offset and length exceeeds byte array size");
             }
 
             if (length < MinDatagramSize)
             {
-                throw new Exception("datagram too small to be valid");
+                throw new Exception("b451b01f-c474-49e4-ad3f-643d9e849664: " +
+                    "datagram too small to be valid");
             }
 
             if (length > MaxDatagramSize)
             {
-                throw new Exception("datagram too large to be valid");
+                throw new Exception("992fb8aa-7074-4429-9718-89b885f89e10: " +
+                    "datagram too large to be valid");
             }
 
             var parsedDatagram = new ProtocolDatagram();
@@ -124,7 +129,8 @@ namespace ScalableIPC.Core
             int expectedDatagramLength = DeserializeUnsignedInt16BigEndian(rawBytes, offset);
             if (expectedDatagramLength != length)
             {
-                throw new Exception("expected datagram length incorrect");
+                throw new Exception("f86bd47a-1ece-4439-bb1e-07eed49f97fe: " +
+                    "expected datagram length incorrect");
             }
 
             int endOffset = offset + length;
@@ -138,14 +144,16 @@ namespace ScalableIPC.Core
             parsedDatagram.WindowId = DeserializeInt64BigEndian(rawBytes, offset);
             if (parsedDatagram.WindowId < 0)
             {
-                throw new Exception("Negative window id not allowed");
+                throw new Exception("1c13f39a-51f0-4f8d-80f3-5b06f6cfb769: " +
+                    "Negative window id not allowed");
             }
             offset += 8;
 
             parsedDatagram.SequenceNumber = DeserializeInt32BigEndian(rawBytes, offset);
             if (parsedDatagram.SequenceNumber < 0)
             {
-                throw new Exception("Negative sequence number not allowed");
+                throw new Exception("a1162f0f-197b-4456-ba7f-10cc3ea9ed03: " +
+                    "Negative sequence number not allowed");
             }
             offset += 4;
 
@@ -159,7 +167,8 @@ namespace ScalableIPC.Core
 
                 if (endOffset - offset < 2)
                 {
-                    throw new Exception("null terminators for all options missing");
+                    throw new Exception("ff905bc7-03da-4054-ac28-a6c133f3e1b7: " +
+                        "null terminators for all options missing");
                 }
             }
 
@@ -168,6 +177,20 @@ namespace ScalableIPC.Core
 
             // increment offset for null terminators of all options.
             offset += 2;
+
+            if (endOffset - offset < 8)
+            {
+                throw new Exception("45db8f3e-4fb8-40cd-99da-81e726cce5a4: " +
+                    "session id prefix missing");
+            }
+
+            var sessionIdPrefix = ConvertBytesToHex(rawBytes, offset, 8);
+            if (!parsedDatagram.SessionId.StartsWith(sessionIdPrefix))
+            {
+                throw new Exception("04d7d81e-2f46-49af-a837-de38505290b4: " +
+                    "wrong session id prefix found");
+            }
+            offset += 8;
 
             parsedDatagram.DataBytes = rawBytes;
             parsedDatagram.DataOffset = offset;
@@ -194,25 +217,29 @@ namespace ScalableIPC.Core
             }
             if (nullTerminatorIndex == -1)
             {
-                throw new Exception("null terminator for option name not found");
+                throw new Exception("079398db-9a5d-462e-be00-2c141d1242f8: " +
+                    "null terminator after option name not found");
             }
 
             var optionNameLength = nullTerminatorIndex - offset;
             if (optionNameLength >= totalLengthPlusOne)
             {
-                throw new Exception("Corrupted datagram received");
+                throw new Exception("d8edf607-3a4a-4c66-88c8-b2251bf33cfd: " +
+                    "received option name longer than total option length");
             }
             var optionName = ConvertBytesToString(rawBytes, offset, optionNameLength);
             offset = nullTerminatorIndex + 1;
 
             if (endOffset - offset < 2)
             {
-                throw new Exception("incomplete option specification: confirmatory length section missing");
+                throw new Exception("fedca135-ad4b-4dd3-9b60-f835c4ad6a2b: " +
+                    "incomplete option specification: confirmatory length section missing");
             }
             var confirmatoryTotalLengthPlusOne = DeserializeUnsignedInt16BigEndian(rawBytes, offset);
             if (totalLengthPlusOne != confirmatoryTotalLengthPlusOne)
             {
-                throw new Exception("Corrupted datagram received");
+                throw new Exception("37fe94b1-ff15-41a5-bee6-c9e2525f8472: " +
+                    "different values for option length and confirmation length");
             }
             offset += 2;
 
@@ -220,7 +247,8 @@ namespace ScalableIPC.Core
 
             if (endOffset - offset < optionValueLength)
             {
-                throw new Exception("incomplete option specification: option value missing");
+                throw new Exception("89074ac6-2b86-4940-8c56-97f632888cb4: " +
+                    "incomplete option specification: option value missing");
             }
             var optionValue = ConvertBytesToString(rawBytes, offset, optionValueLength);
             offset += optionValueLength;
@@ -255,25 +283,30 @@ namespace ScalableIPC.Core
             // validate fields.
             if (SessionId == null)
             {
-                throw new Exception("session id must be set");
+                throw new Exception("772396c0-8b84-475d-a31e-06e7a6904ccc: " +
+                    "session id must be set");
             }
             if (DataLength < 0)
             {
-                throw new Exception("data length must be valid, hence cannot be negative");
+                throw new Exception("9039a1e3-c4a1-4eff-b53f-059a7316b97d: " +
+                    "data length must be valid, hence cannot be negative");
             }
             if (DataLength > MaxDatagramSize)
             {
-                throw new Exception("data payload too large to be valid");
+                throw new Exception("f414e24d-d8bb-44dc-afb4-d34773d28e9a: " +
+                    "data payload too large to be valid");
             }
             if (DataOffset < 0)
             {
-                throw new Exception("data offset must be valid, hence cannot be negative");
+                throw new Exception("149f8bf9-0226-40e3-a6ca-2d00541a4d75: " +
+                    " offset must be valid, hence cannot be negative");
             }
             if (DataBytes != null)
             {
                 if (DataOffset + DataLength > DataBytes.Length)
                 {
-                    throw new Exception("data offset and length combination exceeds data bytes size");
+                    throw new Exception("786322b1-f408-4b9a-a41d-d95acecda445: " +
+                        "data offset and length combination exceeds data bytes size");
                 }
             }
 
@@ -290,7 +323,8 @@ namespace ScalableIPC.Core
                     byte[] sessionId = ConvertHexToBytes(SessionId);
                     if (sessionId.Length != SessionIdLength)
                     {
-                        throw new Exception($"Invalid session id length in bytes: {sessionId.Length}");
+                        throw new Exception($"23c2b87c-158b-4586-931e-9f2383bfd2ed: " +
+                            $"Invalid session id length in bytes: {sessionId.Length}");
                     }
                     writer.Write(sessionId);
 
@@ -313,6 +347,9 @@ namespace ScalableIPC.Core
                     writer.Write(NullTerminator);
                     writer.Write(NullTerminator);
 
+                    // write session id prefix
+                    writer.Write(sessionId, 0, 8);
+
                     if (DataBytes != null)
                     {
                         writer.Write(DataBytes, DataOffset, DataLength);
@@ -329,11 +366,13 @@ namespace ScalableIPC.Core
             {
                 if (DataBytes != null && ExpectedDatagramLength != rawBytes.Length)
                 {
-                    throw new Exception($"expected datagram length != actual ({ExpectedDatagramLength} != {rawBytes.Length})");
+                    throw new Exception($"1e417e23-251c-458e-b349-ebfa9d01bde1: " +
+                        $"expected datagram length != actual ({ExpectedDatagramLength} != {rawBytes.Length})");
                 }
                 if (DataBytes == null && ExpectedDatagramLength != rawBytes.Length + DataLength)
                 {
-                    throw new Exception($"expected datagram length != actual ({ExpectedDatagramLength} != {rawBytes.Length + DataLength})");
+                    throw new Exception($"45a36c96-e6d4-493f-b271-f5614886a504: " +
+                        $"expected datagram length != actual ({ExpectedDatagramLength} != {rawBytes.Length + DataLength})");
                 }
             }
             else
@@ -353,7 +392,8 @@ namespace ScalableIPC.Core
 
             if (ExpectedDatagramLength > MaxDatagramSize)
             {
-                throw new Exception("datagram too large to be valid");
+                throw new Exception("c7d368ce-6f80-42f5-bb78-49dd91d0d082: " +
+                    "datagram too large to be valid");
             }
 
             return rawBytes;
