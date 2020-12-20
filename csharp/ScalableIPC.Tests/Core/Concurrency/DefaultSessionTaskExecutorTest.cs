@@ -6,7 +6,7 @@ using Xunit;
 
 namespace ScalableIPC.Tests.Core.Concurrency
 {
-    public class DefaultSessionTaskExecutorApiTest
+    public class DefaultSessionTaskExecutorTest
     {
         [Theory]
         [MemberData(nameof(CreateTestTimeoutData))]
