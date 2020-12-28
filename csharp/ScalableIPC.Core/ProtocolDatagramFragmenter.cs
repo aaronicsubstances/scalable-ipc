@@ -34,9 +34,7 @@ namespace ScalableIPC.Core
         public ProtocolDatagramFragmenter(ProtocolMessage message, int maxFragmentSize, List<string> extraOptionsToSkip)
             : this(message, maxFragmentSize, extraOptionsToSkip,
                  ProtocolDatagram.MaxOptionByteCount, ProtocolDatagram.MaxDatagramSize)
-        {
-
-        }
+        { }
 
         // helps with testing
         internal ProtocolDatagramFragmenter(ProtocolMessage message, int maxFragmentSize, List<string> extraOptionsToSkip,
@@ -80,6 +78,12 @@ namespace ScalableIPC.Core
             if (bytesNeeded > _maxFragmentBatchSize)
             {
                 throw new Exception("84017b75-4533-4e40-8541-85f12e9410d3: options too large to fit into max datagram size");
+            }
+
+            if (_maxFragmentSize < 1)
+            {
+                throw new Exception("98130f24-fae0-4d1b-bacc-6344aa2f6113: " +
+                    $"max fragment size must exceed default reserved space: {_maxFragmentSize + DefaultReservedSpace}");
             }
 
             // use to detect infinite looping resulting from lack of progress.
@@ -145,9 +149,11 @@ namespace ScalableIPC.Core
             }
 
             // clear out to eliminate false expectations
+            // and set session id.
             foreach (var nextFragment in nextFragments)
             {
                 nextFragment.ExpectedDatagramLength = 0;
+                nextFragment.SessionId = _message.SessionId;
             }
 
             return nextFragments;
