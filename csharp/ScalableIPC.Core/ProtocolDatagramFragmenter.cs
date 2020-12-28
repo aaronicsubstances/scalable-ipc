@@ -77,6 +77,10 @@ namespace ScalableIPC.Core
 
             var nextFragments = DuplicateFragmentsFromOptions();
             int bytesNeeded = nextFragments.Sum(x => x.ExpectedDatagramLength);
+            if (bytesNeeded > _maxFragmentBatchSize)
+            {
+                throw new Exception("84017b75-4533-4e40-8541-85f12e9410d3: options too large to fit into max datagram size");
+            }
 
             // use to detect infinite looping resulting from lack of progress.
             int prevUsedDataLength = _usedDataLength;
@@ -126,7 +130,7 @@ namespace ScalableIPC.Core
             {
                 if (nextFragments.Count > 0)
                 {
-                    throw new Exception("Wrong algorithm. Unexpected fragments created for empty input at this stage");
+                    throw new Exception("Wrong algorithm. Unexpected fragments created for empty input");
                 }
                 nextFragments.Add(new ProtocolDatagram());
             }
@@ -136,7 +140,8 @@ namespace ScalableIPC.Core
             // Ensure progress has been made.
             if (nextFragments.Count == 0 || (!_done && _usedDataLength <= prevUsedDataLength))
             {
-                throw new Exception("Wrong algorithm. Infinite loop detected as no data was added to current iteration for fragments");
+                throw new Exception("122cc165-f7df-4985-8167-bc84fd25752d: " +
+                    "options so large that no space is left for data");
             }
 
             // clear out to eliminate false expectations
@@ -202,10 +207,6 @@ namespace ScalableIPC.Core
                     }
                     else
                     {
-                        if (minBytesNeeded > maxFragmentOptionsSize)
-                        {
-                            throw new Exception($"Single attribute too large for max option bytes: {minBytesNeeded} > {maxFragmentOptionsSize}");
-                        }
                         // encode long option
                         optionName = EncodedOptionNamePrefix + encodedOptionCount;
                         optionNameBytes = ProtocolDatagram.CountBytesInString(optionName);
@@ -220,7 +221,8 @@ namespace ScalableIPC.Core
                         totalSize += optionBytesNeeded;
                         if (totalSize > maxFragmentOptionsSize)
                         {
-                            throw new Exception($"Attributes too large for max option bytes: {totalSize} > {maxFragmentOptionsSize}");
+                            throw new Exception("adb4e1ef-c160-4e34-82ee-73f00699b4bd: " +
+                                $"Attributes too large for max option bytes: {totalSize} > {maxFragmentOptionsSize}");
                         }
                         if (latestSize + optionBytesNeeded > maxFragmentSize)
                         {

@@ -9,6 +9,20 @@ namespace ScalableIPC.Tests.Core
 {
     public class ProtocolDatagramFragmenterTest
     {
+        // helper method to create without intermediate variables.
+        private static ProtocolDatagram AddOptions(ProtocolDatagram instance, Dictionary<string, List<string>> options)
+        {
+            foreach (var kvp in options)
+            {
+                if (instance.Options == null)
+                {
+                    instance.Options = new ProtocolDatagramOptions();
+                }
+                instance.Options.AllOptions.Add(kvp.Key, kvp.Value);
+            }
+            return instance;
+        }
+
         [Theory]
         [MemberData(nameof(CreateTestEncodeLongOptionData))]
         public void TestEncodeLongOption(string name, string value, int maxFragByteCount, int spaceToConsiderForFirst,
@@ -21,7 +35,7 @@ namespace ScalableIPC.Tests.Core
         public static List<object[]> CreateTestEncodeLongOptionData()
         {
             var testData = new List<object[]>();
-            
+
             string name = "protocol";
             string value = "http";
             int maxFragByteCount = 2;
@@ -188,7 +202,7 @@ namespace ScalableIPC.Tests.Core
             {
                 "1", "0", ":", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j"
             };
-            expected = new string[] { "abcdefghij" , "" };
+            expected = new string[] { "abcdefghij", "" };
             testData.Add(new object[] { values, expected });
 
             values = new List<string>
@@ -297,7 +311,7 @@ namespace ScalableIPC.Tests.Core
             int maxFragmentOptionsSize = 0;
             List<string> optionsToSkip = null;
             var expected = new List<ProtocolDatagram>();
-            testData.Add(new object[] { attributes, maxFragmentSize, maxFragmentOptionsSize, 
+            testData.Add(new object[] { attributes, maxFragmentSize, maxFragmentOptionsSize,
                 optionsToSkip, expected });
 
             attributes = new Dictionary<string, List<string>>();
@@ -531,18 +545,49 @@ namespace ScalableIPC.Tests.Core
             return testData;
         }
 
-        // helper method to create without intermediate variables.
-        private static ProtocolDatagram AddOptions(ProtocolDatagram instance, Dictionary<string, List<string>> options)
+        [Theory]
+        [MemberData(nameof(CreateTestCreateFragmentsForAttributesErrorData))]
+        public void TestCreateFragmentsForAttributesError(Dictionary<string, List<string>> attributes,
+            int maxFragmentSize, int maxFragmentOptionsSize, List<string> optionsToSkip,
+            string expected)
         {
-            foreach (var kvp in options)
+            var actual = Assert.ThrowsAny<Exception>(() => ProtocolDatagramFragmenter.CreateFragmentsForAttributes(attributes,
+                maxFragmentSize, maxFragmentOptionsSize, optionsToSkip));
+            if (expected != null)
             {
-                if (instance.Options == null)
-                {
-                    instance.Options = new ProtocolDatagramOptions();
-                }
-                instance.Options.AllOptions.Add(kvp.Key, kvp.Value);
+                Assert.Contains(expected, actual.Message);
             }
-            return instance;
+        }
+
+        public static List<object[]> CreateTestCreateFragmentsForAttributesErrorData()
+        {
+            var testData = new List<object[]>();
+
+            // only short options involved.
+            Dictionary<string, List<string>> attributes = new Dictionary<string, List<string>>
+            {
+                { "k1", new List<string>{ "v1", "v2" } },
+                { "k2", new List<string>{ "va", "vb" } },
+            };
+            int maxFragmentSize = 10;
+            int maxFragmentOptionsSize = 20;
+            List<string> optionsToSkip = null;
+            testData.Add(new object[] { attributes, maxFragmentSize, maxFragmentOptionsSize,
+                optionsToSkip, "adb4e1ef-c160-4e34-82ee-73f00699b4bd" });
+
+            // long options involved.
+            attributes = new Dictionary<string, List<string>>
+            {
+                { "k1", new List<string>{ "v110", "v210" } },
+                { "k2", new List<string>{ "va", "vb" } },
+            };
+            maxFragmentSize = 11;
+            maxFragmentOptionsSize = 20;
+            optionsToSkip = new List<string> { "k2" };
+            testData.Add(new object[] { attributes, maxFragmentSize, maxFragmentOptionsSize,
+                optionsToSkip, "adb4e1ef-c160-4e34-82ee-73f00699b4bd" });
+
+            return testData;
         }
     }
 }
