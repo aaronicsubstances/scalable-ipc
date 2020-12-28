@@ -5,7 +5,7 @@ using System.Text;
 
 namespace ScalableIPC.Core.Concurrency
 {
-    public class TestSessionTaskExecutor: ISessionTaskExecutor
+    public class TestSessionTaskExecutor: DefaultSessionTaskExecutor
     {
         public class TaskDescriptor
         {
@@ -27,7 +27,8 @@ namespace ScalableIPC.Core.Concurrency
 
         private readonly List<TaskDescriptor> _taskQueue = new List<TaskDescriptor>();
 
-        public TestSessionTaskExecutor(long initialTimestamp)
+        public TestSessionTaskExecutor(long initialTimestamp):
+            base(0)
         {
             if (initialTimestamp < 0)
             {
@@ -64,14 +65,14 @@ namespace ScalableIPC.Core.Concurrency
             }
         }
 
-        public void PostCallback(Action cb)
+        public override void PostCallback(Action cb)
         {
             var taskDescriptor = new TaskDescriptor(cb, 0);
             _taskQueue.Add(taskDescriptor);
             _taskQueue.Sort((x, y) => x.Id.CompareTo(y.Id));
         }
 
-        public object ScheduleTimeout(int secs, Action cb)
+        public override object ScheduleTimeout(int secs, Action cb)
         {
             if (secs < 0)
             {
@@ -83,7 +84,7 @@ namespace ScalableIPC.Core.Concurrency
             return taskDescriptor.Id;
         }
 
-        public void CancelTimeout(object id)
+        public override void CancelTimeout(object id)
         {
             int indexToRemove = -1;
             for (int i = 0; i < _taskQueue.Count; i++)
@@ -100,28 +101,10 @@ namespace ScalableIPC.Core.Concurrency
             }
         }
 
-        public void RunTask(Action task)
+        public override void RunTask(Action task)
         {
             // run immediately.
             task.Invoke();
-        }
-
-        // the remaining methods make use of the above ones. Thus it is sufficient to modify the above methods
-        // to modify the behaviour of the following ones.
-
-        public void PostTask(Action cb)
-        {
-            PostCallback(() => RunTask(cb));
-        }
-
-        public void CompletePromiseCallbackSuccessfully<T>(PromiseCompletionSource<T> promiseCb, T value)
-        {
-            PostTask(() => ((DefaultPromiseCompletionSource<T>)promiseCb).WrappedSource.TrySetResult(value));
-        }
-
-        public void CompletePromiseCallbackExceptionally<T>(PromiseCompletionSource<T> promiseCb, Exception error)
-        {
-            PostTask(() => ((DefaultPromiseCompletionSource<T>)promiseCb).WrappedSource.TrySetException(error));
         }
     }
 }

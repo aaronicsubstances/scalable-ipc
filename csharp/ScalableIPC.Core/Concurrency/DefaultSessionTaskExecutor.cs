@@ -10,15 +10,27 @@ namespace ScalableIPC.Core.Concurrency
 {
     public class DefaultSessionTaskExecutor : ISessionTaskExecutor
     {
-        private readonly LimitedConcurrencyLevelTaskScheduler _singleThreadTaskScheduler;
+        private readonly LimitedConcurrencyLevelTaskScheduler _throttledTaskScheduler;
 
-        public DefaultSessionTaskExecutor()
+        // limit parallelism to one to eliminate thread inteference errors.
+        public DefaultSessionTaskExecutor():
+            this(1)
+        { }
+
+        // for subclasses, to avoid creation of task scheduler.
+        protected DefaultSessionTaskExecutor(int maxDegreeOfParallelism)
         {
-            // limit parallelism to one to eliminate thread inteference errors.
-            _singleThreadTaskScheduler = new LimitedConcurrencyLevelTaskScheduler(1);
+            if (maxDegreeOfParallelism > 0)
+            {
+                _throttledTaskScheduler = new LimitedConcurrencyLevelTaskScheduler(maxDegreeOfParallelism);
+            }
+            else
+            {
+                _throttledTaskScheduler = null;
+            }
         }
 
-        public void PostCallback(Action cb)
+        public virtual void PostCallback(Action cb)
         {
             Task.Factory.StartNew(() => {
                 try
@@ -36,10 +48,10 @@ namespace ScalableIPC.Core.Concurrency
                     CustomLoggerFacade.Log(() => new CustomLogEvent("5394ab18-fb91-4ea3-b07a-e9a1aa150dd6",
                         "Error occured on event loop", ex));
                 }
-            }, CancellationToken.None, TaskCreationOptions.None, _singleThreadTaskScheduler);
+            }, CancellationToken.None, TaskCreationOptions.None, _throttledTaskScheduler);
         }
 
-        public object ScheduleTimeout(int secs, Action cb)
+        public virtual object ScheduleTimeout(int secs, Action cb)
         {
             var cts = new CancellationTokenSource();
             Task.Delay(TimeSpan.FromSeconds(secs), cts.Token).ContinueWith(t =>
@@ -59,17 +71,17 @@ namespace ScalableIPC.Core.Concurrency
                         CustomLoggerFacade.Log(() => new CustomLogEvent("6357ee7d-eb9c-461a-a4d6-7285bae06823",
                             "Error occured on event loop during timeout processing", ex));
                     }
-                }, cts.Token, TaskCreationOptions.None, _singleThreadTaskScheduler);
+                }, cts.Token, TaskCreationOptions.None, _throttledTaskScheduler);
             }, TaskContinuationOptions.OnlyOnRanToCompletion);
             return cts;
         }
 
-        public void CancelTimeout(object id)
+        public virtual void CancelTimeout(object id)
         {
             ((CancellationTokenSource)id).Cancel();
         }
 
-        public void RunTask(Action task)
+        public virtual void RunTask(Action task)
         {
             Task.Run(task);
         }
