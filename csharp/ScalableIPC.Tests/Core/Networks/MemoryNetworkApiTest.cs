@@ -74,18 +74,18 @@ namespace ScalableIPC.Tests.Core.Networks
             public TestSessionHandler()
             {
 
-                MessageReceived += (_, e) =>
+                MessageReceivedHandler = (_, m) =>
                 {
-                    string dataMessage = ProtocolDatagram.ConvertBytesToString(e.Message.DataBytes, e.Message.DataOffset,
-                        e.Message.DataLength);
+                    string dataMessage = ProtocolDatagram.ConvertBytesToString(m.DataBytes, m.DataOffset,
+                        m.DataLength);
                     CustomLoggerFacade.Log(() => new CustomLogEvent("71931970-3923-4472-b110-3449141998e3",
                         $"Received data: {dataMessage}", null));
                 };
 
-                SessionDisposed += (_, e) =>
+                SessionDisposedHandler = (_, e) =>
                 {
                     CustomLoggerFacade.Log(() => new CustomLogEvent("06f62330-a218-4667-9df5-b8851fed628a",
-                           $"Received close", e.Cause));
+                           $"Received close", e));
                 };
             }
         }

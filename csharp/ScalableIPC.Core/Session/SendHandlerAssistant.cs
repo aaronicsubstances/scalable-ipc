@@ -58,7 +58,7 @@ namespace ScalableIPC.Core.Session
         {
             if (_sessionHandler.NextWindowIdToSend != ack.WindowId)
             {
-                _sessionHandler.DiscardReceivedDatagram(ack);
+                _sessionHandler.OnDatagramDiscarded(ack);
                 return;
             }
 
@@ -74,7 +74,7 @@ namespace ScalableIPC.Core.Session
             if (receiveCount < minExpectedReceiveCount || receiveCount > maxExpectedReceiveCount)
             {
                 // reject.
-                _sessionHandler.DiscardReceivedDatagram(ack);
+                _sessionHandler.OnDatagramDiscarded(ack);
                 return;
             }
 

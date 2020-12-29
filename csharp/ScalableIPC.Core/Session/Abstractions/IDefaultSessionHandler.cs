@@ -32,17 +32,18 @@ namespace ScalableIPC.Core.Session.Abstractions
 
         void ResetAckTimeout(int timeoutSecs, Action cb);
         void CancelAckTimeout();
-        void DiscardReceivedDatagram(ProtocolDatagram datagram);
         void InitiateDispose(SessionDisposedException cause);
         void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb);
         void ContinueDispose(SessionDisposedException cause);
 
-        // application layer interface. contract here is that these should be called from event loop.
-        event EventHandler<MessageReceivedEventArgs> MessageReceived;
-        event EventHandler<SessionDisposingEventArgs> SessionDisposing;
-        event EventHandler<SessionDisposedEventArgs> SessionDisposed;
-        void OnMessageReceived(MessageReceivedEventArgs e);
-        void OnSessionDisposing(SessionDisposingEventArgs e);
-        void OnSessionDisposed(SessionDisposedEventArgs e);
+        // application layer interface. contract here is that these should be scheduled on event loop.
+        Action<IDefaultSessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
+        Action<IDefaultSessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
+        Action<IDefaultSessionHandler, SessionDisposedException> SessionDisposingHandler { get; set; }
+        Action<IDefaultSessionHandler, SessionDisposedException> SessionDisposedHandler { get; set; }
+        void OnDatagramDiscarded(ProtocolDatagram datagram);
+        void OnMessageReceived(ProtocolMessage message);
+        void OnSessionDisposing(SessionDisposedException cause);
+        void OnSessionDisposed(SessionDisposedException cause);
     }
 }

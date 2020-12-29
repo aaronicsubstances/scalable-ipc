@@ -53,10 +53,15 @@ namespace ScalableIPC.Core.Concurrency
                 }
                 catch (Exception ex)
                 {
-                    CustomLoggerFacade.Log(() => new CustomLogEvent("5394ab18-fb91-4ea3-b07a-e9a1aa150dd6",
-                        "Error occured on event loop", ex));
+                    HandleCallbackException(ex);
                 }
             }, CancellationToken.None, TaskCreationOptions.None, _throttledTaskScheduler);
+        }
+
+        public virtual void HandleCallbackException(Exception ex)
+        {
+            CustomLoggerFacade.Log(() => new CustomLogEvent("5394ab18-fb91-4ea3-b07a-e9a1aa150dd6",
+                "Error occured during callback processing", ex));
         }
 
         public virtual object ScheduleTimeout(int secs, Action cb)
@@ -76,8 +81,7 @@ namespace ScalableIPC.Core.Concurrency
                     }
                     catch (Exception ex)
                     {
-                        CustomLoggerFacade.Log(() => new CustomLogEvent("6357ee7d-eb9c-461a-a4d6-7285bae06823",
-                            "Error occured on event loop during timeout processing", ex));
+                        HandleCallbackException(ex);
                     }
                 }, cts.Token, TaskCreationOptions.None, _throttledTaskScheduler);
             }, TaskContinuationOptions.OnlyOnRanToCompletion);
@@ -86,12 +90,25 @@ namespace ScalableIPC.Core.Concurrency
 
         public virtual void CancelTimeout(object id)
         {
-            ((CancellationTokenSource)id).Cancel();
+            if (id is CancellationTokenSource source)
+            {
+                source.Cancel();
+            }
         }
 
         public virtual void RunTask(Action task)
         {
-            Task.Run(task);
+            Task.Run(() =>
+            {
+                try
+                {
+                    task.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    HandleCallbackException(ex);
+                }
+            });
         }
 
         // the remaining methods make use of the above ones. Thus it is sufficient to modify the above methods

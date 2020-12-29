@@ -51,7 +51,7 @@ namespace ScalableIPC.Core.Session
                 }
                 else
                 {
-                    _sessionHandler.DiscardReceivedDatagram(datagram);
+                    _sessionHandler.OnDatagramDiscarded(datagram);
                 }
                 return true;
             }
@@ -77,7 +77,7 @@ namespace ScalableIPC.Core.Session
                 if (!(datagram.SequenceNumber == 0 && ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId,
                     _sessionHandler.LastWindowIdReceived)))
                 {
-                    _sessionHandler.DiscardReceivedDatagram(datagram);
+                    _sessionHandler.OnDatagramDiscarded(datagram);
                     return;
                 }
             }

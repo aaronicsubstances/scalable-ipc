@@ -97,7 +97,7 @@ namespace ScalableIPC.Core.Session
                 }
 
                 // ready to pass on to application layer.
-                _sessionHandler.OnMessageReceived(new MessageReceivedEventArgs { Message = messageForApp });
+                _sessionHandler.OnMessageReceived(messageForApp);
 
                 // now window handler is not needed any more
                 _currentWindowHandler = null;

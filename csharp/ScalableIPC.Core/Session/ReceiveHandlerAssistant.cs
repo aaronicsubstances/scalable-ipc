@@ -59,14 +59,14 @@ namespace ScalableIPC.Core.Session
             // Reject unexpected window id
             if (!ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId, _sessionHandler.LastWindowIdReceived))
             {
-               _sessionHandler.DiscardReceivedDatagram(datagram);
+               _sessionHandler.OnDatagramDiscarded(datagram);
                 return;
             }
 
             // save datagram into current window or reject unexpected sequence number.
             if (!AddToCurrentWindow(CurrentWindow, _sessionHandler.MaxReceiveWindowSize, datagram))
             {
-                _sessionHandler.DiscardReceivedDatagram(datagram);
+                _sessionHandler.OnDatagramDiscarded(datagram);
                 return;
             }
 

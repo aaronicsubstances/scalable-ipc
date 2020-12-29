@@ -144,7 +144,7 @@ namespace ScalableIPC.Core.Session
                 }
                 if (!handled)
                 {
-                    DiscardReceivedDatagram(datagram);
+                    OnDatagramDiscarded(datagram);
                 }
             });
             return DefaultPromiseApi.CompletedPromise;
@@ -295,14 +295,6 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void DiscardReceivedDatagram(ProtocolDatagram datagram)
-        {
-            // subclasses can log more.
-
-            CustomLoggerFacade.Log(() => new CustomLogEvent("ee37084b-2201-4591-b681-25b0398aba40", 
-                "Discarding datagram: " + datagram, null));
-        }
-
         public void InitiateDispose(SessionDisposedException cause)
         {
             InitiateDispose(cause, null);
@@ -336,7 +328,7 @@ namespace ScalableIPC.Core.Session
 
             SessionState = StateDisposeAwaiting;
 
-            OnSessionDisposing(new SessionDisposingEventArgs { Cause = cause });
+            OnSessionDisposing(cause);
 
             NetworkApi.RequestSessionDispose(RemoteEndpoint, SessionId, cause);
         }
@@ -366,7 +358,7 @@ namespace ScalableIPC.Core.Session
                     TaskExecutor.CompletePromiseCallbackSuccessfully(promiseCb, VoidType.Instance);
 
                     // pass on to application layer.
-                    OnSessionDisposed(new SessionDisposedEventArgs { Cause = cause });
+                    OnSessionDisposed(cause);
                 }
             });
             return returnPromise;
@@ -376,23 +368,29 @@ namespace ScalableIPC.Core.Session
         // Contract here is that both calls should behave like notifications, and
         // hence these should be called from outside event loop if possible, but after current
         // event in event loop has been processed.
-
-        public event EventHandler<MessageReceivedEventArgs> MessageReceived;
-        public void OnMessageReceived(MessageReceivedEventArgs e)
+        public Action<IDefaultSessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
+        public Action<IDefaultSessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
+        public Action<IDefaultSessionHandler, SessionDisposedException> SessionDisposingHandler { get; set; }
+        public Action<IDefaultSessionHandler, SessionDisposedException> SessionDisposedHandler { get; set; }
+        
+        public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {
-            TaskExecutor.PostTask(() => MessageReceived?.Invoke(this, e));
+            TaskExecutor.PostTask(() => DatagramDiscardedHandler?.Invoke(this, datagram));
         }
 
-        public event EventHandler<SessionDisposingEventArgs> SessionDisposing;
-        public void OnSessionDisposing(SessionDisposingEventArgs e)
+        public void OnMessageReceived(ProtocolMessage message)
         {
-            TaskExecutor.PostTask(() => SessionDisposing?.Invoke(this, e));
+            TaskExecutor.PostTask(() => MessageReceivedHandler?.Invoke(this, message));
         }
 
-        public event EventHandler<SessionDisposedEventArgs> SessionDisposed;
-        public void OnSessionDisposed(SessionDisposedEventArgs e)
+        public void OnSessionDisposing(SessionDisposedException cause)
         {
-            TaskExecutor.PostTask(() => SessionDisposed?.Invoke(this, e));
+            TaskExecutor.PostTask(() => SessionDisposingHandler?.Invoke(this, cause));
+        }
+
+        public void OnSessionDisposed(SessionDisposedException cause)
+        {
+            TaskExecutor.PostTask(() => SessionDisposedHandler?.Invoke(this, cause));
         }
     }
 }
