@@ -85,7 +85,7 @@ namespace ScalableIPC.Tests.Core.Networks
                 SessionDisposedHandler = (_, e) =>
                 {
                     CustomLoggerFacade.Log(() => new CustomLogEvent("06f62330-a218-4667-9df5-b8851fed628a",
-                           $"Received close", e));
+                           $"Received session dispose event", e));
                 };
             }
         }

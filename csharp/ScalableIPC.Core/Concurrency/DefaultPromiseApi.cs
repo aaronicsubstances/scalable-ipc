@@ -30,9 +30,9 @@ namespace ScalableIPC.Core.Concurrency
             return new DefaultPromise<T>(Task.FromResult(value));
         }
 
-        public AbstractPromise<VoidType> Delay(int secs)
+        public AbstractPromise<VoidType> Delay(int millis)
         {
-            return new DefaultPromise<VoidType>(Task.Delay(secs * 1000)
+            return new DefaultPromise<VoidType>(Task.Delay(millis)
                 .ContinueWith(_ => VoidType.Instance));
         }
     }

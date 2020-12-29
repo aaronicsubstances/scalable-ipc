@@ -52,25 +52,20 @@ namespace ScalableIPC.Core.Networks.Common
             if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
                 var subDict = _sessionHandlerMap[remoteEndpoint];
+                if (sessionId == null)
+                {
+                    _sessionHandlerMap.Remove(remoteEndpoint);
+                    return true;
+                }
                 if (subDict.ContainsKey(sessionId))
                 {
                     subDict.Remove(sessionId);
                     if (subDict.Count == 0)
                     {
                         _sessionHandlerMap.Remove(remoteEndpoint);
+                        return true;
                     }
-                    return false;
                 }
-            }
-            return false;
-        }
-
-        public bool Remove(GenericNetworkIdentifier remoteEndpoint)
-        {
-            if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
-            {
-                _sessionHandlerMap.Remove(remoteEndpoint);
-                return true;
             }
             return false;
         }

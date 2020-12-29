@@ -33,8 +33,8 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> StartAsync();
         AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             ISessionHandler sessionHandler);
-        void RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, Action<Exception> cb);
-        AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message);
+        void RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram, Action<Exception> cb);
+        AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
         void RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint, string sessionId, SessionDisposedException cause);
         AbstractPromise<VoidType> DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             SessionDisposedException cause);

@@ -24,7 +24,7 @@ namespace ScalableIPC.Core.Abstractions
         PromiseCompletionSource<T> CreateCallback<T>();
         AbstractPromise<T> Resolve<T>(T value);
         AbstractPromise<T> Reject<T>(Exception reason);
-        AbstractPromise<VoidType> Delay(int waitSecs);
+        AbstractPromise<VoidType> Delay(int millis);
     }
 
     public interface AbstractPromise<T>

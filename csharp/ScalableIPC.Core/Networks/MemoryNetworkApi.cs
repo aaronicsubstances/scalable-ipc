@@ -13,8 +13,22 @@ namespace ScalableIPC.Core.Networks
 {
     public class MemoryNetworkApi : AbstractNetworkApi
     {
+        public interface ISendConfigFactory
+        {
+            SendConfig Create(GenericNetworkIdentifier remoteIdentifier, ProtocolDatagram datagram);
+        }
+        public class SendConfig
+        {
+            public bool SerializeDatagram { get; set; }
+            public int Delay { get; set; }
+            public Exception Error { get; set; }
+        }
+        public interface ITransmissionBehaviour
+        {
+            int[] Create(GenericNetworkIdentifier remoteIdentifier, ProtocolDatagram datagram);
+        }
+
         private readonly SessionHandlerStore _sessionHandlerStore;
-        private readonly Random _randomGenerator = new Random();
 
         // behaves like a boolean but for use with Interlocked.Read, has to be
         // a long.
@@ -30,8 +44,9 @@ namespace ScalableIPC.Core.Networks
 
         public Dictionary<GenericNetworkIdentifier, MemoryNetworkApi> ConnectedNetworks { get; }
 
-        public int MinTransmissionDelayMs { get; set; }
-        public int MaxTransmissionDelayMs { get; set; }
+        public ISendConfigFactory SendConfigFactory { get; set; }
+
+        public ITransmissionBehaviour TransmissionBehaviour { get; set; }
 
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
         public AbstractPromiseApi PromiseApi { get; set; }
@@ -92,9 +107,9 @@ namespace ScalableIPC.Core.Networks
             // Fire outside of event loop thread if possible.
             Task.Run(async () =>
             {
-                var promise = HandleSendAsync(remoteEndpoint, message);
                 try
                 {
+                    var promise = HandleSendAsync(remoteEndpoint, message);
                     await ((DefaultPromise<VoidType>)promise).WrappedTask;
                     cb(null);
                 }
@@ -105,50 +120,97 @@ namespace ScalableIPC.Core.Networks
             });
         }
 
-        public AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message)
+        public AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram)
         {
-            if (ConnectedNetworks.ContainsKey(remoteEndpoint))
+            // simulate sending.
+
+            SendConfig sendConfig = null;
+            if (SendConfigFactory != null)
             {
-                Task.Run(async () =>
+                sendConfig = SendConfigFactory.Create(remoteEndpoint, datagram);
+            }
+            AbstractPromise<VoidType> sendResult = DefaultPromiseApi.CompletedPromise;
+            byte[] serialized = null;
+            if (sendConfig != null)
+            {
+                if (sendConfig.SerializeDatagram)
                 {
-                    // Simulate transmission delay here.
-                    var connectedNetwork = ConnectedNetworks[remoteEndpoint];
-                    int transmissionDelayMs;
-                    if (connectedNetwork.MinTransmissionDelayMs > connectedNetwork.MaxTransmissionDelayMs)
+                    serialized = datagram.ToRawDatagram();
+                }
+                if (sendConfig.Delay > 0)
+                {
+                    sendResult = sendResult.ThenCompose(_ => PromiseApi.Delay(sendConfig.Delay));
+                }
+                if (sendConfig.Error != null)
+                {
+                    // don't proceed further
+                    return sendResult.ThenCompose(_ => PromiseApi.Reject<VoidType>(sendConfig.Error));
+                }
+            }
+
+            // done with simulating sending.
+
+            if (!ConnectedNetworks.ContainsKey(remoteEndpoint))
+            {
+                throw new Exception($"{remoteEndpoint} remote endpoint not found.");
+            }
+            var connectedNetwork = ConnectedNetworks[remoteEndpoint];
+
+            // Simulate serialization, transmission delay and duplication of datagrams.
+            // NB: empty array of transmission delays simulates dropping of datagrams
+
+            int[] transmissionDelays = null;
+            if (TransmissionBehaviour != null)
+            {
+                transmissionDelays = TransmissionBehaviour.Create(remoteEndpoint, datagram);
+            }
+            if (transmissionDelays == null)
+            {
+                Task.Run(() => connectedNetwork.HandleReceiveAsync(LocalEndpoint, datagram));
+                return sendResult;
+            }
+
+            for (int i = 0; i < transmissionDelays.Length; i++)
+            {
+                // capture usage of index i before entering closure
+                int transmissionDelay = transmissionDelays[i];
+                Task.Run(() => {
+                    Task transmissionResult;
+                    if (transmissionDelay > 0)
                     {
-                        transmissionDelayMs = -1;
-                    }
-                    else if (connectedNetwork.MinTransmissionDelayMs == connectedNetwork.MaxTransmissionDelayMs)
-                    {
-                        transmissionDelayMs = connectedNetwork.MinTransmissionDelayMs;
+                        transmissionResult = Task.Delay(transmissionDelay);
                     }
                     else
                     {
-                        transmissionDelayMs = connectedNetwork._randomGenerator.Next(connectedNetwork.MinTransmissionDelayMs,
-                            connectedNetwork.MaxTransmissionDelayMs + 1);
+                        transmissionResult = Task.CompletedTask;
                     }
-                    if (transmissionDelayMs > 0)
+                    return transmissionResult.ContinueWith(_ =>
                     {
-                        await Task.Delay(transmissionDelayMs);
-                    }
-                    await connectedNetwork.HandleReceiveAsync(LocalEndpoint, message);
+                        ProtocolDatagram deserialized;
+                        if (serialized != null)
+                        {
+                            deserialized = ProtocolDatagram.Parse(serialized, 0, serialized.Length);
+                        }
+                        else
+                        {
+                            deserialized = datagram;
+                        }
+                        return connectedNetwork.HandleReceiveAsync(LocalEndpoint, deserialized);
+                    });
                 });
-                return DefaultPromiseApi.CompletedPromise;
             }
-            else
-            {
-                return PromiseApi.Reject<VoidType>(new Exception($"{remoteEndpoint} remote endpoint not found."));
-            }
+
+            return sendResult;
         }
 
-        private Task HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message)
+        private Task HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram)
         {
             try
             {
                 ISessionHandler sessionHandler;
                 lock (_sessionHandlerStore)
                 {
-                    var sessionHandlerWrapper = _sessionHandlerStore.Get(remoteEndpoint, message.SessionId);
+                    var sessionHandlerWrapper = _sessionHandlerStore.Get(remoteEndpoint, datagram.SessionId);
                     if (sessionHandlerWrapper != null)
                     {
                         sessionHandler = sessionHandlerWrapper.SessionHandler;
@@ -168,12 +230,12 @@ namespace ScalableIPC.Core.Networks
                         }
 
                         sessionHandler = SessionHandlerFactory.Create();
-                        sessionHandler.CompleteInit(message.SessionId, false, this, remoteEndpoint);
-                        _sessionHandlerStore.Add(remoteEndpoint, message.SessionId,
+                        sessionHandler.CompleteInit(datagram.SessionId, false, this, remoteEndpoint);
+                        _sessionHandlerStore.Add(remoteEndpoint, datagram.SessionId,
                             new SessionHandlerWrapper(sessionHandler));
                     }
                 }
-                var promise = sessionHandler.ProcessReceiveAsync(message);
+                var promise = sessionHandler.ProcessReceiveAsync(datagram);
                 return ((DefaultPromise<VoidType>) promise).WrappedTask;
             }
             catch (Exception ex)
