@@ -54,6 +54,7 @@ namespace ScalableIPC.Core.Session
 
         private void RetrySend(int ackTimeoutSecs, bool stopAndWait)
         {
+            _currentWindowHandler?.Cancel();
             _currentWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
             var pendingWindow = CurrentWindow.GetRange(TotalSentCount, CurrentWindow.Count - TotalSentCount);
             _currentWindowHandler.CurrentWindow = pendingWindow;

@@ -51,6 +51,9 @@ namespace ScalableIPC.Core.Session
                     HandleSendError(nextDatagram, e);
                 }
             });
+            // regardless of send outcome, mark datagram as sent. In that case any ack unexpectedly
+            // received before send outcome will still be accepted.
+            SentCount++;
         }
 
         public void OnAckReceived(ProtocolDatagram ack)
@@ -66,9 +69,9 @@ namespace ScalableIPC.Core.Session
             var receiveCount = ack.SequenceNumber + 1;
             
             // NB: network api may reply with ack before send callback is invoked. Not the normal behaviour,
-            // but must be dealt with. Hence minExpectedReceiveCount is always positive.
-            var minExpectedReceiveCount = (StopAndWait ? SentCount : 0) + 1;
-            var maxExpectedReceiveCount = CurrentWindow.Count;
+            // but must be dealt with.
+            var minExpectedReceiveCount = StopAndWait ? SentCount: 1;
+            var maxExpectedReceiveCount = StopAndWait ? CurrentWindow.Count : SentCount;
             
             // validate ack. NB: ignore op code and just assume caller has already validated that.
             if (receiveCount < minExpectedReceiveCount || receiveCount > maxExpectedReceiveCount)
@@ -78,22 +81,18 @@ namespace ScalableIPC.Core.Session
                 return;
             }
 
-            if (receiveCount == maxExpectedReceiveCount)
+            if (receiveCount >= CurrentWindow.Count)
             {
                 // All datagrams in window have been successfully sent and confirmed
-
-                // cancel ack timeout.
                 _sessionHandler.CancelAckTimeout();
 
-                IsComplete = true;
                 _sessionHandler.IncrementNextWindowIdToSend();
+                IsComplete = true;
                 SuccessCallback.Invoke();
             }
             else if (ack.Options?.IsWindowFull == true)
             {
                 // Overflow detected in receiver window
-
-                // cancel ack timeout.
                 _sessionHandler.CancelAckTimeout();
 
                 _sessionHandler.IncrementNextWindowIdToSend();
@@ -103,8 +102,6 @@ namespace ScalableIPC.Core.Session
             else if (StopAndWait)
             {
                 // Ack received for stop and wait mode to continue
-
-                // cancel ack timeout.
                 _sessionHandler.CancelAckTimeout();
 
                 // continue stop and wait.
@@ -123,14 +120,13 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.TaskExecutor.PostCallback(() =>
             {
                 // check if not needed or arriving too late.
-                if (IsComplete || _sessionHandler.NextWindowIdToSend != datagram.WindowId || SentCount != datagram.SequenceNumber)
+                if (IsComplete || SentCount != datagram.SequenceNumber + 1)
                 {
                     // send success callback received too late
                     return;
                 }
 
                 // send success callback received in time
-                SentCount++;
                 if (StopAndWait || SentCount >= CurrentWindow.Count)
                 {
                     _sessionHandler.ResetAckTimeout(AckTimeoutSecs, ProcessAckTimeout);
@@ -147,7 +143,7 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.TaskExecutor.PostCallback(() =>
             {
                 // check if not needed or arriving too late.
-                if (IsComplete || _sessionHandler.NextWindowIdToSend != datagram.WindowId || SentCount != datagram.SequenceNumber)
+                if (IsComplete || SentCount != datagram.SequenceNumber + 1)
                 {
                     // send error callback received too late
                     return;
