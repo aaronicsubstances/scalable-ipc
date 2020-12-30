@@ -13,7 +13,7 @@ namespace ScalableIPC.Core.Networks
 {
     public class MemoryNetworkApi : AbstractNetworkApi
     {
-        public interface ISendConfigFactory
+        public interface ISendBehaviour
         {
             SendConfig Create(GenericNetworkIdentifier remoteIdentifier, ProtocolDatagram datagram);
         }
@@ -25,7 +25,11 @@ namespace ScalableIPC.Core.Networks
         }
         public interface ITransmissionBehaviour
         {
-            int[] Create(GenericNetworkIdentifier remoteIdentifier, ProtocolDatagram datagram);
+            TransmissionConfig Create(GenericNetworkIdentifier remoteIdentifier, ProtocolDatagram datagram);
+        }
+        public class TransmissionConfig
+        {
+            public int[] Delays { get; set; }
         }
 
         private readonly SessionHandlerStore _sessionHandlerStore;
@@ -44,7 +48,7 @@ namespace ScalableIPC.Core.Networks
 
         public Dictionary<GenericNetworkIdentifier, MemoryNetworkApi> ConnectedNetworks { get; }
 
-        public ISendConfigFactory SendConfigFactory { get; set; }
+        public ISendBehaviour SendBehaviour { get; set; }
 
         public ITransmissionBehaviour TransmissionBehaviour { get; set; }
 
@@ -125,16 +129,19 @@ namespace ScalableIPC.Core.Networks
             // simulate sending.
 
             SendConfig sendConfig = null;
-            if (SendConfigFactory != null)
+            if (SendBehaviour != null)
             {
-                sendConfig = SendConfigFactory.Create(remoteEndpoint, datagram);
+                sendConfig = SendBehaviour.Create(remoteEndpoint, datagram);
             }
+
+            // interpret null send config as immediate success.
             AbstractPromise<VoidType> sendResult = DefaultPromiseApi.CompletedPromise;
             byte[] serialized = null;
             if (sendConfig != null)
             {
                 if (sendConfig.SerializeDatagram)
                 {
+                    // Simulate serialization
                     serialized = datagram.ToRawDatagram();
                 }
                 if (sendConfig.Delay > 0)
@@ -156,24 +163,31 @@ namespace ScalableIPC.Core.Networks
             }
             var connectedNetwork = ConnectedNetworks[remoteEndpoint];
 
-            // Simulate serialization, transmission delay and duplication of datagrams.
-            // NB: empty array of transmission delays simulates dropping of datagrams
+            // Simulate transmission delays and duplication of datagrams.
+            // NB: null/empty array of transmission delays simulates dropping of datagrams.
+            // multiple transmission delays simulates duplication of datagrams
 
-            int[] transmissionDelays = null;
+            TransmissionConfig transmissionConfig = null;
             if (TransmissionBehaviour != null)
             {
-                transmissionDelays = TransmissionBehaviour.Create(remoteEndpoint, datagram);
+                transmissionConfig = TransmissionBehaviour.Create(remoteEndpoint, datagram);
             }
-            if (transmissionDelays == null)
+            if (transmissionConfig == null)
             {
+                // interpret as immediate transfer to connected network.
                 Task.Run(() => connectedNetwork.HandleReceiveAsync(LocalEndpoint, datagram));
                 return sendResult;
             }
 
-            for (int i = 0; i < transmissionDelays.Length; i++)
+            // do nothing if delays are not specified.
+            if (transmissionConfig.Delays == null)
+            {
+                return sendResult;
+            }
+            for (int i = 0; i < transmissionConfig.Delays.Length; i++)
             {
                 // capture usage of index i before entering closure
-                int transmissionDelay = transmissionDelays[i];
+                int transmissionDelay = transmissionConfig.Delays[i];
                 Task.Run(() => {
                     Task transmissionResult;
                     if (transmissionDelay > 0)
