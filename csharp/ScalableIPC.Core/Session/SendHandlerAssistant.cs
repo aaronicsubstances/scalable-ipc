@@ -68,8 +68,6 @@ namespace ScalableIPC.Core.Session
             // and all preceding datagrams in window as well.
             var receiveCount = ack.SequenceNumber + 1;
             
-            // NB: network api may reply with ack before send callback is invoked. Not the normal behaviour,
-            // but must be dealt with.
             var minExpectedReceiveCount = StopAndWait ? SentCount: 1;
             var maxExpectedReceiveCount = StopAndWait ? CurrentWindow.Count : SentCount;
             
@@ -81,7 +79,7 @@ namespace ScalableIPC.Core.Session
                 return;
             }
 
-            if (receiveCount >= CurrentWindow.Count)
+            if (receiveCount == CurrentWindow.Count)
             {
                 // All datagrams in window have been successfully sent and confirmed
                 _sessionHandler.CancelAckTimeout();
@@ -106,6 +104,14 @@ namespace ScalableIPC.Core.Session
 
                 // continue stop and wait.
                 SentCount = receiveCount;
+                ContinueSending();
+            }
+            else if (receiveCount == SentCount)
+            {
+                // This means network api replied with ack when send callback has not been invoked.
+                // Not the normal behaviour, but is acceptable to cater for wide range of network api 
+                // characteristics.
+                _sessionHandler.CancelAckTimeout();
                 ContinueSending();
             }
             else
