@@ -14,18 +14,18 @@ namespace ScalableIPC.Core.Session
         }
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
-        public int PreviousSendCount { get; set; }
-        public int CurrentSendCount { get; set; }
+        public int SentCount { get; set; }
         public bool StopAndWait { get; set; }
         public int AckTimeoutSecs { get; set; }
         public Action SuccessCallback { get; set; }
         public Action<SessionDisposedException> DisposeCallback { get; set; }
+        public Action<int> WindowFullCallback { get; set; }
         public Action TimeoutCallback { get; set; }
         public bool IsComplete { get; set; } = false;
 
         public void Start()
         {
-            CurrentSendCount = PreviousSendCount;
+            SentCount = 0;
             ContinueSending();
         }
 
@@ -36,9 +36,9 @@ namespace ScalableIPC.Core.Session
 
         private void ContinueSending()
         {
-            var nextDatagram = CurrentWindow[CurrentSendCount];
+            var nextDatagram = CurrentWindow[SentCount];
             nextDatagram.WindowId = _sessionHandler.NextWindowIdToSend;
-            nextDatagram.SequenceNumber = CurrentSendCount - PreviousSendCount;
+            nextDatagram.SequenceNumber = SentCount;
 
             _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, e =>
             {
@@ -51,7 +51,6 @@ namespace ScalableIPC.Core.Session
                     HandleSendError(nextDatagram, e);
                 }
             });
-            CurrentSendCount++;
         }
 
         public void OnAckReceived(ProtocolDatagram ack)
@@ -65,10 +64,11 @@ namespace ScalableIPC.Core.Session
             // Receipt of an ack is interpreted as reception of datagram with ack's sequence number,
             // and all preceding datagrams in window as well.
             var receiveCount = ack.SequenceNumber + 1;
-
-            var minExpectedReceiveCount = StopAndWait ? (CurrentSendCount - PreviousSendCount) : 1;
-            var maxExpectedReceiveCount = CurrentWindow.Count - PreviousSendCount;
-
+            
+            // NB: network api may reply with ack before send callback is invoked. Not the normal behaviour,
+            // but must be dealt with. Hence minExpectedReceiveCount is always positive.
+            var minExpectedReceiveCount = (StopAndWait ? SentCount : 0) + 1;
+            var maxExpectedReceiveCount = CurrentWindow.Count;
             
             // validate ack. NB: ignore op code and just assume caller has already validated that.
             if (receiveCount < minExpectedReceiveCount || receiveCount > maxExpectedReceiveCount)
@@ -97,9 +97,8 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.CancelAckTimeout();
 
                 _sessionHandler.IncrementNextWindowIdToSend();
-                PreviousSendCount += receiveCount;
-                StopAndWait = false;
-                Start();
+                IsComplete = true;
+                WindowFullCallback.Invoke(receiveCount);
             }
             else if (StopAndWait)
             {
@@ -109,14 +108,13 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.CancelAckTimeout();
 
                 // continue stop and wait.
-                CurrentSendCount = PreviousSendCount + receiveCount;
+                SentCount = receiveCount;
                 ContinueSending();
             }
             else
             {
-                // Ack is not needed
-
-                // ignore
+                // Ack is not needed. Ignore.
+                _sessionHandler.OnDatagramDiscarded(ack);
             }
         }
 
@@ -125,15 +123,15 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.TaskExecutor.PostCallback(() =>
             {
                 // check if not needed or arriving too late.
-                if (IsComplete || _sessionHandler.NextWindowIdToSend != datagram.WindowId)
+                if (IsComplete || _sessionHandler.NextWindowIdToSend != datagram.WindowId || SentCount != datagram.SequenceNumber)
                 {
                     // send success callback received too late
                     return;
                 }
 
                 // send success callback received in time
-
-                if (StopAndWait || CurrentSendCount >= CurrentWindow.Count)
+                SentCount++;
+                if (StopAndWait || SentCount >= CurrentWindow.Count)
                 {
                     _sessionHandler.ResetAckTimeout(AckTimeoutSecs, ProcessAckTimeout);
                 }
@@ -148,11 +146,15 @@ namespace ScalableIPC.Core.Session
         {
             _sessionHandler.TaskExecutor.PostCallback(() =>
             {
-                if (!IsComplete)
+                // check if not needed or arriving too late.
+                if (IsComplete || _sessionHandler.NextWindowIdToSend != datagram.WindowId || SentCount != datagram.SequenceNumber)
                 {
-                    IsComplete = true;
-                    DisposeCallback.Invoke(new SessionDisposedException(error));
+                    // send error callback received too late
+                    return;
                 }
+
+                IsComplete = true;
+                DisposeCallback.Invoke(new SessionDisposedException(error));
             });
         }
 

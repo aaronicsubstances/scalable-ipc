@@ -19,15 +19,16 @@ namespace ScalableIPC.Core.Session
         public Action SuccessCallback { get; set; }
         public Action<SessionDisposedException> DisposeCallback { get; set; }
         public int RetryCount { get; set; }
+        public int TotalSentCount { get; set; }
 
         public void Start()
         {
-            RetrySend(_sessionHandler.AckTimeoutSecs);
+            RetrySend(_sessionHandler.AckTimeoutSecs, false);
         }
 
         public void OnAckReceived(ProtocolDatagram datagram)
         {
-            _currentWindowHandler.OnAckReceived(datagram);
+            _currentWindowHandler?.OnAckReceived(datagram);
         }
 
         public void Cancel()
@@ -45,30 +46,32 @@ namespace ScalableIPC.Core.Session
             else
             {
                 RetryCount++;
-                RetrySend(_sessionHandler.AckTimeoutSecs);
+                // subsequent attempts after timeout within same window id
+                // should always use stop and wait flow control.
+                RetrySend(_sessionHandler.AckTimeoutSecs, true);
             }
         }
 
-        private void RetrySend(int ackTimeoutSecs)
+        private void RetrySend(int ackTimeoutSecs, bool stopAndWait)
         {
-            int previousSendCount = 0;
-            bool stopAndWait = false;
-            if (_currentWindowHandler != null)
-            {
-                previousSendCount = _currentWindowHandler.PreviousSendCount;
-                // subsequent attempts after timeout within same window id
-                // should always use stop and wait flow control.
-                stopAndWait = true;
-            }
             _currentWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
-            _currentWindowHandler.CurrentWindow = CurrentWindow;
+            var pendingWindow = CurrentWindow.GetRange(TotalSentCount, CurrentWindow.Count - TotalSentCount);
+            _currentWindowHandler.CurrentWindow = pendingWindow;
+            _currentWindowHandler.WindowFullCallback = OnWindowFull;
             _currentWindowHandler.TimeoutCallback = OnWindowSendTimeout;
             _currentWindowHandler.SuccessCallback = SuccessCallback;
             _currentWindowHandler.DisposeCallback = DisposeCallback;
             _currentWindowHandler.AckTimeoutSecs = ackTimeoutSecs;
-            _currentWindowHandler.PreviousSendCount = previousSendCount;
             _currentWindowHandler.StopAndWait = stopAndWait;
             _currentWindowHandler.Start();
+        }
+
+        private void OnWindowFull(int sentCount)
+        {
+            TotalSentCount += sentCount;
+            // reset retry count for new window.
+            RetryCount = 0;
+            RetrySend(_sessionHandler.AckTimeoutSecs, false);
         }
     }
 }
