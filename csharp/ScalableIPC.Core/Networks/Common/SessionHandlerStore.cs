@@ -17,10 +17,10 @@ namespace ScalableIPC.Core.Networks.Common
 
         public SessionHandlerWrapper Get(GenericNetworkIdentifier remoteEndpoint, string sessionId)
         {
-            if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
+            if (remoteEndpoint != null && _sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
                 var subDict = _sessionHandlerMap[remoteEndpoint];
-                if (subDict.ContainsKey(sessionId))
+                if (sessionId != null && subDict.ContainsKey(sessionId))
                 {
                     return subDict[sessionId];
                 }
@@ -30,6 +30,18 @@ namespace ScalableIPC.Core.Networks.Common
         
         public void Add(GenericNetworkIdentifier remoteEndpoint, string sessionId, SessionHandlerWrapper value)
         {
+            if (remoteEndpoint == null)
+            {
+                throw new ArgumentNullException(nameof(remoteEndpoint));
+            }
+            if (sessionId == null)
+            {
+                throw new ArgumentNullException(nameof(sessionId));
+            }
+            if (value == null)
+            {
+                throw new ArgumentNullException(nameof(value));
+            }
             Dictionary<string, SessionHandlerWrapper> subDict;
             if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
@@ -49,54 +61,58 @@ namespace ScalableIPC.Core.Networks.Common
 
         public bool Remove(GenericNetworkIdentifier remoteEndpoint, string sessionId)
         {
-            if (_sessionHandlerMap.ContainsKey(remoteEndpoint))
+            if (remoteEndpoint != null && _sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
                 var subDict = _sessionHandlerMap[remoteEndpoint];
-                if (sessionId == null)
-                {
-                    _sessionHandlerMap.Remove(remoteEndpoint);
-                    return true;
-                }
-                if (subDict.ContainsKey(sessionId))
+                if (sessionId != null && subDict.ContainsKey(sessionId))
                 {
                     subDict.Remove(sessionId);
                     if (subDict.Count == 0)
                     {
                         _sessionHandlerMap.Remove(remoteEndpoint);
-                        return true;
                     }
+                    return true;
                 }
+            }
+            return false;
+        }
+
+        public bool RemoveAll(GenericNetworkIdentifier remoteEndpoint)
+        {
+            if (remoteEndpoint != null)
+            {
+                return _sessionHandlerMap.Remove(remoteEndpoint);
             }
             return false;
         }
 
         public List<string> GetSessionIds(GenericNetworkIdentifier remoteEndpoint)
         {
-            if (!_sessionHandlerMap.ContainsKey(remoteEndpoint))
+            if (remoteEndpoint != null && _sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
-                return new List<string>();
+                var sessionIds = _sessionHandlerMap[remoteEndpoint].Keys.ToList();
+                return sessionIds;
             }
-            var sessionIds = _sessionHandlerMap[remoteEndpoint].Keys.ToList();
-            return sessionIds;
+            return new List<string>();
         }
 
         public int GetSessionCount(GenericNetworkIdentifier remoteEndpoint)
         {
-            if (!_sessionHandlerMap.ContainsKey(remoteEndpoint))
+            if (remoteEndpoint != null && _sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
-                return 0;
+                return _sessionHandlerMap[remoteEndpoint].Keys.Count;
             }
-            return _sessionHandlerMap[remoteEndpoint].Keys.Count;
+            return 0;
         }
 
         public List<SessionHandlerWrapper> GetSessionHandlers(GenericNetworkIdentifier remoteEndpoint)
         {
-            if (!_sessionHandlerMap.ContainsKey(remoteEndpoint))
+            if (remoteEndpoint != null && _sessionHandlerMap.ContainsKey(remoteEndpoint))
             {
-                return new List<SessionHandlerWrapper>();
+                var sessionHandlers = _sessionHandlerMap[remoteEndpoint].Values.ToList();
+                return sessionHandlers;
             }
-            var sessionHandlers = _sessionHandlerMap[remoteEndpoint].Values.ToList();
-            return sessionHandlers;
+            return new List<SessionHandlerWrapper>();
         }
 
         public List<GenericNetworkIdentifier> GetEndpoints()
