@@ -48,11 +48,11 @@ namespace ScalableIPC.Core.Concurrency
 
         public AbstractPromise<U> Then<U>(Func<T, U> onFulfilled)
         {
-            var continuationTask = WrappedTask.ContinueWith(task =>
+            return ThenCompose(result =>
             {
-                return onFulfilled(task.Result);
-            }, TaskContinuationOptions.OnlyOnRanToCompletion);
-            return new DefaultPromise<U>(continuationTask);
+                var retResult = onFulfilled(result);
+                return new DefaultPromise<U>(Task.FromResult(retResult));
+            });
         }
 
         public AbstractPromise<T> Catch(Action<Exception> onRejected)
@@ -72,24 +72,68 @@ namespace ScalableIPC.Core.Concurrency
         {
             var continuationTask = WrappedTask.ContinueWith(task =>
             {
-                AbstractPromise<U> continuationPromise = onFulfilled(task.Result);
-                return ((DefaultPromise<U>) continuationPromise).WrappedTask;
-            }, TaskContinuationOptions.OnlyOnRanToCompletion);
+                if (task.Status != TaskStatus.RanToCompletion)
+                {
+                    // Notes on previous attempts:
+
+                    // 1. tried to use TaskContinuationOptions to only continue
+                    //    when antecedent task is successful. problem however was
+                    //    that any error occuring in onFulfilled handler isn't
+                    //    forwarded; rather the forwarded task is marked as cancelled,
+                    //    with null task.exception result.
+
+                    // 2. tried to forward fault by returning task as is, and removing generics from entire implementation.
+                    // problem however was that the eventual continuation task now gets a status of RanToCompletion.
+
+                    // so rather create an equivalent faulty task.
+                    var errorTask = new TaskCompletionSource<U>();
+                    if (task.Exception != null)
+                    {
+                        errorTask.SetException(TrimOffAggregateException(task.Exception));
+                    }
+                    else
+                    {
+                        errorTask.SetCanceled();
+                    }
+                    return errorTask.Task;
+                }
+                else
+                {
+                    AbstractPromise<U> continuationPromise = onFulfilled(task.Result);
+                    return ((DefaultPromise<U>)continuationPromise).WrappedTask;
+                }
+            });
             return new DefaultPromise<U>(continuationTask.Unwrap());
         }
 
         /// <summary>
-        /// Bugs in initial implementation of CatchCompose forced us to abandon use
-        /// of TaskContinuationOptions, and use if else conditional instead.
-        /// Bugs were:
-        ///  1. CatchCompose wasn't forwarding success results to subsequent Then handlers.
+        /// Used to prevent aggregate exception tree of nested exceptions from growing
+        /// longer in an unbounded manner with each forwarding of faulted tasks.
         /// </summary>
-        /// <param name="onRejected"></param>
+        /// <param name="ex"></param>
         /// <returns></returns>
+        private static Exception TrimOffAggregateException(AggregateException ex)
+        {
+            if (ex.InnerExceptions.Count == 1)
+            {
+                return ex.InnerExceptions[0];
+            }
+            return ex;
+        }
+
         public AbstractPromise<T> CatchCompose(Func<Exception, AbstractPromise<T>> onRejected)
         {
             var continuationTask = WrappedTask.ContinueWith(task =>
             {
+                // Note on previous implementation attempt:
+                // 1. This method was the first place where TaskContinuationOptions was observed to
+                // be doing something different from what is required for its operation:
+                // Using OnlyOnFaulted resulted in success results not being forwarded.
+
+                // so rather get task and use its status to determine next steps.
+                // in the end TaskContinuationOptions was abandoned entirely in this class,
+                // and if else is rather used.
+
                 if (task.Status == TaskStatus.RanToCompletion)
                 {
                     return task;
@@ -128,15 +172,10 @@ namespace ScalableIPC.Core.Concurrency
         public DefaultPromiseCompletionSource()
         {
             WrappedSource = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-            ExtractedPromise = new DefaultPromise<T>(WrappedSource.Task);
+            RelatedPromise = new DefaultPromise<T>(WrappedSource.Task);
         }
 
         public TaskCompletionSource<T> WrappedSource { get; }
-        public DefaultPromise<T> ExtractedPromise { get; }
-
-        public AbstractPromise<T> Extract()
-        {
-            return ExtractedPromise;
-        }
+        public AbstractPromise<T> RelatedPromise { get; }
     }
 }

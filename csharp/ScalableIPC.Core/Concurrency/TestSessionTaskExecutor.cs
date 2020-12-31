@@ -96,8 +96,11 @@ namespace ScalableIPC.Core.Concurrency
 
         public override object ScheduleTimeout(int millis, Action cb)
         {
-            // normalize negative values to 0.
-            var taskDescriptor = new TaskDescriptor(cb, CurrentTimestamp + Math.Max(0, millis));
+            if (millis < 0)
+            {
+                throw new ArgumentException("cannot be negative", nameof(millis));
+            }
+            var taskDescriptor = new TaskDescriptor(cb, CurrentTimestamp + millis);
             _taskQueue.Add(taskDescriptor);
             StableSort(_taskQueue);
             return taskDescriptor.Id;

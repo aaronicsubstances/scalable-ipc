@@ -24,7 +24,7 @@ namespace ScalableIPC.Tests.Core.Concurrency
 
             var input = new List<TaskDescriptor>();
             var expected = new List<TaskDescriptor>();
-            testData.Add(new object[]{ input, expected });
+            testData.Add(new object[] { input, expected });
 
             input = new List<TaskDescriptor>
             {
@@ -40,7 +40,7 @@ namespace ScalableIPC.Tests.Core.Concurrency
                 new TaskDescriptor(Guid.Parse("5b60512b-9d77-4f90-9425-836f0ffa8c3e"), null, 3),
                 new TaskDescriptor(Guid.Parse("155e2bb7-ff23-45b1-b7f9-d051b4daff91"), null, 2),
                 new TaskDescriptor(Guid.Parse("155b8f98-1e71-4e4e-a318-d8f7b230cdbd"), null, 1),
-            }; 
+            };
             expected = new List<TaskDescriptor>
             {
                 new TaskDescriptor(Guid.Parse("155b8f98-1e71-4e4e-a318-d8f7b230cdbd"), null, 1),
@@ -107,11 +107,11 @@ namespace ScalableIPC.Tests.Core.Concurrency
             Assert.Equal(new List<string>(), callbackLogs);
 
             callbackLogs.Clear();
-            instance.ScheduleTimeout(5, () => 
+            instance.ScheduleTimeout(5, () =>
                 callbackLogs.Add("3978252e-188f-4f03-96e2-8036f13dfae2"));
             instance.ScheduleTimeout(6, () =>
                 callbackLogs.Add("e1e039a0-c83a-43da-8f29-81725eb7147f"));
-            var testTimeoutId = instance.ScheduleTimeout(11, () => 
+            var testTimeoutId = instance.ScheduleTimeout(11, () =>
                 callbackLogs.Add("ebf9dd1d-7157-420a-ac16-00a3fde9bf4e"));
             instance.AdvanceTimeBy(4);
             Assert.Equal(14, instance.CurrentTimestamp);
@@ -174,12 +174,16 @@ namespace ScalableIPC.Tests.Core.Concurrency
         {
             Assert.ThrowsAny<Exception>(() =>
             {
-                var instance = new TestSessionTaskExecutor(-1);
+                new TestSessionTaskExecutor(-1);
+            });
+            var instance = new TestSessionTaskExecutor(1);
+            Assert.ThrowsAny<Exception>(() =>
+            {
+                instance.AdvanceTimeBy(-1);
             });
             Assert.ThrowsAny<Exception>(() =>
             {
-                var instance = new TestSessionTaskExecutor(1);
-                instance.AdvanceTimeBy(-1);
+                instance.ScheduleTimeout(-1, () => { });
             });
         }
     }

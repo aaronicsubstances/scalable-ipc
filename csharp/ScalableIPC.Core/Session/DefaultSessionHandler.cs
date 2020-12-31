@@ -153,7 +153,6 @@ namespace ScalableIPC.Core.Session
         public AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
-            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             TaskExecutor.PostCallback(() =>
             {
                 if (SessionState >= StateDisposeAwaiting)
@@ -184,7 +183,7 @@ namespace ScalableIPC.Core.Session
                     }
                 }
             });
-            return returnPromise;
+            return promiseCb.RelatedPromise;
         }
 
         public AbstractPromise<VoidType> CloseAsync()
@@ -195,7 +194,6 @@ namespace ScalableIPC.Core.Session
         public AbstractPromise<VoidType> CloseAsync(bool closeGracefully)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
-            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             TaskExecutor.PostCallback(() =>
             {
                 if (SessionState == StateDisposed)
@@ -226,7 +224,7 @@ namespace ScalableIPC.Core.Session
                     }
                 }
             });
-            return returnPromise;
+            return promiseCb.RelatedPromise;
         }
 
         public void ResetAckTimeout(int timeout, Action cb)
@@ -336,7 +334,6 @@ namespace ScalableIPC.Core.Session
         public AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause)
         {
             PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
-            AbstractPromise<VoidType> returnPromise = promiseCb.Extract();
             TaskExecutor.PostCallback(() =>
             {
                 if (SessionState == StateDisposed)
@@ -361,7 +358,7 @@ namespace ScalableIPC.Core.Session
                     OnSessionDisposed(cause);
                 }
             });
-            return returnPromise;
+            return promiseCb.RelatedPromise;
         }
 
         // calls to application layer.

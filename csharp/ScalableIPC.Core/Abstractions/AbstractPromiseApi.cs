@@ -46,6 +46,6 @@ namespace ScalableIPC.Core.Abstractions
 
     public interface PromiseCompletionSource<T>
     {
-        AbstractPromise<T> Extract();
+        AbstractPromise<T> RelatedPromise { get; }
     }
 }

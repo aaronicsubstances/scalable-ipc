@@ -14,10 +14,8 @@ namespace ScalableIPC.Tests.Core.Concurrency
         [InlineData(0, true)]
         [InlineData(1, false)]
         [InlineData(1, true)]
-        //[InlineData(2, false)] // results in flakiness, so sometimes yield correct results.
+        [InlineData(2, false)]
         [InlineData(2, true)]
-        [InlineData(10, false)]
-        [InlineData(10, true)]
         [Theory]
         public async Task TestSerialLikeCallbackExecution(int maxDegreeOfParallelism, bool runCallbacksUnderMutex)
         {
@@ -30,17 +28,19 @@ namespace ScalableIPC.Tests.Core.Concurrency
             {
                 eventLoop = new DefaultSessionTaskExecutor(maxDegreeOfParallelism, runCallbacksUnderMutex);
             }
-            const int expectedCbCount = 1_000;
+            const int expectedCbCount = 100;
             int actualCbCount = 0;
             for (int i = 0; i < expectedCbCount; i++)
             {
                 eventLoop.PostCallback(() =>
                 {
-                    // using this logic, multithreaded execution
-                    // will definitely fail to increment up to
-                    // expected total.
                     if (actualCbCount < 0)
                     {
+                        // by forcing current thread to sleep, another thread will definitely take
+                        // over while current thread hasn't completed. In multithreaded execution,
+                        // this will definitely fail to increment up to
+                        // expected total.
+                        Thread.Sleep(10);
                         actualCbCount = -actualCbCount + 1;
                     }
                     else
@@ -49,8 +49,8 @@ namespace ScalableIPC.Tests.Core.Concurrency
                     }
                 });
             }
-            // wait for 1 sec for callbacks to be executed.
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            // wait for 3 secs for callbacks to be executed.
+            await Task.Delay(TimeSpan.FromSeconds(3));
 
             int eventualExpected = expectedCbCount * (expectedCbCount % 2 == 0 ? 1 : -1);
             if (runCallbacksUnderMutex)
@@ -72,7 +72,6 @@ namespace ScalableIPC.Tests.Core.Concurrency
         [InlineData(0)]
         [InlineData(1)]
         [InlineData(2)]
-        [InlineData(10)]
         [Theory]
         public async Task TestGuaranteedFairnessOfCallbackProcessing(int maxDegreeOfParallelism)
         {
