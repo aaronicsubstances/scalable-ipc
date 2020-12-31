@@ -404,7 +404,7 @@ namespace ScalableIPC.Tests.Core
                 SequenceNumber = 1_895_425_975,
                 Options = new ProtocolDatagramOptions
                 {
-                    IdleTimeoutSecs = 20
+                    IdleTimeout = 20
                 }
             };
             expected = new byte[]
@@ -578,7 +578,7 @@ namespace ScalableIPC.Tests.Core
                 SequenceNumber = 1_895_425_975,
                 Options = new ProtocolDatagramOptions
                 {
-                    IdleTimeoutSecs = 20
+                    IdleTimeout = 20
                 }
             };
             testData.Add(new object[] { instance, "45a36c96-e6d4-493f-b271-f5614886a504" });
@@ -771,7 +771,7 @@ namespace ScalableIPC.Tests.Core
                 SequenceNumber = 1_895_425_975,
                 Options = new ProtocolDatagramOptions
                 {
-                    IdleTimeoutSecs = 20
+                    IdleTimeout = 20
                 },
                 DataBytes = input,
                 DataOffset = 78

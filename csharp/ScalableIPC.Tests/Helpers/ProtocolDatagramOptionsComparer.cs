@@ -35,7 +35,7 @@ namespace ScalableIPC.Tests.Helpers
             {
                 return false;
             }
-            if (x.IdleTimeoutSecs != y.IdleTimeoutSecs)
+            if (x.IdleTimeout != y.IdleTimeout)
             {
                 return false;
             }

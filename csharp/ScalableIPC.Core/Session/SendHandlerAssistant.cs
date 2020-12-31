@@ -16,7 +16,7 @@ namespace ScalableIPC.Core.Session
         public List<ProtocolDatagram> CurrentWindow { get; set; }
         public int SentCount { get; set; }
         public bool StopAndWait { get; set; }
-        public int AckTimeoutSecs { get; set; }
+        public int AckTimeout { get; set; }
         public Action SuccessCallback { get; set; }
         public Action<SessionDisposedException> DisposeCallback { get; set; }
         public Action<int> WindowFullCallback { get; set; }
@@ -135,7 +135,7 @@ namespace ScalableIPC.Core.Session
                 // send success callback received in time
                 if (StopAndWait || SentCount >= CurrentWindow.Count)
                 {
-                    _sessionHandler.ResetAckTimeout(AckTimeoutSecs, ProcessAckTimeout);
+                    _sessionHandler.ResetAckTimeout(AckTimeout, ProcessAckTimeout);
                 }
                 else
                 {

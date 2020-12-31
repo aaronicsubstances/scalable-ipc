@@ -9,20 +9,39 @@ namespace ScalableIPC.Core.Concurrency
     {
         public class TaskDescriptor
         {
-            public static int _idCounter = 0;
+            public TaskDescriptor(Action cb, long time) :
+                this(Guid.NewGuid(), cb, time)
+            { }
 
-            public TaskDescriptor(Action cb, long time)
+            protected internal TaskDescriptor(Guid id, Action cb, long time)
             {
-                Id = _idCounter++;
+                Id = id;
                 Callback = cb;
                 ScheduledAt = time;
             }
 
-            public long Id { get; }
+            public Guid Id { get; }
 
             public Action Callback { get; }
 
             public long ScheduledAt { get; }
+
+            public override bool Equals(object obj)
+            {
+                return obj is TaskDescriptor descriptor &&
+                       Id == descriptor.Id &&
+                       EqualityComparer<Action>.Default.Equals(Callback, descriptor.Callback) &&
+                       ScheduledAt == descriptor.ScheduledAt;
+            }
+
+            public override int GetHashCode()
+            {
+                int hashCode = 547303379;
+                hashCode = hashCode * -1521134295 + Id.GetHashCode();
+                hashCode = hashCode * -1521134295 + EqualityComparer<Action>.Default.GetHashCode(Callback);
+                hashCode = hashCode * -1521134295 + ScheduledAt.GetHashCode();
+                return hashCode;
+            }
         }
 
         private readonly List<TaskDescriptor> _taskQueue = new List<TaskDescriptor>();
@@ -37,13 +56,13 @@ namespace ScalableIPC.Core.Concurrency
             CurrentTimestamp = initialTimestamp;
         }
 
-        public void AdvanceTimeBy(long delayTimeMillis)
+        public void AdvanceTimeBy(long delay)
         {
-            if (delayTimeMillis < 0)
+            if (delay < 0)
             {
-                throw new ArgumentException("cannot be negative", nameof(delayTimeMillis));
+                throw new ArgumentException("cannot be negative", nameof(delay));
             }
-            CurrentTimestamp += delayTimeMillis;
+            CurrentTimestamp += delay;
             TriggerActions();
         }
 
@@ -67,16 +86,20 @@ namespace ScalableIPC.Core.Concurrency
 
         public override void PostCallback(Action cb)
         {
-            var taskDescriptor = new TaskDescriptor(cb, 0);
-            _taskQueue.Add(taskDescriptor);
-            _taskQueue.Sort((x, y) => x.Id.CompareTo(y.Id));
+            ScheduleTimeout(0, cb);
         }
 
-        public override object ScheduleTimeout(int secs, Action cb)
+        protected internal static void StableSort(List<TaskDescriptor> list)
         {
-            var taskDescriptor = new TaskDescriptor(cb, secs * 1000L);
+            list.Sort((x, y) => x.ScheduledAt.CompareTo(y.ScheduledAt));
+        }
+
+        public override object ScheduleTimeout(int millis, Action cb)
+        {
+            // normalize negative values to 0.
+            var taskDescriptor = new TaskDescriptor(cb, CurrentTimestamp + Math.Max(0, millis));
             _taskQueue.Add(taskDescriptor);
-            _taskQueue.Sort((x, y) => x.Id.CompareTo(y.Id));
+            StableSort(_taskQueue);
             return taskDescriptor.Id;
         }
 

@@ -26,11 +26,11 @@ namespace ScalableIPC.Tests.Core
                 new object[] { new ProtocolDatagramOptions(), new ProtocolDatagramOptions(), true });
 
             testData.Add(
-                new object[] { new ProtocolDatagramOptions(), new ProtocolDatagramOptions { IdleTimeoutSecs = 3 }, false });
+                new object[] { new ProtocolDatagramOptions(), new ProtocolDatagramOptions { IdleTimeout = 3 }, false });
 
             var firstInstance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
@@ -38,7 +38,7 @@ namespace ScalableIPC.Tests.Core
             };
             var secondInstance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
@@ -147,7 +147,7 @@ namespace ScalableIPC.Tests.Core
             firstInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string>());
             var secondInstance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
@@ -164,7 +164,7 @@ namespace ScalableIPC.Tests.Core
             // test that known options are reset before parsing
             firstInstance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
@@ -259,7 +259,7 @@ namespace ScalableIPC.Tests.Core
 
             var instance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
@@ -291,7 +291,7 @@ namespace ScalableIPC.Tests.Core
             // test that options are added if absent in AllOptions.
             instance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
@@ -317,7 +317,7 @@ namespace ScalableIPC.Tests.Core
             // test that options are NOT added if present in AllOptions with same last value. include different letter case for booleans.
             instance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
@@ -351,7 +351,7 @@ namespace ScalableIPC.Tests.Core
             // test that options are added if present in AllOptions with different last value.
             instance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
@@ -409,7 +409,7 @@ namespace ScalableIPC.Tests.Core
             var srcInstance = new ProtocolDatagramOptions();
             var destInstance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
@@ -418,7 +418,7 @@ namespace ScalableIPC.Tests.Core
             };
             var expected = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
@@ -430,7 +430,7 @@ namespace ScalableIPC.Tests.Core
             // test all known options are transferred.
             srcInstance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = true,
@@ -440,7 +440,7 @@ namespace ScalableIPC.Tests.Core
             destInstance = new ProtocolDatagramOptions();
             expected = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = true,
@@ -452,7 +452,7 @@ namespace ScalableIPC.Tests.Core
             // test that all old values are overwitten, even if new ones are "falsy".
             srcInstance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 0,
+                IdleTimeout = 0,
                 AbortCode = 0,
                 IsLastInWindow = false,
                 IsLastInWindowGroup = false,
@@ -461,7 +461,7 @@ namespace ScalableIPC.Tests.Core
             };
             destInstance = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 3,
+                IdleTimeout = 3,
                 AbortCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = true,
@@ -470,7 +470,7 @@ namespace ScalableIPC.Tests.Core
             };
             expected = new ProtocolDatagramOptions
             {
-                IdleTimeoutSecs = 0,
+                IdleTimeout = 0,
                 AbortCode = 0,
                 IsLastInWindow = false,
                 IsLastInWindowGroup = false,
@@ -495,7 +495,7 @@ namespace ScalableIPC.Tests.Core
             srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "false" });
             destInstance = new ProtocolDatagramOptions()
             {
-                IdleTimeoutSecs = 90,
+                IdleTimeout = 90,
                 IsWindowFull = true
             };
             destInstance.AllOptions.Add("k1", new List<string>());
@@ -503,7 +503,7 @@ namespace ScalableIPC.Tests.Core
             destInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "true" });
             expected = new ProtocolDatagramOptions()
             {
-                IdleTimeoutSecs = 90,
+                IdleTimeout = 90,
                 IsWindowFull = false,
                 IsLastInWindowGroup = true,
             };

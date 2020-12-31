@@ -21,9 +21,9 @@ namespace ScalableIPC.Core.Abstractions
         int MaxSendWindowSize { get; set; }
         int MaximumTransferUnitSize { get; set; }
         int MaxRetryCount { get; set; }
-        int AckTimeoutSecs { get; set; }
-        int IdleTimeoutSecs { get; set; }
-        int MinRemoteIdleTimeoutSecs { get; set; }
-        int MaxRemoteIdleTimeoutSecs { get; set; }
+        int AckTimeout { get; set; }
+        int IdleTimeout { get; set; }
+        int MinRemoteIdleTimeout { get; set; }
+        int MaxRemoteIdleTimeout { get; set; }
     }
 }

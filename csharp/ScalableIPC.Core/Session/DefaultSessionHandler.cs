@@ -58,10 +58,10 @@ namespace ScalableIPC.Core.Session
             _stateHandlers.Add(_closeHandler);
 
             // initialize session management parameters from network interface config.
-            IdleTimeoutSecs = networkApi.IdleTimeoutSecs;
-            MinRemoteIdleTimeoutSecs = networkApi.MinRemoteIdleTimeoutSecs;
-            MaxRemoteIdleTimeoutSecs = networkApi.MaxRemoteIdleTimeoutSecs;
-            AckTimeoutSecs = networkApi.AckTimeoutSecs;
+            IdleTimeout = networkApi.IdleTimeout;
+            MinRemoteIdleTimeout = networkApi.MinRemoteIdleTimeout;
+            MaxRemoteIdleTimeout = networkApi.MaxRemoteIdleTimeout;
+            AckTimeout = networkApi.AckTimeout;
             MaxRetryCount = networkApi.MaxRetryCount;
             MaximumTransferUnitSize = networkApi.MaximumTransferUnitSize;
             MaxSendWindowSize = networkApi.MaxSendWindowSize;
@@ -94,10 +94,10 @@ namespace ScalableIPC.Core.Session
         public int MaxSendWindowSize { get; set; }
         public int MaximumTransferUnitSize { get; set; }
         public int MaxRetryCount { get; set; }
-        public int IdleTimeoutSecs { get; set; }
-        public int MinRemoteIdleTimeoutSecs { get; set; }
-        public int MaxRemoteIdleTimeoutSecs { get; set; }
-        public int AckTimeoutSecs { get; set; }
+        public int IdleTimeout { get; set; }
+        public int MinRemoteIdleTimeout { get; set; }
+        public int MaxRemoteIdleTimeout { get; set; }
+        public int AckTimeout { get; set; }
 
         // Protocol requires initial value for window id to be 0,
         // and hence last window id should be negative to trigger
@@ -106,7 +106,7 @@ namespace ScalableIPC.Core.Session
         public long LastWindowIdReceived { get; set; } = -1;
 
         public int LastMaxSeqReceived { get; set; }
-        public int? RemoteIdleTimeoutSecs { get; set; }
+        public int? RemoteIdleTimeout { get; set; }
 
         public void IncrementNextWindowIdToSend()
         {
@@ -229,14 +229,14 @@ namespace ScalableIPC.Core.Session
             return returnPromise;
         }
 
-        public void ResetAckTimeout(int timeoutSecs, Action cb)
+        public void ResetAckTimeout(int timeout, Action cb)
         {
             CancelAckTimeout();
 
             // interpret non positive timeout as disable ack timeout.
-            if (timeoutSecs > 0)
+            if (timeout > 0)
             {
-                _lastAckTimeoutId = TaskExecutor.ScheduleTimeout(timeoutSecs,
+                _lastAckTimeoutId = TaskExecutor.ScheduleTimeout(timeout,
                     () => ProcessAckTimeout(cb));
             }
         }
@@ -245,20 +245,20 @@ namespace ScalableIPC.Core.Session
         {
             CancelIdleTimeout();
 
-            int effectiveIdleTimeoutSecs = IdleTimeoutSecs;
-            if (RemoteIdleTimeoutSecs.HasValue)
+            int effectiveIdleTimeout = IdleTimeout;
+            if (RemoteIdleTimeout.HasValue)
             {
                 // accept remote idle timeout only if it is within bounds of min and max.
-                if (RemoteIdleTimeoutSecs >= MinRemoteIdleTimeoutSecs && RemoteIdleTimeoutSecs <= MaxRemoteIdleTimeoutSecs)
+                if (RemoteIdleTimeout >= MinRemoteIdleTimeout && RemoteIdleTimeout <= MaxRemoteIdleTimeout)
                 {
-                    effectiveIdleTimeoutSecs = RemoteIdleTimeoutSecs.Value;
+                    effectiveIdleTimeout = RemoteIdleTimeout.Value;
                 }
             }
 
             // In the end, only positive values result in idle timeouts.
-            if (effectiveIdleTimeoutSecs > 0)
+            if (effectiveIdleTimeout > 0)
             {
-                _lastIdleTimeoutId = TaskExecutor.ScheduleTimeout(IdleTimeoutSecs, ProcessIdleTimeout);
+                _lastIdleTimeoutId = TaskExecutor.ScheduleTimeout(IdleTimeout, ProcessIdleTimeout);
             }
         }
 

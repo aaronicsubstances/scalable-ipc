@@ -73,10 +73,10 @@ namespace ScalableIPC.Core.Concurrency
                 "Error occured during callback processing", ex));
         }
 
-        public virtual object ScheduleTimeout(int secs, Action cb)
+        public virtual object ScheduleTimeout(int millis, Action cb)
         {
             var cts = new CancellationTokenSource();
-            Task.Delay(TimeSpan.FromSeconds(secs), cts.Token).ContinueWith(t =>
+            Task.Delay(millis, cts.Token).ContinueWith(t =>
             {
                 Task.Factory.StartNew(() => {
                     try

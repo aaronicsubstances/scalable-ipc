@@ -27,7 +27,7 @@ namespace ScalableIPC.Core
         public Dictionary<string, List<string>> AllOptions { get; }
 
         // Known options.
-        public int? IdleTimeoutSecs { get; set; }
+        public int? IdleTimeout { get; set; }
         public int? AbortCode { get; set; }
         public bool? IsWindowFull { get; set; }
         public bool? IsLastInWindow { get; set; }
@@ -38,7 +38,7 @@ namespace ScalableIPC.Core
         {
             var sb = new StringBuilder();
             sb.Append(nameof(ProtocolDatagramOptions)).Append("{");
-            sb.Append(nameof(IdleTimeoutSecs)).Append("=").Append(IdleTimeoutSecs);
+            sb.Append(nameof(IdleTimeout)).Append("=").Append(IdleTimeout);
             sb.Append(", ");
             sb.Append(nameof(AbortCode)).Append("=").Append(AbortCode);
             sb.Append(", ");
@@ -74,7 +74,7 @@ namespace ScalableIPC.Core
         {
             // Purpose of this method includes "syncing" properties for known options with AllOptions.
             // So reset before parsing.
-            IdleTimeoutSecs = null;
+            IdleTimeout = null;
             AbortCode = null;
             IsLastInWindow = null;
             IsWindowFull = null;
@@ -96,7 +96,7 @@ namespace ScalableIPC.Core
                     switch (name)
                     {
                         case OptionNameIdleTimeout:
-                            IdleTimeoutSecs = ParseOptionAsInt32(value);
+                            IdleTimeout = ParseOptionAsInt32(value);
                             break;
                         case OptionNameAbortCode:
                             AbortCode = ParseOptionAsInt32(value);
@@ -213,9 +213,9 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameAbortCode, AbortCode.ToString());
             }
-            if (IdleTimeoutSecs != null)
+            if (IdleTimeout != null)
             {
-                knownOptions.Add(OptionNameIdleTimeout, IdleTimeoutSecs.ToString());
+                knownOptions.Add(OptionNameIdleTimeout, IdleTimeout.ToString());
             }
             if (IsLastInWindow != null)
             {
@@ -239,9 +239,9 @@ namespace ScalableIPC.Core
 
         public void TransferParsedKnownOptionsTo(ProtocolDatagramOptions destOptions)
         {
-            if (IdleTimeoutSecs != null)
+            if (IdleTimeout != null)
             {
-                destOptions.IdleTimeoutSecs = IdleTimeoutSecs;
+                destOptions.IdleTimeout = IdleTimeout;
             }
             if (AbortCode != null)
             {

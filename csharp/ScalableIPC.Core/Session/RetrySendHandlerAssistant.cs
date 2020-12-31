@@ -23,7 +23,7 @@ namespace ScalableIPC.Core.Session
 
         public void Start()
         {
-            RetrySend(_sessionHandler.AckTimeoutSecs, false);
+            RetrySend(_sessionHandler.AckTimeout, false);
         }
 
         public void OnAckReceived(ProtocolDatagram datagram)
@@ -48,11 +48,11 @@ namespace ScalableIPC.Core.Session
                 RetryCount++;
                 // subsequent attempts after timeout within same window id
                 // should always use stop and wait flow control.
-                RetrySend(_sessionHandler.AckTimeoutSecs, true);
+                RetrySend(_sessionHandler.AckTimeout, true);
             }
         }
 
-        private void RetrySend(int ackTimeoutSecs, bool stopAndWait)
+        private void RetrySend(int ackTimeout, bool stopAndWait)
         {
             _currentWindowHandler?.Cancel();
             _currentWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
@@ -62,7 +62,7 @@ namespace ScalableIPC.Core.Session
             _currentWindowHandler.TimeoutCallback = OnWindowSendTimeout;
             _currentWindowHandler.SuccessCallback = SuccessCallback;
             _currentWindowHandler.DisposeCallback = DisposeCallback;
-            _currentWindowHandler.AckTimeoutSecs = ackTimeoutSecs;
+            _currentWindowHandler.AckTimeout = ackTimeout;
             _currentWindowHandler.StopAndWait = stopAndWait;
             _currentWindowHandler.Start();
         }
@@ -72,7 +72,7 @@ namespace ScalableIPC.Core.Session
             TotalSentCount += sentCount;
             // reset retry count for new window.
             RetryCount = 0;
-            RetrySend(_sessionHandler.AckTimeoutSecs, false);
+            RetrySend(_sessionHandler.AckTimeout, false);
         }
     }
 }

@@ -26,11 +26,11 @@ namespace ScalableIPC.Core.Session.Abstractions
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();
 
-        int? RemoteIdleTimeoutSecs { get; set; }
+        int? RemoteIdleTimeout { get; set; }
 
         void ResetIdleTimeout();
 
-        void ResetAckTimeout(int timeoutSecs, Action cb);
+        void ResetAckTimeout(int timeout, Action cb);
         void CancelAckTimeout();
         void InitiateDispose(SessionDisposedException cause);
         void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb);

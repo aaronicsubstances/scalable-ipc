@@ -21,10 +21,10 @@ namespace ScalableIPC.Core.Abstractions
         GenericNetworkIdentifier LocalEndpoint { get; set; }
         AbstractPromiseApi PromiseApi { get; set; }
         ISessionTaskExecutor SessionTaskExecutor { get; set; }
-        int IdleTimeoutSecs { get; set; } // non-positive means disable idle timer 
-        int MinRemoteIdleTimeoutSecs { get; set; }
-        int MaxRemoteIdleTimeoutSecs { get; set; }
-        int AckTimeoutSecs { get; set; } // non-positive means disable ack timer
+        int IdleTimeout { get; set; } // non-positive means disable idle timer 
+        int MinRemoteIdleTimeout { get; set; }
+        int MaxRemoteIdleTimeout { get; set; }
+        int AckTimeout { get; set; } // non-positive means disable ack timer
         int MaxSendWindowSize { get; set; } // non-positive means use 1.
         int MaxReceiveWindowSize { get; set; } // non-positive means use 1.
         int MaxRetryCount { get; set; } // non-positive means disable retries.
@@ -38,7 +38,7 @@ namespace ScalableIPC.Core.Abstractions
         void RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint, string sessionId, SessionDisposedException cause);
         AbstractPromise<VoidType> DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             SessionDisposedException cause);
-        AbstractPromise<VoidType> ShutdownAsync(int waitSecs);
+        AbstractPromise<VoidType> ShutdownAsync(int waitPeriod);
         bool IsShuttingDown();
     }
 }

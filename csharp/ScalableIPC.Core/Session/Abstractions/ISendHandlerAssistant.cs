@@ -13,7 +13,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         /// Used to alternate between stop and wait flow control, and go back N in between timeouts. 
         /// </summary>
         bool StopAndWait { get; set; }
-        int AckTimeoutSecs { get; set; }
+        int AckTimeout { get; set; }
         Action SuccessCallback { get; set; }
         Action<SessionDisposedException> DisposeCallback { get; set; }
         Action<int> WindowFullCallback { get; set; }

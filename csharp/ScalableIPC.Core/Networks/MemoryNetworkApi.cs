@@ -55,10 +55,10 @@ namespace ScalableIPC.Core.Networks
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
         public AbstractPromiseApi PromiseApi { get; set; }
         public ISessionTaskExecutor SessionTaskExecutor { get; set; }
-        public int IdleTimeoutSecs { get; set; }
-        public int MinRemoteIdleTimeoutSecs { get; set; }
-        public int MaxRemoteIdleTimeoutSecs { get; set; }
-        public int AckTimeoutSecs { get; set; }
+        public int IdleTimeout { get; set; }
+        public int MinRemoteIdleTimeout { get; set; }
+        public int MaxRemoteIdleTimeout { get; set; }
+        public int AckTimeout { get; set; }
         public int MaxSendWindowSize { get; set; }
         public int MaxReceiveWindowSize { get; set; }
         public int MaxRetryCount { get; set; }
@@ -296,7 +296,7 @@ namespace ScalableIPC.Core.Networks
             });
         }
 
-        public AbstractPromise<VoidType> ShutdownAsync(int waitSecs)
+        public AbstractPromise<VoidType> ShutdownAsync(int waitPeriod)
         {
             // it is enough to prevent creation of new session handlers
             Interlocked.Exchange(ref _isShuttingDown, 1);

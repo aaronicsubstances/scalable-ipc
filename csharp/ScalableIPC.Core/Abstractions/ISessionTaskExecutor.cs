@@ -20,7 +20,7 @@ namespace ScalableIPC.Core.Abstractions
     {
         // these are the event loop operations.
         void PostCallback(Action cb);
-        object ScheduleTimeout(int secs, Action cb);
+        object ScheduleTimeout(int millis, Action cb);
         void CancelTimeout(object id);
 
         // next are methods for executing tasks anywhere, including

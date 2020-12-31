@@ -118,7 +118,7 @@ namespace ScalableIPC.Tests.Core.Concurrency
             var eventLoop = new DefaultSessionTaskExecutor();
             var startTime = DateTime.UtcNow;
             DateTime? stopTime = null;
-            object timeoutId = eventLoop.ScheduleTimeout(delaySecs, () =>
+            object timeoutId = eventLoop.ScheduleTimeout(delaySecs * 1000, () =>
             {
                 stopTime = DateTime.UtcNow;
             });

@@ -115,9 +115,9 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessCurrentWindowOptions(ProtocolDatagramOptions windowOptions)
         {
-            if (windowOptions?.IdleTimeoutSecs != null)
+            if (windowOptions?.IdleTimeout != null)
             {
-                _sessionHandler.RemoteIdleTimeoutSecs = windowOptions.IdleTimeoutSecs;
+                _sessionHandler.RemoteIdleTimeout = windowOptions.IdleTimeout;
             }
         }
 
