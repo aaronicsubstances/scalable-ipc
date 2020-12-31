@@ -28,7 +28,7 @@ namespace ScalableIPC.Core.Concurrency
         private readonly List<TaskDescriptor> _taskQueue = new List<TaskDescriptor>();
 
         public TestSessionTaskExecutor(long initialTimestamp):
-            base(0)
+            base(0, false)
         {
             if (initialTimestamp < 0)
             {
@@ -74,10 +74,6 @@ namespace ScalableIPC.Core.Concurrency
 
         public override object ScheduleTimeout(int secs, Action cb)
         {
-            if (secs < 0)
-            {
-                throw new ArgumentException("cannot be negative", nameof(secs));
-            }
             var taskDescriptor = new TaskDescriptor(cb, secs * 1000L);
             _taskQueue.Add(taskDescriptor);
             _taskQueue.Sort((x, y) => x.Id.CompareTo(y.Id));

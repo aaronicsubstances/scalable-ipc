@@ -11,10 +11,25 @@ namespace ScalableIPC.Tests.Core.Concurrency
 {
     public class DefaultSessionTaskExecutorTest
     {
-        [Fact]
-        public async Task TestSerialLikeCallbackExecution()
+        [InlineData(0, true)]
+        [InlineData(1, false)]
+        [InlineData(1, true)]
+        //[InlineData(2, false)] // results in flakiness, so sometimes yield correct results.
+        [InlineData(2, true)]
+        [InlineData(10, false)]
+        [InlineData(10, true)]
+        [Theory]
+        public async Task TestSerialLikeCallbackExecution(int maxDegreeOfParallelism, bool runCallbacksUnderMutex)
         {
-            var eventLoop = new DefaultSessionTaskExecutor(2);
+            DefaultSessionTaskExecutor eventLoop;
+            if (maxDegreeOfParallelism < 1)
+            {
+                eventLoop = new DefaultSessionTaskExecutor();
+            }
+            else
+            {
+                eventLoop = new DefaultSessionTaskExecutor(maxDegreeOfParallelism, runCallbacksUnderMutex);
+            }
             const int expectedCbCount = 1_000;
             int actualCbCount = 0;
             for (int i = 0; i < expectedCbCount; i++)
@@ -37,13 +52,39 @@ namespace ScalableIPC.Tests.Core.Concurrency
             // wait for 1 sec for callbacks to be executed.
             await Task.Delay(TimeSpan.FromSeconds(1));
 
-            Assert.Equal(expectedCbCount * (expectedCbCount % 2 == 0 ? 1 : -1), actualCbCount);
+            int eventualExpected = expectedCbCount * (expectedCbCount % 2 == 0 ? 1 : -1);
+            if (runCallbacksUnderMutex)
+            {
+                Assert.Equal(eventualExpected, actualCbCount);
+            }
+            else
+            {
+                // According to http://www.albahari.com/threading/part4.aspx,
+                // don't rely on memory consistency without the use of ordinary locks even
+                // if there's no thread interference due to single degree of parallelism.
+                if (maxDegreeOfParallelism > 1)
+                {
+                    Assert.NotEqual(eventualExpected, actualCbCount);
+                }
+            }
         }
 
-        [Fact]
-        public async Task TestGuaranteedFairnessOfCallbackProcessing()
+        [InlineData(0)]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(10)]
+        [Theory]
+        public async Task TestGuaranteedFairnessOfCallbackProcessing(int maxDegreeOfParallelism)
         {
-            var eventLoop = new DefaultSessionTaskExecutor();
+            DefaultSessionTaskExecutor eventLoop;
+            if (maxDegreeOfParallelism < 1)
+            {
+                eventLoop = new DefaultSessionTaskExecutor();
+            }
+            else
+            {
+                eventLoop = new DefaultSessionTaskExecutor(maxDegreeOfParallelism, true);
+            }
             const int expectedCbCount = 1_000;
             var expectedCollection = Enumerable.Range(0, expectedCbCount);
             List<int> actualCollection = new List<int>();
@@ -59,7 +100,15 @@ namespace ScalableIPC.Tests.Core.Concurrency
             await Task.Delay(TimeSpan.FromSeconds(1));
 
             Assert.Equal(expectedCbCount, actualCollection.Count);
-            Assert.Equal(expectedCollection, actualCollection);
+
+            if (maxDegreeOfParallelism < 2)
+            {
+                Assert.Equal(expectedCollection, actualCollection);
+            }
+            else
+            {
+                Assert.NotEqual(expectedCollection, actualCollection);
+            }
         }
 
         [Theory]

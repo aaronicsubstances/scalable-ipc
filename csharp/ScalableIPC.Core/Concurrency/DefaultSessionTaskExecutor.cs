@@ -12,16 +12,27 @@ namespace ScalableIPC.Core.Concurrency
     {
         private readonly LimitedConcurrencyLevelTaskScheduler _throttledTaskScheduler;
 
+        // Even when degree of parallelism is limited to 1, more than 1 pool thread
+        // can still take turns to process callbacks.
+        // So use lock to guarantee memory consistency (and also to definitely eliminate thread interference errors
+        // in the case where degree of parallelism is more than 1).
+
+        // locking also has another useful side-effect in combination with throttled task scheduler's task queue:
+        // it guarantees that callbacks posted during processing of a given callback will only get executed after 
+        // the current processing is finished, even when degree of parallelism is more than 1.
+        private readonly bool _runCallbacksUnderMutex;
+
         // limit parallelism to one to guarantee that callbacks posted from same thread
         // are executed in order of submission.
         public DefaultSessionTaskExecutor():
-            this(1)
+            this(1, true)
         { }
 
         // for subclasses, to avoid creation of task scheduler if not needed, or use more degrees of
         // parallelism (e.g. for testing).
-        protected internal DefaultSessionTaskExecutor(int maxDegreeOfParallelism)
+        protected internal DefaultSessionTaskExecutor(int maxDegreeOfParallelism, bool runCallbacksUnderMutex)
         {
+            _runCallbacksUnderMutex = runCallbacksUnderMutex;
             if (maxDegreeOfParallelism > 0)
             {
                 _throttledTaskScheduler = new LimitedConcurrencyLevelTaskScheduler(maxDegreeOfParallelism);
@@ -37,16 +48,14 @@ namespace ScalableIPC.Core.Concurrency
             Task.Factory.StartNew(() => {
                 try
                 {
-                    // Even when degree of parallelism is limited to 1, more than 1 pool thread
-                    // can still take turns to process callbacks.
-                    // So use lock for memory consistency (and also to eliminate thread interference errors
-                    // in the case where degree of parallelism is more than 1).
-                    
-                    // locking also has another useful side-effect in combination with throttled task scheduler's task queue:
-                    // it guarantees that callbacks posted during processing of a given callback will only get executed after 
-                    // the current processing is finished, even when degree of parallelism is more than 1.
-                    
-                    lock (this)
+                    if (_runCallbacksUnderMutex)
+                    {
+                        lock (this)
+                        {
+                            cb();
+                        }
+                    }
+                    else
                     {
                         cb();
                     }
@@ -72,9 +81,14 @@ namespace ScalableIPC.Core.Concurrency
                 Task.Factory.StartNew(() => {
                     try
                     {
-                        // use lock to get equivalent of single threaded behaviour in terms of
-                        // memory consistency.
-                        lock (this)
+                        if (_runCallbacksUnderMutex)
+                        {
+                            lock (this)
+                            {
+                                cb();
+                            }
+                        }
+                        else
                         {
                             cb();
                         }
