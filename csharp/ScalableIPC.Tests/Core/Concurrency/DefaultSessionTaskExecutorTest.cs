@@ -36,11 +36,14 @@ namespace ScalableIPC.Tests.Core.Concurrency
                 {
                     if (actualCbCount < 0)
                     {
-                        // by forcing current thread to sleep, another thread will definitely take
-                        // over while current thread hasn't completed. In multithreaded execution,
-                        // this will definitely fail to increment up to
-                        // expected total.
-                        Thread.Sleep(10);
+                        if (actualCbCount > -10)
+                        {
+                            // by forcing current thread to sleep, another thread will definitely take
+                            // over while current thread hasn't completed. In multithreaded execution,
+                            // this will definitely fail to increment up to
+                            // expected total.
+                            Thread.Sleep(10);
+                        }
                         actualCbCount = -actualCbCount + 1;
                     }
                     else
@@ -49,8 +52,8 @@ namespace ScalableIPC.Tests.Core.Concurrency
                     }
                 });
             }
-            // wait for 3 secs for callbacks to be executed.
-            await Task.Delay(TimeSpan.FromSeconds(3));
+            // wait for 1 sec for callbacks to be executed.
+            await Task.Delay(TimeSpan.FromSeconds(1));
 
             int eventualExpected = expectedCbCount * (expectedCbCount % 2 == 0 ? 1 : -1);
             if (runCallbacksUnderMutex)
@@ -92,6 +95,12 @@ namespace ScalableIPC.Tests.Core.Concurrency
                 int captured = i;
                 eventLoop.PostCallback(() =>
                 {
+                    if (captured == 0)
+                    {
+                        // by forcing current thread to sleep, another thread will definitely
+                        // add to collection before the first item, breaking guarantee.
+                        Thread.Sleep(10);
+                    }
                     actualCollection.Add(captured);
                 });
             }

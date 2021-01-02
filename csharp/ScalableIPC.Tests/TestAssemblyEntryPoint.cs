@@ -9,6 +9,7 @@ using ScalableIPC.Tests.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Text;
 
 // Picked from: https://github.com/xunit/samples.xunit/blob/main/AssemblyFixtureExample/Samples.cs
@@ -22,13 +23,23 @@ namespace ScalableIPC.Tests
 
         public TestAssemblyEntryPoint()
         {
-            IConfigurationRoot config = new ConfigurationBuilder()
-                .AddJsonFile(path: "AppSettings.json").Build();
-            NLog.Extensions.Logging.ConfigSettingLayoutRenderer.DefaultConfiguration = config;
-            Config = config.Get<TestConfiguration>();
-            CustomLoggerFacade.Logger = new TestLogger();
+            try
+            {
+                IConfigurationRoot config = new ConfigurationBuilder()
+                    .AddJsonFile(path: "appsettings.json").Build();
+                NLog.Extensions.Logging.ConfigSettingLayoutRenderer.DefaultConfiguration = config;
+                Config = config.Get<TestConfiguration>();
+                CustomLoggerFacade.Logger = new TestLogger();
 
-            ResetDb();
+                //ResetDb();
+            }
+            catch (Exception ex)
+            {
+                var errorTime = DateTime.Now;
+                File.AppendAllText($"logs/{errorTime.ToString("yyyy-MM-dd")}.log",
+                    $"{errorTime} Failed to initialize test project {ex}\n");
+                Environment.Exit(1);
+            }
         }
 
         private void ResetDb()
@@ -55,28 +66,29 @@ namespace ScalableIPC.Tests
 
     class TestLogger : ICustomLogger
     {
+        private static Logger LOG = LogManager.GetCurrentClassLogger();
         public bool Enabled => true;
 
         public void Log(CustomLogEvent logEvent)
         {
-            var logger = LogManager.GetCurrentClassLogger().Info()
+            var logBuilder = LOG.Info()
                 .Message(logEvent.Message ?? "");
             if (logEvent.Data != null)
             {
                 foreach (var k in logEvent.Data)
                 {
-                    logger.Property(k.Key, k.Value);
+                    logBuilder.Property(k.Key, k.Value);
                 }
             }
             var allProps = JObject.FromObject(logEvent.Data ?? new Dictionary<string, object>());
             if (logEvent.LogPosition != null)
             {
-                logger.Property("LogPosition", logEvent.LogPosition);
+                logBuilder.Property("LogPosition", logEvent.LogPosition);
                 allProps.Add("LogPosition", logEvent.LogPosition);
             }
-            logger.Property("AllProps", allProps.ToString(Formatting.None));
-            logger.Exception(logEvent.Error);
-            logger.Write();
+            logBuilder.Property("AllProps", allProps.ToString(Formatting.None));
+            logBuilder.Exception(logEvent.Error);
+            logBuilder.Write();
         }
     }
 }

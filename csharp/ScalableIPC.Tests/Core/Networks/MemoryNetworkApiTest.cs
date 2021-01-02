@@ -25,8 +25,8 @@ namespace ScalableIPC.Tests.Core.Networks
             {
                 LocalEndpoint = _accraAddr,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
-                IdleTimeout = 50,
-                AckTimeout = 30
+                IdleTimeout = 5000,
+                AckTimeout = 3000
             };
 
             _kumasiAddr = new GenericNetworkIdentifier { HostName = "kumasi" };
@@ -34,8 +34,8 @@ namespace ScalableIPC.Tests.Core.Networks
             {
                 LocalEndpoint = _kumasiAddr,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
-                IdleTimeout = 50,
-                AckTimeout = 30
+                IdleTimeout = 5000,
+                AckTimeout = 3000
             };
             _accraEndpoint.ConnectedNetworks.Add(_kumasiAddr, _kumasiEndpoint);
             _kumasiEndpoint.ConnectedNetworks.Add(_accraAddr, _accraEndpoint);
