@@ -19,11 +19,12 @@ namespace ScalableIPC.Core.Session
     /// 2. The only opcodes around are data, close and their acks.
     /// 3. congestion control and data integrity are responsibilities of the underlying network transport
     ///    (except for duplication of previously sent PDUs, which it handles)
-    /// 4. constant timeout values throughout its operation.
+    /// 4. constant timeout values throughout its operation. For idle timeout however, can handle overrides
+    ///    from remote peer.
     /// 5. constant max retry count throughout its operation.
     /// </para>
     /// </summary>
-    public class DefaultSessionHandler : IDefaultSessionHandler
+    public class DefaultSessionHandler : IStandardSessionHandler
     {
         public static readonly int StateOpen = 1;
         public static readonly int StateClosing = 2;
@@ -108,7 +109,7 @@ namespace ScalableIPC.Core.Session
         public int LastMaxSeqReceived { get; set; }
         public int? RemoteIdleTimeout { get; set; }
 
-        public void IncrementNextWindowIdToSend()
+        public virtual void IncrementNextWindowIdToSend()
         {
             NextWindowIdToSend = ProtocolDatagram.ComputeNextWindowIdToSend(NextWindowIdToSend);
         }
@@ -362,13 +363,13 @@ namespace ScalableIPC.Core.Session
         }
 
         // calls to application layer.
-        // Contract here is that both calls should behave like notifications, and
+        // Contract here is that these calls should behave like notifications, and
         // hence these should be called from outside event loop if possible, but after current
         // event in event loop has been processed.
-        public Action<IDefaultSessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
-        public Action<IDefaultSessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
-        public Action<IDefaultSessionHandler, SessionDisposedException> SessionDisposingHandler { get; set; }
-        public Action<IDefaultSessionHandler, SessionDisposedException> SessionDisposedHandler { get; set; }
+        public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
+        public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
+        public Action<ISessionHandler, SessionDisposedException> SessionDisposingHandler { get; set; }
+        public Action<ISessionHandler, SessionDisposedException> SessionDisposedHandler { get; set; }
         
         public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {

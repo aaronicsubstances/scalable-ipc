@@ -5,8 +5,9 @@ using System.Text;
 
 namespace ScalableIPC.Core.Session.Abstractions
 {
-    public interface IDefaultSessionHandler: ISessionHandler
+    public interface IStandardSessionHandler: ISessionHandler
     {
+        // Intended to enable testing. Maps to the same classes in production usage.
         ISendHandlerAssistant CreateSendHandlerAssistant();
         IRetrySendHandlerAssistant CreateRetrySendHandlerAssistant();
         IReceiveHandlerAssistant CreateReceiveHandlerAssistant();
@@ -37,10 +38,10 @@ namespace ScalableIPC.Core.Session.Abstractions
         void ContinueDispose(SessionDisposedException cause);
 
         // application layer interface. contract here is that these should be scheduled on event loop.
-        Action<IDefaultSessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
-        Action<IDefaultSessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
-        Action<IDefaultSessionHandler, SessionDisposedException> SessionDisposingHandler { get; set; }
-        Action<IDefaultSessionHandler, SessionDisposedException> SessionDisposedHandler { get; set; }
+        Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
+        Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
+        Action<ISessionHandler, SessionDisposedException> SessionDisposingHandler { get; set; }
+        Action<ISessionHandler, SessionDisposedException> SessionDisposedHandler { get; set; }
         void OnDatagramDiscarded(ProtocolDatagram datagram);
         void OnMessageReceived(ProtocolMessage message);
         void OnSessionDisposing(SessionDisposedException cause);

@@ -6,9 +6,9 @@ namespace ScalableIPC.Core.Session
 {
     public class SendHandlerAssistant: ISendHandlerAssistant
     {
-        private readonly IDefaultSessionHandler _sessionHandler;
+        private readonly IStandardSessionHandler _sessionHandler;
 
-        public SendHandlerAssistant(IDefaultSessionHandler sessionHandler)
+        public SendHandlerAssistant(IStandardSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }

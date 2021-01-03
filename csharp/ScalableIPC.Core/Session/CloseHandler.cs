@@ -8,11 +8,11 @@ namespace ScalableIPC.Core.Session
 {
     public class CloseHandler : ISessionStateHandler
     {
-        private readonly IDefaultSessionHandler _sessionHandler;
+        private readonly IStandardSessionHandler _sessionHandler;
         private readonly List<PromiseCompletionSource<VoidType>> _pendingPromiseCallbacks;
         private IRetrySendHandlerAssistant _sendWindowHandler;
 
-        public CloseHandler(IDefaultSessionHandler sessionHandler)
+        public CloseHandler(IStandardSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
             _pendingPromiseCallbacks = new List<PromiseCompletionSource<VoidType>>();

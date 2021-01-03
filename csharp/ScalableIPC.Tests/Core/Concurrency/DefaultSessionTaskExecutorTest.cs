@@ -28,7 +28,7 @@ namespace ScalableIPC.Tests.Core.Concurrency
             {
                 eventLoop = new DefaultSessionTaskExecutor(maxDegreeOfParallelism, runCallbacksUnderMutex);
             }
-            const int expectedCbCount = 100;
+            const int expectedCbCount = 1_000;
             int actualCbCount = 0;
             for (int i = 0; i < expectedCbCount; i++)
             {
@@ -67,6 +67,7 @@ namespace ScalableIPC.Tests.Core.Concurrency
                 // if there's no thread interference due to single degree of parallelism.
                 if (maxDegreeOfParallelism > 1)
                 {
+                    // currently flaky.
                     Assert.NotEqual(eventualExpected, actualCbCount);
                 }
             }
@@ -115,6 +116,7 @@ namespace ScalableIPC.Tests.Core.Concurrency
             }
             else
             {
+                // currently flaky.
                 Assert.NotEqual(expectedCollection, actualCollection);
             }
         }

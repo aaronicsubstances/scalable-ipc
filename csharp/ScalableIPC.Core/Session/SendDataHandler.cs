@@ -8,12 +8,12 @@ namespace ScalableIPC.Core.Session
 {
     public class SendDataHandler: ISessionStateHandler
     {
-        private readonly IDefaultSessionHandler _sessionHandler;
+        private readonly IStandardSessionHandler _sessionHandler;
         private ProtocolDatagramFragmenter _datagramFragmenter;
         private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
         private IRetrySendHandlerAssistant _sendWindowHandler;
 
-        public SendDataHandler(IDefaultSessionHandler sessionHandler)
+        public SendDataHandler(IStandardSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }

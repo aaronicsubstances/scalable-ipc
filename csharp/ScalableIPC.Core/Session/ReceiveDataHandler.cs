@@ -8,10 +8,10 @@ namespace ScalableIPC.Core.Session
 {
     public class ReceiveDataHandler : ISessionStateHandler
     {
-        private readonly IDefaultSessionHandler _sessionHandler;
+        private readonly IStandardSessionHandler _sessionHandler;
         private IReceiveHandlerAssistant _currentWindowHandler;
 
-        public ReceiveDataHandler(IDefaultSessionHandler sessionHandler)
+        public ReceiveDataHandler(IStandardSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }
@@ -68,7 +68,6 @@ namespace ScalableIPC.Core.Session
             try
             {
                 ProtocolDatagram windowAsMessage = ProtocolDatagram.CreateMessageOutOfWindow(currentWindow);
-                ProcessCurrentWindowOptions(windowAsMessage.Options);
 
                 // now create message for application layer, and decode any long options present.
                 ProtocolMessage messageForApp = new ProtocolMessage
@@ -97,6 +96,7 @@ namespace ScalableIPC.Core.Session
                 }
 
                 // ready to pass on to application layer.
+                ProcessCurrentWindowOptions(windowAsMessage.Options);
                 _sessionHandler.OnMessageReceived(messageForApp);
 
                 // now window handler is not needed any more
@@ -118,6 +118,7 @@ namespace ScalableIPC.Core.Session
             if (windowOptions?.IdleTimeout != null)
             {
                 _sessionHandler.RemoteIdleTimeout = windowOptions.IdleTimeout;
+                _sessionHandler.ResetIdleTimeout();
             }
         }
 

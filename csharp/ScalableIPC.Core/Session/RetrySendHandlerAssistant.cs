@@ -7,10 +7,10 @@ namespace ScalableIPC.Core.Session
 {
     public class RetrySendHandlerAssistant: IRetrySendHandlerAssistant
     {
-        private readonly IDefaultSessionHandler _sessionHandler;
+        private readonly IStandardSessionHandler _sessionHandler;
         private ISendHandlerAssistant _currentWindowHandler;
 
-        public RetrySendHandlerAssistant(IDefaultSessionHandler sessionHandler)
+        public RetrySendHandlerAssistant(IStandardSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }

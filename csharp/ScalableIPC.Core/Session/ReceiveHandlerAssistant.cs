@@ -7,10 +7,10 @@ namespace ScalableIPC.Core.Session
 {
     public class ReceiveHandlerAssistant: IReceiveHandlerAssistant
     {
-        private readonly IDefaultSessionHandler _sessionHandler;
+        private readonly IStandardSessionHandler _sessionHandler;
         private readonly List<long> _groupedWindowIds;
 
-        public ReceiveHandlerAssistant(IDefaultSessionHandler sessionHandler)
+        public ReceiveHandlerAssistant(IStandardSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
             _groupedWindowIds = new List<long>();
