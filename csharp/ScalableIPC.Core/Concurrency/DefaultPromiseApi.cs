@@ -61,7 +61,7 @@ namespace ScalableIPC.Core.Concurrency
             {
                 if (task.Status != TaskStatus.RanToCompletion)
                 {
-                    onRejected.Invoke(task.Exception);
+                    onRejected.Invoke(DetermineTaskException(task));
                 }
                 return task;
             });
@@ -121,6 +121,15 @@ namespace ScalableIPC.Core.Concurrency
             return ex;
         }
 
+        private static Exception DetermineTaskException(Task task)
+        {
+            if (task.Exception != null)
+            {
+                return task.Exception;
+            }
+            return new TaskCanceledException(task);
+        }
+
         public AbstractPromise<T> CatchCompose(Func<Exception, AbstractPromise<T>> onRejected)
         {
             var continuationTask = WrappedTask.ContinueWith(task =>
@@ -140,7 +149,7 @@ namespace ScalableIPC.Core.Concurrency
                 }
                 else
                 {
-                    AbstractPromise<T> continuationPromise = onRejected(task.Exception);
+                    AbstractPromise<T> continuationPromise = onRejected(DetermineTaskException(task));
                     return ((DefaultPromise<T>)continuationPromise).WrappedTask;
                 }
             });

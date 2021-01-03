@@ -86,7 +86,8 @@ namespace ScalableIPC.Core.Concurrency
 
         public override void PostCallback(Action cb)
         {
-            ScheduleTimeout(0, cb);
+            // run immediately
+            cb.Invoke();
         }
 
         protected internal static void StableSort(List<TaskDescriptor> list)
@@ -99,6 +100,12 @@ namespace ScalableIPC.Core.Concurrency
             if (millis < 0)
             {
                 throw new ArgumentException("cannot be negative", nameof(millis));
+            }
+            if (millis == 0)
+            {
+                // run immediately
+                cb.Invoke();
+                return null;
             }
             var taskDescriptor = new TaskDescriptor(cb, CurrentTimestamp + millis);
             _taskQueue.Add(taskDescriptor);

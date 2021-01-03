@@ -165,5 +165,84 @@ namespace ScalableIPC.Tests.Core.Concurrency
                 new object[]{ 3, true }
             };
         }
+
+        [Fact]
+        public Task TestPromiseCallbackSuccess()
+        {
+            var instance = new DefaultSessionTaskExecutor();
+            return GenericTestPromiseCallbackSuccess(instance);
+        }
+
+        [Fact]
+        public Task TestPromiseCallbackError()
+        {
+            var instance = new DefaultSessionTaskExecutor();
+            return GenericTestPromiseCallbackError(instance);
+        }
+
+        internal static async Task GenericTestPromiseCallbackSuccess(DefaultSessionTaskExecutor instance)
+        {
+            var relatedInstance = new DefaultPromiseApi();
+            var promiseCb = relatedInstance.CreateCallback<int>();
+            var nativePromise = ((DefaultPromise<int>)promiseCb.RelatedPromise).WrappedTask;
+
+            // test that nothing happens with callback after waiting
+            var delayTask = Task.Delay(2000);
+            Task firstCompletedTask = await Task.WhenAny(delayTask, nativePromise);
+            Assert.Equal(delayTask, firstCompletedTask);
+
+            // now test success completion of task
+            delayTask = Task.Delay(2000);
+            instance.CompletePromiseCallbackSuccessfully(promiseCb, 10);
+            firstCompletedTask = await Task.WhenAny(delayTask, nativePromise);
+            Assert.Equal(nativePromise, firstCompletedTask);
+            
+            // test that a Then chain callback can get what was promised.
+            var continuationPromise = promiseCb.RelatedPromise.Then(v => v * v);
+            var result = await ((DefaultPromise<int>)continuationPromise).WrappedTask;
+            Assert.Equal(100, result);
+        }
+
+        internal static async Task GenericTestPromiseCallbackError(DefaultSessionTaskExecutor instance)
+        {
+            var relatedInstance = new DefaultPromiseApi();
+            var promiseCb = relatedInstance.CreateCallback<int>();
+            var nativePromise = ((DefaultPromise<int>)promiseCb.RelatedPromise).WrappedTask;
+
+            // test that nothing happens with callback after waiting
+            var delayTask = Task.Delay(2000);
+            Task firstCompletedTask = await Task.WhenAny(delayTask, nativePromise);
+            Assert.Equal(delayTask, firstCompletedTask);
+
+            // now test success completion of task
+            delayTask = Task.Delay(2000);
+            instance.CompletePromiseCallbackExceptionally(promiseCb, new ArgumentOutOfRangeException());
+            firstCompletedTask = await Task.WhenAny(delayTask, nativePromise);
+            Assert.Equal(nativePromise, firstCompletedTask);
+
+            // test that a CatchCompose chain callback can get exception from promise.
+            var continuationPromise = promiseCb.RelatedPromise.Then(v => v * v)
+                .CatchCompose(ex =>
+                {
+                    Assert.Equal(typeof(ArgumentOutOfRangeException),
+                        ((AggregateException)ex).InnerExceptions[0].GetType());
+                    return relatedInstance.Resolve(-11);
+                });
+            var result = await ((DefaultPromise<int>)continuationPromise).WrappedTask;
+            Assert.Equal(-11, result);
+
+            // test that a Catch chain callback can forward exception
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            {
+
+                var continuationPromise2 = promiseCb.RelatedPromise.Then(v => v * v)
+                    .Catch(ex =>
+                    {
+                        Assert.Equal(typeof(ArgumentOutOfRangeException),
+                            ((AggregateException)ex).InnerExceptions[0].GetType());
+                    });
+                return ((DefaultPromise<int>)continuationPromise2).WrappedTask;
+            });
+        }
     }
 }

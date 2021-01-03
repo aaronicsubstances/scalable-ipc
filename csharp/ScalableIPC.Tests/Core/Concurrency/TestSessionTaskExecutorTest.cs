@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 using static ScalableIPC.Core.Concurrency.TestSessionTaskExecutor;
 
@@ -95,7 +96,6 @@ namespace ScalableIPC.Tests.Core.Concurrency
             instance.PostCallback(() => callbackLogs.Add("cac4e224-15b6-45af-8df4-0a4d43b2ae05"));
             instance.PostCallback(() => callbackLogs.Add("757d903d-376f-4e5f-accf-371fd5f06c3d"));
             instance.PostCallback(() => callbackLogs.Add("245bd145-a538-49b8-b7c8-733f77e5d245"));
-            instance.AdvanceTimeBy(0);
             Assert.Equal(10, instance.CurrentTimestamp);
             Assert.Equal(new List<string> {
                 "cac4e224-15b6-45af-8df4-0a4d43b2ae05", "757d903d-376f-4e5f-accf-371fd5f06c3d",
@@ -150,6 +150,10 @@ namespace ScalableIPC.Tests.Core.Concurrency
                 callbackLogs.Add("9b463fec-6a9c-44cc-8165-e106080b18fc"));
             instance.PostCallback(() =>
                 callbackLogs.Add("56805433-1f02-4327-b190-50862c0ba93e"));
+            Assert.Equal(new List<string> {
+                "6d3a5586-b81d-4ca5-880b-2b711881a14e",
+                "9b463fec-6a9c-44cc-8165-e106080b18fc",
+                "56805433-1f02-4327-b190-50862c0ba93e" }, callbackLogs);
             instance.AdvanceTimeBy(5);
             Assert.Equal(25, instance.CurrentTimestamp);
             Assert.Equal(new List<string> {
@@ -185,6 +189,20 @@ namespace ScalableIPC.Tests.Core.Concurrency
             {
                 instance.ScheduleTimeout(-1, () => { });
             });
+        }
+
+        [Fact]
+        public Task TestPromiseCallbackSuccess()
+        {
+            var instance = new TestSessionTaskExecutor(0);
+            return DefaultSessionTaskExecutorTest.GenericTestPromiseCallbackSuccess(instance);
+        }
+
+        [Fact]
+        public Task TestPromiseCallbackError()
+        {
+            var instance = new TestSessionTaskExecutor(0);
+            return DefaultSessionTaskExecutorTest.GenericTestPromiseCallbackError(instance);
         }
     }
 }
