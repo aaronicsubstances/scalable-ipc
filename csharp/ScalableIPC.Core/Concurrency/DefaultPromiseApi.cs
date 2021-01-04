@@ -1,6 +1,7 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -61,7 +62,8 @@ namespace ScalableIPC.Core.Concurrency
             {
                 if (task.Status != TaskStatus.RanToCompletion)
                 {
-                    onRejected.Invoke(DetermineTaskException(task));
+                    Debug.Assert(task.Exception != null);
+                    onRejected.Invoke(task.Exception);
                 }
                 return task;
             });
@@ -86,15 +88,10 @@ namespace ScalableIPC.Core.Concurrency
                     // problem however was that the eventual continuation task now gets a status of RanToCompletion.
 
                     // so rather create an equivalent faulty task.
+                    // NB: since cancellation isn't part of the promise api, task.Exception should never be null.
                     var errorTask = new TaskCompletionSource<U>();
-                    if (task.Exception != null)
-                    {
-                        errorTask.SetException(TrimOffAggregateException(task.Exception));
-                    }
-                    else
-                    {
-                        errorTask.SetCanceled();
-                    }
+                    Debug.Assert(task.Exception != null);
+                    errorTask.SetException(TrimOffAggregateException(task.Exception));
                     return errorTask.Task;
                 }
                 else
@@ -121,15 +118,6 @@ namespace ScalableIPC.Core.Concurrency
             return ex;
         }
 
-        private static Exception DetermineTaskException(Task task)
-        {
-            if (task.Exception != null)
-            {
-                return task.Exception;
-            }
-            return new TaskCanceledException(task);
-        }
-
         public AbstractPromise<T> CatchCompose(Func<Exception, AbstractPromise<T>> onRejected)
         {
             var continuationTask = WrappedTask.ContinueWith(task =>
@@ -149,7 +137,8 @@ namespace ScalableIPC.Core.Concurrency
                 }
                 else
                 {
-                    AbstractPromise<T> continuationPromise = onRejected(DetermineTaskException(task));
+                    Debug.Assert(task.Exception != null);
+                    AbstractPromise<T> continuationPromise = onRejected(task.Exception);
                     return ((DefaultPromise<T>)continuationPromise).WrappedTask;
                 }
             });
