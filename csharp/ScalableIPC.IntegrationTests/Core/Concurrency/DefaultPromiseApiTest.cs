@@ -17,15 +17,24 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         {
             AbstractPromiseApi instance = new DefaultPromiseApi();
             var errors = new List<string>();
+            var finallyRuns = new List<string>();
             var promise = instance.Resolve(10)
                 .Then(num => {
                     Assert.Equal(10, num);
                     return "nice";
                 })
+                .Finally(() =>
+                {
+                    finallyRuns.Add("19d3881b-3335-45a0-b89f-1a91618a21a1");
+                })
                 .Then<bool>(str =>
                 {
                     Assert.Equal("nice", str);
                     throw new ArgumentException();
+                })
+                .Finally(() =>
+                {
+                    finallyRuns.Add("605d037f-f007-4176-8920-083fc0b7b4c3");
                 })
                 .Then(v =>
                 {
@@ -36,6 +45,10 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 {
                     // very good.
                     AssertRelevantExceptionTypePrescence(typeof(ArgumentException), e);
+                })
+                .Finally(() =>
+                {
+                    finallyRuns.Add("6ea8871f-4953-4e42-a4f6-66e7037da5c5");
                 })
                 .Then(v =>
                 {
@@ -95,12 +108,21 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 });
             var finalValue = await ((DefaultPromise<int>)promise).WrappedTask;
             Assert.Empty(errors); // only after await will errors be fully populated if any.
+            Assert.Equal(new List<string> {
+                "19d3881b-3335-45a0-b89f-1a91618a21a1",
+                "605d037f-f007-4176-8920-083fc0b7b4c3",
+                "6ea8871f-4953-4e42-a4f6-66e7037da5c5" }, finallyRuns);
             Assert.Equal(90, finalValue);
 
+            finallyRuns.Clear();
             var promise2 = instance.Resolve("")
                 .ThenCompose<int>(_ =>
                 {
                     throw new ArgumentException();
+                })
+                .Finally(() =>
+                {
+                    finallyRuns.Add("6e7d542a-ed51-49fc-8584-813d23b19598");
                 })
                 .ThenCompose(_ =>
                 {
@@ -135,7 +157,9 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 ((DefaultPromise<bool>)promise2).WrappedTask
             );
             Assert.Empty(errors);
+            Assert.Equal(new List<string> { "6e7d542a-ed51-49fc-8584-813d23b19598" }, finallyRuns);
 
+            finallyRuns.Clear();
             var promise3 = instance.Resolve("")
                 .ThenOrCatchCompose(s =>
                 {
@@ -175,7 +199,30 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
 
             var finalValue3 = await ((DefaultPromise<string>)promise3).WrappedTask;
             Assert.Empty(errors);
+            Assert.Empty(finallyRuns);
             Assert.Equal("done", finalValue3);
+
+            finallyRuns.Clear();
+            var promise4 = instance.Resolve("")
+                .Finally(() =>
+                {
+                    throw new ArgumentException();
+                })
+                .Then(s =>
+                {
+                    errors.Add("ce7c4312-ef20-4725-8fad-1c72521b3fed");
+                    return "-1";
+                })
+                .Catch(ex =>
+                {
+                    AssertRelevantExceptionTypePrescence(typeof(ArgumentException), ex);
+                });
+
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                ((DefaultPromise<string>)promise4).WrappedTask
+            );
+            Assert.Empty(errors);
+            Assert.Empty(finallyRuns);
         }
 
         private static void AssertRelevantExceptionTypePrescence(Type expected, Exception actual)

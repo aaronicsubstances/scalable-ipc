@@ -70,6 +70,17 @@ namespace ScalableIPC.Core.Concurrency
             return new DefaultPromise<T>(continuationTask.Unwrap());
         }
 
+        public AbstractPromise<T> Finally(Action onFinally)
+        {
+            var continuationTask = WrappedTask.ContinueWith(task =>
+            {
+                onFinally();
+                // return original task in its completed or faulted state.
+                return task;
+            });
+            return new DefaultPromise<T>(continuationTask.Unwrap());
+        }
+
         public AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled)
         {
             var continuationTask = WrappedTask.ContinueWith(task =>

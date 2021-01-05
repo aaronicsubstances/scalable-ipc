@@ -31,6 +31,7 @@ namespace ScalableIPC.Core.Abstractions
     {
         AbstractPromise<U> Then<U>(Func<T, U> onFulfilled);
         AbstractPromise<T> Catch(Action<Exception> onRejected);
+        AbstractPromise<T> Finally(Action onFinally);
         AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled);
 
         // In prescence of generics, CatchCompose has to return a result which is a supertype
