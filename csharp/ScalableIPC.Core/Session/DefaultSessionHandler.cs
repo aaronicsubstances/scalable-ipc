@@ -1,6 +1,5 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Concurrency;
-using ScalableIPC.Core.Helpers;
 using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;
@@ -153,16 +152,16 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message)
         {
-            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(TaskExecutor);
             TaskExecutor.PostCallback(() =>
             {
                 if (SessionState >= StateDisposeAwaiting)
                 {
-                    TaskExecutor.CompletePromiseCallbackExceptionally(promiseCb, _disposalCause);
+                    promiseCb.CompletePromiseCallbackExceptionally(_disposalCause);
                 }
                 else if (IsSendInProgress())
                 {
-                    TaskExecutor.CompletePromiseCallbackExceptionally(promiseCb,
+                    promiseCb.CompletePromiseCallbackExceptionally(
                         new Exception("Send is in progress"));
                 }
                 else
@@ -179,7 +178,7 @@ namespace ScalableIPC.Core.Session
                     }
                     if (!handled)
                     {
-                        TaskExecutor.CompletePromiseCallbackExceptionally(promiseCb,
+                        promiseCb.CompletePromiseCallbackExceptionally(
                             new Exception("No state handler found to process send"));
                     }
                 }
@@ -194,12 +193,12 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> CloseAsync(bool closeGracefully)
         {
-            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(TaskExecutor);
             TaskExecutor.PostCallback(() =>
             {
                 if (SessionState == StateDisposed)
                 {
-                    TaskExecutor.CompletePromiseCallbackSuccessfully(promiseCb, VoidType.Instance);
+                    promiseCb.CompletePromiseCallbackSuccessfully(VoidType.Instance);
                 }
                 else if (SessionState >= StateClosing)
                 {
@@ -207,13 +206,14 @@ namespace ScalableIPC.Core.Session
                 }
                 else if (closeGracefully && IsSendInProgress())
                 {
-                    TaskExecutor.CompletePromiseCallbackExceptionally(promiseCb,
+                    promiseCb.CompletePromiseCallbackExceptionally(
                         new Exception("Send is in progress"));
                 }
                 else
                 {
                     ResetIdleTimeout();
-                    var cause = new SessionDisposedException(false, closeGracefully ? ProtocolDatagram.AbortCodeNormalClose :
+                    var cause = new SessionDisposedException(false, closeGracefully ? 
+                        ProtocolDatagram.AbortCodeNormalClose :
                         ProtocolDatagram.AbortCodeForceClose);
                     if (closeGracefully)
                     {
@@ -334,12 +334,12 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause)
         {
-            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>();
+            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(TaskExecutor);
             TaskExecutor.PostCallback(() =>
             {
                 if (SessionState == StateDisposed)
                 {
-                    TaskExecutor.CompletePromiseCallbackSuccessfully(promiseCb, VoidType.Instance);
+                    promiseCb.CompletePromiseCallbackSuccessfully(VoidType.Instance);
                 }
                 else
                 {
@@ -353,7 +353,7 @@ namespace ScalableIPC.Core.Session
 
                     SessionState = StateDisposed;
 
-                    TaskExecutor.CompletePromiseCallbackSuccessfully(promiseCb, VoidType.Instance);
+                    promiseCb.CompletePromiseCallbackSuccessfully(VoidType.Instance);
 
                     // pass on to application layer.
                     OnSessionDisposed(cause);

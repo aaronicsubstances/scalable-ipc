@@ -185,7 +185,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         internal static async Task GenericTestPromiseCallbackSuccess(DefaultSessionTaskExecutor instance)
         {
             var relatedInstance = new DefaultPromiseApi();
-            var promiseCb = relatedInstance.CreateCallback<int>();
+            var promiseCb = relatedInstance.CreateCallback<int>(instance);
             var nativePromise = ((DefaultPromise<int>)promiseCb.RelatedPromise).WrappedTask;
 
             // test that nothing happens with callback after waiting
@@ -195,7 +195,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
 
             // now test success completion of task
             delayTask = Task.Delay(2000);
-            instance.CompletePromiseCallbackSuccessfully(promiseCb, 10);
+            promiseCb.CompletePromiseCallbackSuccessfully(10);
             firstCompletedTask = await Task.WhenAny(delayTask, nativePromise);
             Assert.Equal(nativePromise, firstCompletedTask);
             
@@ -208,7 +208,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         internal static async Task GenericTestPromiseCallbackError(DefaultSessionTaskExecutor instance)
         {
             var relatedInstance = new DefaultPromiseApi();
-            var promiseCb = relatedInstance.CreateCallback<int>();
+            var promiseCb = relatedInstance.CreateCallback<int>(instance);
             var nativePromise = ((DefaultPromise<int>)promiseCb.RelatedPromise).WrappedTask;
 
             // test that nothing happens with callback after waiting
@@ -218,7 +218,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
 
             // now test success completion of task
             delayTask = Task.Delay(2000);
-            instance.CompletePromiseCallbackExceptionally(promiseCb, new ArgumentOutOfRangeException());
+            promiseCb.CompletePromiseCallbackExceptionally(new ArgumentOutOfRangeException());
             firstCompletedTask = await Task.WhenAny(delayTask, nativePromise);
             Assert.Equal(nativePromise, firstCompletedTask);
 
@@ -236,7 +236,6 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             // test that a Catch chain callback can forward exception
             await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             {
-
                 var continuationPromise2 = promiseCb.RelatedPromise.Then(v => v * v)
                     .Catch(ex =>
                     {

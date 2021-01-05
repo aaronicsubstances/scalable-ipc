@@ -21,7 +21,7 @@ namespace ScalableIPC.Core.Abstractions
     /// </summary>
     public interface AbstractPromiseApi
     {
-        PromiseCompletionSource<T> CreateCallback<T>();
+        PromiseCompletionSource<T> CreateCallback<T>(ISessionTaskExecutor sessionTaskExecutor);
         AbstractPromise<T> Resolve<T>(T value);
         AbstractPromise<T> Reject<T>(Exception reason);
         AbstractPromise<VoidType> Delay(int millis);
@@ -48,5 +48,7 @@ namespace ScalableIPC.Core.Abstractions
     public interface PromiseCompletionSource<T>
     {
         AbstractPromise<T> RelatedPromise { get; }
+        void CompletePromiseCallbackSuccessfully(T value);
+        void CompletePromiseCallbackExceptionally(Exception error);
     }
 }

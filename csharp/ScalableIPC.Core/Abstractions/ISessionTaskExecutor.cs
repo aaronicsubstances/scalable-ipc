@@ -29,10 +29,5 @@ namespace ScalableIPC.Core.Abstractions
         // PostTask method is like RunTask, except that it ensures cb will be started after current event loop
         // work is completed.
         void PostTask(Action cb);
-
-        // Contract here is that both Complete* methods should behave like notifications, and
-        // hence these should be called from event loop.
-        void CompletePromiseCallbackSuccessfully<T>(PromiseCompletionSource<T> promiseCb, T value);
-        void CompletePromiseCallbackExceptionally<T>(PromiseCompletionSource<T> promiseCb, Exception error);
     }
 }

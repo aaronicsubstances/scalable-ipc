@@ -31,7 +31,7 @@ namespace ScalableIPC.Core.Session
             _sendWindowHandler = null;
             foreach (var cb in _pendingPromiseCallbacks)
             {
-                _sessionHandler.TaskExecutor.CompletePromiseCallbackSuccessfully(cb, VoidType.Instance);
+                cb.CompletePromiseCallbackSuccessfully(VoidType.Instance);
             }
             _pendingPromiseCallbacks.Clear();
         }

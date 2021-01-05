@@ -132,17 +132,5 @@ namespace ScalableIPC.Core.Concurrency
         {
             PostCallback(() => RunTask(cb));
         }
-
-        // Contract here is that both Complete* methods should behave like notifications, and
-        // hence these should be called from outside event loop if possible, but after current
-        // event in event loop has been processed.
-        public void CompletePromiseCallbackSuccessfully<T>(PromiseCompletionSource<T> promiseCb, T value)
-        {
-            PostTask(() => ((DefaultPromiseCompletionSource<T>)promiseCb).WrappedSource.TrySetResult(value));
-        }
-        public void CompletePromiseCallbackExceptionally<T>(PromiseCompletionSource<T> promiseCb, Exception error)
-        {
-            PostTask(() => ((DefaultPromiseCompletionSource<T>) promiseCb).WrappedSource.TrySetException(error));
-        }
     }
 }
