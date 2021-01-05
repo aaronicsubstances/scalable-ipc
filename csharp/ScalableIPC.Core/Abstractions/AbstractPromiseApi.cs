@@ -48,7 +48,7 @@ namespace ScalableIPC.Core.Abstractions
     public interface PromiseCompletionSource<T>
     {
         AbstractPromise<T> RelatedPromise { get; }
-        void CompletePromiseCallbackSuccessfully(T value);
-        void CompletePromiseCallbackExceptionally(Exception error);
+        void CompleteSuccessfully(T value);
+        void CompleteExceptionally(Exception error);
     }
 }

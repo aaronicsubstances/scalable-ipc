@@ -163,8 +163,7 @@ namespace ScalableIPC.Core.Concurrency
                 }
                 else
                 {
-                    AbstractPromise<T> continuationPromise = onRejected(
-                        DetermineTaskException(task));
+                    AbstractPromise<T> continuationPromise = onRejected(DetermineTaskException(task));
                     return ((DefaultPromise<T>)continuationPromise).WrappedTask;
                 }
             });
@@ -206,16 +205,15 @@ namespace ScalableIPC.Core.Concurrency
         public AbstractPromise<T> RelatedPromise { get; }
 
         // Contract here is that both Complete* methods should behave like notifications, and
-        // hence these should be called from outside event loop if possible, but after current
+        // hence aftermath of these calls should execute outside event loop if possible, but after current
         // event in event loop has been processed. 
-        // NB: Because of use of RunContinuationsAsynchronously in constructor,
-        // PostCallback is used instead of PostTask.
-        public void CompletePromiseCallbackSuccessfully(T value)
+        // NB: Hence use of RunContinuationsAsynchronously in constructor.
+        public void CompleteSuccessfully(T value)
         {
             _sessionTaskExecutor.PostCallback(() => WrappedSource.TrySetResult(value));
         }
 
-        public void CompletePromiseCallbackExceptionally(Exception error)
+        public void CompleteExceptionally(Exception error)
         {
             _sessionTaskExecutor.PostCallback(() => WrappedSource.TrySetException(error));
         }

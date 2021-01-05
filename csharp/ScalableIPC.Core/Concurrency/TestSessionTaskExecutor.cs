@@ -129,11 +129,5 @@ namespace ScalableIPC.Core.Concurrency
                 _taskQueue.RemoveAt(indexToRemove);
             }
         }
-
-        public override void RunTask(Action task)
-        {
-            // run immediately.
-            task.Invoke();
-        }
     }
 }

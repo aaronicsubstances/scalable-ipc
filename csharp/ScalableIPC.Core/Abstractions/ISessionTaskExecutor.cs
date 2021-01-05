@@ -22,12 +22,5 @@ namespace ScalableIPC.Core.Abstractions
         void PostCallback(Action cb);
         object ScheduleTimeout(int millis, Action cb);
         void CancelTimeout(object id);
-
-        // next are methods for executing tasks anywhere, including
-        // outside of event loop if desired.
-        void RunTask(Action task);
-        // PostTask method is like RunTask, except that it ensures cb will be started after current event loop
-        // work is completed.
-        void PostTask(Action cb);
     }
 }

@@ -157,12 +157,11 @@ namespace ScalableIPC.Core.Session
             {
                 if (SessionState >= StateDisposeAwaiting)
                 {
-                    promiseCb.CompletePromiseCallbackExceptionally(_disposalCause);
+                    promiseCb.CompleteExceptionally(_disposalCause);
                 }
                 else if (IsSendInProgress())
                 {
-                    promiseCb.CompletePromiseCallbackExceptionally(
-                        new Exception("Send is in progress"));
+                    promiseCb.CompleteExceptionally(new Exception("Send is in progress"));
                 }
                 else
                 {
@@ -178,8 +177,7 @@ namespace ScalableIPC.Core.Session
                     }
                     if (!handled)
                     {
-                        promiseCb.CompletePromiseCallbackExceptionally(
-                            new Exception("No state handler found to process send"));
+                        promiseCb.CompleteExceptionally(new Exception("No state handler found to process send"));
                     }
                 }
             });
@@ -198,7 +196,7 @@ namespace ScalableIPC.Core.Session
             {
                 if (SessionState == StateDisposed)
                 {
-                    promiseCb.CompletePromiseCallbackSuccessfully(VoidType.Instance);
+                    promiseCb.CompleteSuccessfully(VoidType.Instance);
                 }
                 else if (SessionState >= StateClosing)
                 {
@@ -206,8 +204,7 @@ namespace ScalableIPC.Core.Session
                 }
                 else if (closeGracefully && IsSendInProgress())
                 {
-                    promiseCb.CompletePromiseCallbackExceptionally(
-                        new Exception("Send is in progress"));
+                    promiseCb.CompleteExceptionally(new Exception("Send is in progress"));
                 }
                 else
                 {
@@ -339,7 +336,7 @@ namespace ScalableIPC.Core.Session
             {
                 if (SessionState == StateDisposed)
                 {
-                    promiseCb.CompletePromiseCallbackSuccessfully(VoidType.Instance);
+                    promiseCb.CompleteSuccessfully(VoidType.Instance);
                 }
                 else
                 {
@@ -353,7 +350,7 @@ namespace ScalableIPC.Core.Session
 
                     SessionState = StateDisposed;
 
-                    promiseCb.CompletePromiseCallbackSuccessfully(VoidType.Instance);
+                    promiseCb.CompleteSuccessfully(VoidType.Instance);
 
                     // pass on to application layer.
                     OnSessionDisposed(cause);
@@ -364,7 +361,7 @@ namespace ScalableIPC.Core.Session
 
         // calls to application layer.
         // Contract here is that these calls should behave like notifications, and
-        // hence these should be called from outside event loop if possible, but after current
+        // hence these once invoked, should continue execution outside event loop if possible, but after current
         // event in event loop has been processed.
         public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
         public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
@@ -373,22 +370,22 @@ namespace ScalableIPC.Core.Session
         
         public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {
-            TaskExecutor.PostTask(() => DatagramDiscardedHandler?.Invoke(this, datagram));
+            TaskExecutor.PostCallback(() => DatagramDiscardedHandler?.Invoke(this, datagram));
         }
 
         public void OnMessageReceived(ProtocolMessage message)
         {
-            TaskExecutor.PostTask(() => MessageReceivedHandler?.Invoke(this, message));
+            TaskExecutor.PostCallback(() => MessageReceivedHandler?.Invoke(this, message));
         }
 
         public void OnSessionDisposing(SessionDisposedException cause)
         {
-            TaskExecutor.PostTask(() => SessionDisposingHandler?.Invoke(this, cause));
+            TaskExecutor.PostCallback(() => SessionDisposingHandler?.Invoke(this, cause));
         }
 
         public void OnSessionDisposed(SessionDisposedException cause)
         {
-            TaskExecutor.PostTask(() => SessionDisposedHandler?.Invoke(this, cause));
+            TaskExecutor.PostCallback(() => SessionDisposedHandler?.Invoke(this, cause));
         }
     }
 }

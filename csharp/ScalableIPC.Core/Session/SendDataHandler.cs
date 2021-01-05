@@ -29,7 +29,7 @@ namespace ScalableIPC.Core.Session
             SendInProgress = false;
             if (_pendingPromiseCallback != null)
             {
-                _pendingPromiseCallback.CompletePromiseCallbackExceptionally(cause);
+                _pendingPromiseCallback.CompleteExceptionally(cause);
                 _pendingPromiseCallback = null;
             }
         }
@@ -150,7 +150,7 @@ namespace ScalableIPC.Core.Session
             SendInProgress = false;
 
             // complete pending promise.
-            _pendingPromiseCallback.CompletePromiseCallbackSuccessfully(VoidType.Instance);
+            _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
             _pendingPromiseCallback = null;
             _datagramFragmenter = null;
             CurrentWindowGroup = null;

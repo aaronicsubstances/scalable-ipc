@@ -195,7 +195,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
 
             // now test success completion of task
             delayTask = Task.Delay(2000);
-            promiseCb.CompletePromiseCallbackSuccessfully(10);
+            promiseCb.CompleteSuccessfully(10);
             firstCompletedTask = await Task.WhenAny(delayTask, nativePromise);
             Assert.Equal(nativePromise, firstCompletedTask);
             
@@ -218,7 +218,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
 
             // now test success completion of task
             delayTask = Task.Delay(2000);
-            promiseCb.CompletePromiseCallbackExceptionally(new ArgumentOutOfRangeException());
+            promiseCb.CompleteExceptionally(new ArgumentOutOfRangeException());
             firstCompletedTask = await Task.WhenAny(delayTask, nativePromise);
             Assert.Equal(nativePromise, firstCompletedTask);
 

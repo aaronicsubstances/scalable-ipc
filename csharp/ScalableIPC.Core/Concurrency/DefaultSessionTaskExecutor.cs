@@ -109,28 +109,5 @@ namespace ScalableIPC.Core.Concurrency
                 source.Cancel();
             }
         }
-
-        public virtual void RunTask(Action task)
-        {
-            Task.Run(() =>
-            {
-                try
-                {
-                    task.Invoke();
-                }
-                catch (Exception ex)
-                {
-                    HandleCallbackException(ex);
-                }
-            });
-        }
-
-        // the remaining methods make use of the above ones. Thus it is sufficient to modify the above methods
-        // to modify the behaviour of the following ones.
-
-        public void PostTask(Action cb)
-        {
-            PostCallback(() => RunTask(cb));
-        }
     }
 }
