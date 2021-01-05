@@ -11,7 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace ScalableIPC.Tests.Core.Networks
+namespace ScalableIPC.IntegrationTests.Core.Networks
 {
     public class MemoryNetworkApiTest
     {

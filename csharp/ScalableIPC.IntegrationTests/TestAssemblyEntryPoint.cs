@@ -5,7 +5,7 @@ using Newtonsoft.Json.Linq;
 using NLog;
 using NLog.Fluent;
 using ScalableIPC.Core.Helpers;
-using ScalableIPC.Tests.Helpers;
+using ScalableIPC.IntegrationTests.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,9 +13,9 @@ using System.IO;
 using System.Text;
 
 // Picked from: https://github.com/xunit/samples.xunit/blob/main/AssemblyFixtureExample/Samples.cs
-[assembly: Xunit.TestFramework("ScalableIPC.Tests.TestAssemblyEntryPoint", "ScalableIPC.Tests")]
+[assembly: Xunit.TestFramework("ScalableIPC.Tests.TestAssemblyEntryPoint", "ScalableIPC.IntegrationTests")]
 
-namespace ScalableIPC.Tests
+namespace ScalableIPC.IntegrationTests
 {
     class TestAssemblyEntryPoint
     {

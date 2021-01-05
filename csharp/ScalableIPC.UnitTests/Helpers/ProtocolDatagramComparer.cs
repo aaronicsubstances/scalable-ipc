@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace ScalableIPC.Tests.Helpers
+namespace ScalableIPC.UnitTests.Helpers
 {
     public class ProtocolDatagramComparer : IEqualityComparer<ProtocolDatagram>
     {

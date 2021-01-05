@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace ScalableIPC.Tests.Helpers
+namespace ScalableIPC.UnitTests.Helpers
 {
     public class OptionsComparer : IEqualityComparer<Dictionary<string, List<string>>>
     {

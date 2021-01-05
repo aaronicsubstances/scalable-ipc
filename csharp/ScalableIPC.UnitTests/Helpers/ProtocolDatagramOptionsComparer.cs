@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ScalableIPC.Tests.Helpers
+namespace ScalableIPC.UnitTests.Helpers
 {
     public class ProtocolDatagramOptionsComparer: IEqualityComparer<ProtocolDatagramOptions>
     {

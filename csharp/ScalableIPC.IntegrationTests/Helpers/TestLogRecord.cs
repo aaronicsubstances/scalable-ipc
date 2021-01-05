@@ -1,7 +1,6 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 
-namespace ScalableIPC.Tests.Helpers
+namespace ScalableIPC.IntegrationTests.Helpers
 {
     class TestLogRecord
     {

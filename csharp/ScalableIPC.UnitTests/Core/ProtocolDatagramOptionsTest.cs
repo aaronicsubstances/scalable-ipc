@@ -1,12 +1,12 @@
 ﻿using ScalableIPC.Core;
-using ScalableIPC.Tests.Helpers;
+using ScalableIPC.UnitTests.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Xunit;
 
-namespace ScalableIPC.Tests.Core
+namespace ScalableIPC.UnitTests.Core
 {
     public class ProtocolDatagramOptionsTest
     {

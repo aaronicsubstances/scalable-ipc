@@ -8,7 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace ScalableIPC.Tests.Core.Concurrency
+namespace ScalableIPC.IntegrationTests.Core.Concurrency
 {
     public class DefaultPromiseApiTest
     {

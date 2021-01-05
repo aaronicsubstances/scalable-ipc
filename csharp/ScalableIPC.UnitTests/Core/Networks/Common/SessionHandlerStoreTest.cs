@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Text;
 using Xunit;
 
-namespace ScalableIPC.Tests.Core.Networks.Common
+namespace ScalableIPC.UnitTests.Core.Networks.Common
 {
     public class SessionHandlerStoreTest
     {

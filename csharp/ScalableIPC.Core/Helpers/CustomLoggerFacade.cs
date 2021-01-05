@@ -4,7 +4,8 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 
-[assembly: InternalsVisibleTo("ScalableIPC.Tests")]
+[assembly: InternalsVisibleTo("ScalableIPC.UnitTests")]
+[assembly: InternalsVisibleTo("ScalableIPC.IntegrationTests")]
 
 namespace ScalableIPC.Core.Helpers
 {

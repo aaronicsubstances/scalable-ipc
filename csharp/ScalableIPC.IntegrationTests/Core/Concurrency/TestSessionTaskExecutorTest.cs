@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Xunit;
 using static ScalableIPC.Core.Concurrency.TestSessionTaskExecutor;
 
-namespace ScalableIPC.Tests.Core.Concurrency
+namespace ScalableIPC.IntegrationTests.Core.Concurrency
 {
     public class TestSessionTaskExecutorTest
     {
