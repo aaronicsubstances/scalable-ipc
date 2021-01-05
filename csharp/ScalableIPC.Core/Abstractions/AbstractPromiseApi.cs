@@ -30,7 +30,7 @@ namespace ScalableIPC.Core.Abstractions
     public interface AbstractPromise<T>
     {
         AbstractPromise<U> Then<U>(Func<T, U> onFulfilled);
-        AbstractPromise<T> Catch(Action<Exception> onRejected);
+        AbstractPromise<T> Catch(Action<AggregateException> onRejected);
         AbstractPromise<T> Finally(Action onFinally);
         AbstractPromise<U> ThenCompose<U>(Func<T, AbstractPromise<U>> onFulfilled);
 
@@ -40,9 +40,9 @@ namespace ScalableIPC.Core.Abstractions
         // at runtime, even though object is a supertype of VoidType.
         // Hence these constraints forced us to this design of the method in which the type returned by
         // onRejected is the same as that of this one.
-        AbstractPromise<T> CatchCompose(Func<Exception, AbstractPromise<T>> onRejected);
+        AbstractPromise<T> CatchCompose(Func<AggregateException, AbstractPromise<T>> onRejected);
         AbstractPromise<U> ThenOrCatchCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
-            Func<Exception, AbstractPromise<U>> onRejected);
+            Func<AggregateException, AbstractPromise<U>> onRejected);
     }
 
     public interface PromiseCompletionSource<T>

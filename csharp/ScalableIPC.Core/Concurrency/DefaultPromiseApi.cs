@@ -1,7 +1,6 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -56,18 +55,29 @@ namespace ScalableIPC.Core.Concurrency
             });
         }
 
-        public AbstractPromise<T> Catch(Action<Exception> onRejected)
+        public AbstractPromise<T> Catch(Action<AggregateException> onRejected)
         {
             var continuationTask = WrappedTask.ContinueWith(task =>
             {
                 if (task.Status != TaskStatus.RanToCompletion)
                 {
-                    Debug.Assert(task.Exception != null);
-                    onRejected.Invoke(task.Exception);
+                    onRejected.Invoke(DetermineTaskException(task));
                 }
                 return task;
             });
             return new DefaultPromise<T>(continuationTask.Unwrap());
+        }
+
+        private static AggregateException DetermineTaskException(Task task)
+        {
+            if (task.Exception != null)
+            {
+                return task.Exception;
+            }
+            else
+            {
+                return new AggregateException(new TaskCanceledException(task));
+            }
         }
 
         public AbstractPromise<T> Finally(Action onFinally)
@@ -99,10 +109,15 @@ namespace ScalableIPC.Core.Concurrency
                     // problem however was that the eventual continuation task now gets a status of RanToCompletion.
 
                     // so rather create an equivalent faulty task.
-                    // NB: since cancellation isn't part of the promise api, task.Exception should never be null.
                     var errorTask = new TaskCompletionSource<U>();
-                    Debug.Assert(task.Exception != null);
-                    errorTask.SetException(TrimOffAggregateException(task.Exception));
+                    if (task.Exception != null)
+                    {
+                        errorTask.SetException(TrimOffAggregateException(task.Exception));
+                    }
+                    else
+                    {
+                        errorTask.SetCanceled();
+                    }
                     return errorTask.Task;
                 }
                 else
@@ -116,7 +131,7 @@ namespace ScalableIPC.Core.Concurrency
 
         /// <summary>
         /// Used to prevent aggregate exception tree of nested exceptions from growing
-        /// longer in an unbounded manner with each forwarding of faulted tasks.
+        /// long in an unbounded manner with each forwarding of faulted tasks.
         /// </summary>
         /// <param name="ex"></param>
         /// <returns></returns>
@@ -129,7 +144,7 @@ namespace ScalableIPC.Core.Concurrency
             return ex;
         }
 
-        public AbstractPromise<T> CatchCompose(Func<Exception, AbstractPromise<T>> onRejected)
+        public AbstractPromise<T> CatchCompose(Func<AggregateException, AbstractPromise<T>> onRejected)
         {
             var continuationTask = WrappedTask.ContinueWith(task =>
             {
@@ -148,8 +163,8 @@ namespace ScalableIPC.Core.Concurrency
                 }
                 else
                 {
-                    Debug.Assert(task.Exception != null);
-                    AbstractPromise<T> continuationPromise = onRejected(task.Exception);
+                    AbstractPromise<T> continuationPromise = onRejected(
+                        DetermineTaskException(task));
                     return ((DefaultPromise<T>)continuationPromise).WrappedTask;
                 }
             });
@@ -157,7 +172,7 @@ namespace ScalableIPC.Core.Concurrency
         }
 
         public AbstractPromise<U> ThenOrCatchCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
-            Func<Exception, AbstractPromise<U>> onRejected)
+            Func<AggregateException, AbstractPromise<U>> onRejected)
         {
             var continuationTask = WrappedTask.ContinueWith(task =>
             {
@@ -168,7 +183,7 @@ namespace ScalableIPC.Core.Concurrency
                 }
                 else
                 {
-                    continuationPromise = onRejected(task.Exception);
+                    continuationPromise = onRejected(DetermineTaskException(task));
                 }
                 return ((DefaultPromise<U>)continuationPromise).WrappedTask;
             });
@@ -192,15 +207,17 @@ namespace ScalableIPC.Core.Concurrency
 
         // Contract here is that both Complete* methods should behave like notifications, and
         // hence these should be called from outside event loop if possible, but after current
-        // event in event loop has been processed.
+        // event in event loop has been processed. 
+        // NB: Because of use of RunContinuationsAsynchronously in constructor,
+        // PostCallback is used instead of PostTask.
         public void CompletePromiseCallbackSuccessfully(T value)
         {
-            _sessionTaskExecutor.PostTask(() => WrappedSource.TrySetResult(value));
+            _sessionTaskExecutor.PostCallback(() => WrappedSource.TrySetResult(value));
         }
 
         public void CompletePromiseCallbackExceptionally(Exception error)
         {
-            _sessionTaskExecutor.PostTask(() => WrappedSource.TrySetException(error));
+            _sessionTaskExecutor.PostCallback(() => WrappedSource.TrySetException(error));
         }
     }
 }

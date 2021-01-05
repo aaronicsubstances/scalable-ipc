@@ -225,7 +225,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             Assert.Empty(finallyRuns);
         }
 
-        private static void AssertRelevantExceptionTypePrescence(Type expected, Exception actual)
+        private static void AssertRelevantExceptionTypePrescence(Type expected, AggregateException actual)
         {
             var relevantActualExceptionTypes = new List<Type>();
             FetchRelevantExceptionTypes(actual, relevantActualExceptionTypes);
@@ -268,6 +268,49 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             });
             await Task.Delay(500);
             Assert.Equal(1, executionCount);
+        }
+
+        [Fact]
+        public async Task TestNativeTaskCancellationInteroperability()
+        {
+            var cancelledTaskSource = new TaskCompletionSource<int>();
+            var promise = new DefaultPromise<int>(cancelledTaskSource.Task);
+            cancelledTaskSource.SetCanceled();
+            await Assert.ThrowsAsync<TaskCanceledException>(() => promise.WrappedTask);
+
+            var instance = new DefaultPromiseApi();
+            var errors = new List<string>();
+            var finallyRuns = new List<string>();
+            var promiseContinua = promise.Catch(ex =>
+                {
+                    AssertRelevantExceptionTypePrescence(typeof(TaskCanceledException), ex);
+                })
+                .Then(_ =>
+                {
+                    errors.Add("4a54f82c-37c9-4b68-9d7c-0748e2de2390");
+                    return -1;
+                }).
+                Catch(ex =>
+                {
+                    AssertRelevantExceptionTypePrescence(typeof(TaskCanceledException), ex);
+                })
+                .Finally(() =>
+                {
+                    finallyRuns.Add("2138150b-adc6-4bb9-b0f2-311a0c836d71");
+                })
+                .ThenOrCatchCompose(_ =>
+                {
+                    errors.Add("49887065-31c4-4914-9531-05d5eac4b23b");
+                    return instance.Resolve("err");
+                }, ex =>
+                {
+                    AssertRelevantExceptionTypePrescence(typeof(TaskCanceledException), ex);
+                    return instance.Resolve("ok");
+                });
+            var finalValue = await ((DefaultPromise<string>)promiseContinua).WrappedTask;
+            Assert.Empty(errors);
+            Assert.Equal(new List<string> { "2138150b-adc6-4bb9-b0f2-311a0c836d71" }, finallyRuns);
+            Assert.Equal("ok", finalValue);
         }
     }
 }
