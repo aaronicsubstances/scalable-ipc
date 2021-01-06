@@ -273,12 +273,12 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [Fact]
         public async Task TestNativeTaskCancellationInteroperability()
         {
+            var instance = new DefaultPromiseApi();
             var cancelledTaskSource = new TaskCompletionSource<int>();
-            var promise = new DefaultPromise<int>(cancelledTaskSource.Task);
+            var promise = new DefaultPromise<int>(instance, cancelledTaskSource.Task);
             cancelledTaskSource.SetCanceled();
             await Assert.ThrowsAsync<TaskCanceledException>(() => promise.WrappedTask);
 
-            var instance = new DefaultPromiseApi();
             var errors = new List<string>();
             var finallyRuns = new List<string>();
             var promiseContinua = promise.Catch(ex =>

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ScalableIPC.Core.Concurrency;
+using System;
 
 namespace ScalableIPC.Core.Abstractions
 {
@@ -24,10 +25,26 @@ namespace ScalableIPC.Core.Abstractions
         PromiseCompletionSource<T> CreateCallback<T>(ISessionTaskExecutor sessionTaskExecutor);
         AbstractPromise<T> Resolve<T>(T value);
         AbstractPromise<T> Reject<T>(Exception reason);
+        AbstractPromise<VoidType> CompletedPromise();
         AbstractPromise<VoidType> Delay(int millis);
+        AbstractPromise<string> StartNewLogicalThread();
+        void AddToCurrentLogicalThread(ILogicalThreadMember newMember);
+        void AddLogicalThreadMember(string logicalThreadId, ILogicalThreadMember newMember);
+        string CurrentLogicalThreadId { get; set; }
+        void TerminateCurrentLogicalThread();
+        void Terminate(string logicalThreadId);
     }
 
-    public interface AbstractPromise<T>
+    public interface ILogicalThreadMember
+    {
+        AbstractPromiseApi PromiseApi { get; }
+        string LogicalThreadId { get; set; }
+        string ParentLogicalThreadId { get; set; }
+        bool Terminated { get; set;  }
+        void Terminate();
+    }
+
+    public interface AbstractPromise<T>: ILogicalThreadMember
     {
         AbstractPromise<U> Then<U>(Func<T, U> onFulfilled);
         AbstractPromise<T> Catch(Action<AggregateException> onRejected);

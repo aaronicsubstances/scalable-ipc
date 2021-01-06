@@ -6,7 +6,6 @@ using ScalableIPC.Core.Session;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Networks
@@ -33,10 +32,8 @@ namespace ScalableIPC.Core.Networks
         }
 
         private readonly SessionHandlerStore _sessionHandlerStore;
-
-        // behaves like a boolean but for use with Interlocked.Read, has to be
-        // a long.
-        private long _isShuttingDown = 0;
+        private bool _isShuttingDown;
+        private readonly object _isShuttingDownLock = new object();
 
         public MemoryNetworkApi()
         {
@@ -68,7 +65,7 @@ namespace ScalableIPC.Core.Networks
         public AbstractPromise<VoidType> StartAsync()
         {
             // nothing to do.
-            return DefaultPromiseApi.CompletedPromise;
+            return PromiseApi.CompletedPromise();
         }
 
         public AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId, 
@@ -135,7 +132,7 @@ namespace ScalableIPC.Core.Networks
             }
 
             // interpret null send config as immediate success.
-            AbstractPromise<VoidType> sendResult = DefaultPromiseApi.CompletedPromise;
+            AbstractPromise<VoidType> sendResult = PromiseApi.CompletedPromise();
             byte[] serialized = null;
             if (sendConfig != null)
             {
@@ -283,7 +280,7 @@ namespace ScalableIPC.Core.Networks
             {
                 return SwallowException(sessionHandler.SessionHandler.FinaliseDisposeAsync(cause));
             }
-            return DefaultPromiseApi.CompletedPromise;
+            return PromiseApi.CompletedPromise();
         }
 
         private AbstractPromise<VoidType> SwallowException(AbstractPromise<VoidType> promise)
@@ -292,20 +289,26 @@ namespace ScalableIPC.Core.Networks
             {
                 CustomLoggerFacade.Log(() => new CustomLogEvent("27d232da-f4e4-4f25-baeb-56bd53ed49fa",
                     "Exception occurred here", err));
-                return DefaultPromiseApi.CompletedPromise;
+                return PromiseApi.CompletedPromise();
             });
         }
 
         public AbstractPromise<VoidType> ShutdownAsync(int waitPeriod)
         {
             // it is enough to prevent creation of new session handlers
-            Interlocked.Exchange(ref _isShuttingDown, 1);
-            return DefaultPromiseApi.CompletedPromise;
+            lock (_isShuttingDownLock)
+            {
+                _isShuttingDown = true;
+            }
+            return PromiseApi.CompletedPromise();
         }
 
         public bool IsShuttingDown()
         {
-            return Interlocked.Read(ref _isShuttingDown) != 0;
+            lock (_isShuttingDownLock)
+            {
+                return _isShuttingDown;
+            }
         }
 
         /*public virtual AbstractPromise<VoidType> CloseSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,

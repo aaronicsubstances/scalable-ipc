@@ -147,7 +147,7 @@ namespace ScalableIPC.Core.Session
                     OnDatagramDiscarded(datagram);
                 }
             });
-            return DefaultPromiseApi.CompletedPromise;
+            return _promiseApi.CompletedPromise();
         }
 
         public AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message)
