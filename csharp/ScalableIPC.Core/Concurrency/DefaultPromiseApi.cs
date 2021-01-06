@@ -10,14 +10,14 @@ namespace ScalableIPC.Core.Concurrency
     public class DefaultPromiseApi : AbstractPromiseApi
     {
         [ThreadStatic]
-        private static Dictionary<DefaultPromiseApi, Guid?> _currentLogicalThreadIds;
+        private static Guid? _currentLogicalThreadId;
 
-        private readonly Dictionary<Guid, List<_ILogicalThreadMember>> _logicalThreads;
+        public static DefaultPromiseApi Instance { get; }  = new DefaultPromiseApi();
 
-        public DefaultPromiseApi()
-        {
-            _logicalThreads = new Dictionary<Guid, List<_ILogicalThreadMember>>();
-        }
+        private readonly List<Guid> _logicalThreadIds = new List<Guid>();
+
+        private DefaultPromiseApi()
+        { }
 
         public PromiseCompletionSource<T> CreateCallback<T>(ISessionTaskExecutor sessionTaskExecutor)
         {
@@ -45,65 +45,42 @@ namespace ScalableIPC.Core.Concurrency
                 .ContinueWith(_ => VoidType.Instance));
         }
 
-        public AbstractPromise<T> WrapNative<T>(Task<T> nativePromise)
-        {
-            return new DefaultPromise<T>(this, nativePromise);
-        }
-
         // begin implementing logical threading methods
 
         public Guid? CurrentLogicalThreadId
         {
             get
             {
-                return _CurrentLogicalThreadId;
+                return _currentLogicalThreadId;
             }
         }
 
         public Guid? _CurrentLogicalThreadId
         {
-            get
-            {
-                if (_currentLogicalThreadIds != null && _currentLogicalThreadIds.ContainsKey(this))
-                {
-                    return _currentLogicalThreadIds[this];
-                }
-                else
-                {
-                    return null;
-                }
-            }
             set
             {
-                if (_currentLogicalThreadIds == null)
-                {
-                    _currentLogicalThreadIds = new Dictionary<DefaultPromiseApi, Guid?>();
-                }
-                if (_currentLogicalThreadIds.ContainsKey(this))
-                {
-                    _currentLogicalThreadIds[this] = value;
-                }
-                else
-                {
-                    _currentLogicalThreadIds.Add(this, value);
-                }
+                _currentLogicalThreadId = value;
             }
         }
+        public AbstractPromise<VoidType> StartLogicalThread(string newLogicalThreadId)
+        {
+            return StartLogicalThread(Guid.Parse(newLogicalThreadId));
+        }
 
-        public AbstractPromise<Guid> StartLogicalThread(Guid newLogicalThreadId)
+        public AbstractPromise<VoidType> StartLogicalThread(Guid newLogicalThreadId)
         {
             lock (this)
             {
-                _logicalThreads.Add(newLogicalThreadId, new List<_ILogicalThreadMember>());
+                _logicalThreadIds.Add(newLogicalThreadId);
             }
-            var firstLogicalThreadMember = new DefaultPromise<Guid>(this,
-                Task.FromResult(newLogicalThreadId), newLogicalThreadId);
+            var firstLogicalThreadMember = new DefaultPromise<VoidType>(this,
+                Task.FromResult(VoidType.Instance), newLogicalThreadId);
             return firstLogicalThreadMember;
         }
 
         public void EndCurrentLogicalThread()
         {
-            var currentLogicalThread = _CurrentLogicalThreadId;
+            var currentLogicalThread = _currentLogicalThreadId;
             if (currentLogicalThread != null)
             {
                 EndLogicalThread(currentLogicalThread.Value);
@@ -114,38 +91,28 @@ namespace ScalableIPC.Core.Concurrency
         {
             lock (this)
             {
-                _logicalThreads.Remove(logicalThreadId);
+                _logicalThreadIds.Remove(logicalThreadId);
             }
         }
 
-        public void _AddToCurrentLogicalThread(_ILogicalThreadMember newMember)
+        public Guid? _GetUpToDateCurrentLogicalThread()
         {
-            var currentLogicalThreadId = _CurrentLogicalThreadId;
-            if (currentLogicalThreadId != null)
+            return _GetUpToDateLogicalThreadId(_currentLogicalThreadId);
+        }
+
+        public Guid? _GetUpToDateLogicalThreadId(Guid? logicalThreadMemberId)
+        {
+            if (logicalThreadMemberId != null)
             {
                 lock (this)
                 {
-                    if (_logicalThreads.ContainsKey(currentLogicalThreadId.Value))
+                    if (_logicalThreadIds.Contains(logicalThreadMemberId.Value))
                     {
-                        var logicalThread = _logicalThreads[currentLogicalThreadId.Value];
-                        newMember._LogicalThreadId = currentLogicalThreadId.Value;
-                        logicalThread.Add(newMember);
+                        return logicalThreadMemberId;
                     }
                 }
             }
-        }
-
-        public void _AddLogicalThreadMember(Guid logicalThreadId, _ILogicalThreadMember newMember)
-        {
-            lock (this)
-            {
-                if (_logicalThreads.ContainsKey(logicalThreadId))
-                {
-                    var logicalThread = _logicalThreads[logicalThreadId];
-                    newMember._LogicalThreadId = logicalThreadId;
-                    logicalThread.Add(newMember);
-                }
-            }
+            return null;
         }
     }
 
@@ -155,7 +122,7 @@ namespace ScalableIPC.Core.Concurrency
         {
             _PromiseApi = promiseApi;
             WrappedTask = task;
-            promiseApi._AddToCurrentLogicalThread(this);
+            LogicalThreadId = promiseApi._GetUpToDateCurrentLogicalThread();
         }
 
         internal DefaultPromise(AbstractPromiseApi promiseApi, Task<T> task, 
@@ -163,33 +130,22 @@ namespace ScalableIPC.Core.Concurrency
         {
             _PromiseApi = promiseApi;
             WrappedTask = task;
-            if (logicalThreadId != null)
-            {
-                promiseApi._AddLogicalThreadMember(logicalThreadId.Value, this);
-            }
+            LogicalThreadId = promiseApi._GetUpToDateLogicalThreadId(logicalThreadId);
         }
 
         private DefaultPromise(_ILogicalThreadMember antecedent, Task<T> task) :
-            this(antecedent._PromiseApi, task, antecedent._LogicalThreadId)
+            this(antecedent._PromiseApi, task, antecedent.LogicalThreadId)
         { }
 
         public AbstractPromiseApi _PromiseApi { get; }
 
         public Task<T> WrappedTask { get; }
 
-        public Guid? LogicalThreadId
-        {
-            get
-            {
-                return _LogicalThreadId;
-            }
-        }
-
-        public Guid? _LogicalThreadId { get; set; }
+        public Guid? LogicalThreadId { get; }
 
         private void InsertCurrentLogicalThreadId()
         {
-            _PromiseApi._CurrentLogicalThreadId = _LogicalThreadId;
+            _PromiseApi._CurrentLogicalThreadId = LogicalThreadId;
         }
 
         private void ClearCurrentLogicalThreadId()

@@ -1,5 +1,4 @@
-﻿using ScalableIPC.Core.Concurrency;
-using System;
+﻿using System;
 using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Abstractions
@@ -28,20 +27,28 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<T> Reject<T>(Exception reason);
         AbstractPromise<VoidType> CompletedPromise();
         AbstractPromise<VoidType> Delay(int millis);
-        AbstractPromise<T> WrapNative<T>(Task<T> nativePromise);
+
+        // The following properties/methods and _ILogicalThreadMember properties/methods 
+        // are for identifying logical threads of control with
+        // unique ids. This is meant to enable parallel testing of the core classes of
+        // this project during the protocol's operation.
         Guid? CurrentLogicalThreadId { get; }
-        Guid? _CurrentLogicalThreadId { get; set; }
-        AbstractPromise<Guid> StartLogicalThread(Guid newLogicalThreadId);
+        Guid? _CurrentLogicalThreadId { set; }
+        AbstractPromise<VoidType> StartLogicalThread(string newLogicalThreadId);
+        AbstractPromise<VoidType> StartLogicalThread(Guid newLogicalThreadId);
         void EndLogicalThread(Guid logicalThreadId);
         void EndCurrentLogicalThread();
-        void _AddToCurrentLogicalThread(_ILogicalThreadMember newMember);
-        void _AddLogicalThreadMember(Guid logicalThreadId, _ILogicalThreadMember newMember);
+        Guid? _GetUpToDateCurrentLogicalThread();
+        Guid? _GetUpToDateLogicalThreadId(Guid? logicalThreadMemberId);
     }
 
+    /// <summary>
+    /// Needed due to reified generics in csharp, which won't allow fetching these
+    /// properties on any AbstractPromise instance regardless of its type parameter.
+    /// </summary>
     public interface _ILogicalThreadMember
     {
         AbstractPromiseApi _PromiseApi { get; }
-        Guid? _LogicalThreadId { get; set; }
         Guid? LogicalThreadId { get; }
         void EndLogicalThread();
     }

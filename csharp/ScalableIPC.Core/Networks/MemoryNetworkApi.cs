@@ -38,7 +38,7 @@ namespace ScalableIPC.Core.Networks
         public MemoryNetworkApi()
         {
             _sessionHandlerStore = new SessionHandlerStore();
-            PromiseApi = new DefaultPromiseApi();
+            PromiseApi = DefaultPromiseApi.Instance;
             SessionTaskExecutor = new DefaultSessionTaskExecutor();
             ConnectedNetworks = new Dictionary<GenericNetworkIdentifier, MemoryNetworkApi>();
         }
@@ -106,18 +106,22 @@ namespace ScalableIPC.Core.Networks
         public void RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, Action<Exception> cb)
         {
             // Fire outside of event loop thread if possible.
-            Task.Run(async () =>
+            Task.Run(() =>
             {
-                try
-                {
-                    var promise = HandleSendAsync(remoteEndpoint, message);
-                    await ((DefaultPromise<VoidType>)promise).WrappedTask;
-                    cb(null);
-                }
-                catch (Exception ex)
-                {
-                    cb(ex);
-                }
+                var promise = PromiseApi.StartLogicalThread("f0ff3665-59fd-49ed-8b8c-c1afe5ce249e")
+                    .ThenCompose(_ => HandleSendAsync(remoteEndpoint, message))
+                    .Then(_ =>
+                    {
+                        cb(null);
+                        return VoidType.Instance;
+                    })
+                    .CatchCompose(ex =>
+                    {
+                        cb(ex);
+                        return PromiseApi.CompletedPromise();
+                    }).
+                    Finally(() => PromiseApi.EndCurrentLogicalThread());
+                return ((DefaultPromise<VoidType>)promise).WrappedTask;
             });
         }
 
@@ -172,7 +176,13 @@ namespace ScalableIPC.Core.Networks
             if (transmissionConfig == null)
             {
                 // interpret as immediate transfer to connected network.
-                Task.Run(() => connectedNetwork.HandleReceiveAsync(LocalEndpoint, datagram));
+                Task.Run(() => {
+                    var transmissionResult = PromiseApi.StartLogicalThread("f0103acd-d9a1-490f-93a7-3666137c4afa")
+                        .ThenCompose(_ => connectedNetwork.HandleReceiveAsync(
+                            LocalEndpoint, datagram))
+                        .Finally(() => PromiseApi.EndCurrentLogicalThread());
+                    return ((DefaultPromise<VoidType>)transmissionResult).WrappedTask;
+                });
                 return sendResult;
             }
 
@@ -186,35 +196,40 @@ namespace ScalableIPC.Core.Networks
                 // capture usage of index i before entering closure
                 int transmissionDelay = transmissionConfig.Delays[i];
                 Task.Run(() => {
-                    Task transmissionResult;
-                    if (transmissionDelay > 0)
-                    {
-                        transmissionResult = Task.Delay(transmissionDelay);
-                    }
-                    else
-                    {
-                        transmissionResult = Task.CompletedTask;
-                    }
-                    return transmissionResult.ContinueWith(_ =>
-                    {
-                        ProtocolDatagram deserialized;
-                        if (serialized != null)
+                    var transmissionResult = PromiseApi.StartLogicalThread("b8da9b7e-a570-40ea-9750-d52560c67a3e")
+                        .ThenCompose(_ =>
                         {
-                            deserialized = ProtocolDatagram.Parse(serialized, 0, serialized.Length);
-                        }
-                        else
+                            if (transmissionDelay > 0)
+                            {
+                                return PromiseApi.Delay(transmissionDelay);
+                            }
+                            else
+                            {
+                                return PromiseApi.CompletedPromise();
+                            }
+                        })
+                        .Then(_ =>
                         {
-                            deserialized = datagram;
-                        }
-                        return connectedNetwork.HandleReceiveAsync(LocalEndpoint, deserialized);
-                    });
+                            if (serialized == null)
+                            {
+                                return datagram;
+                            }
+                            ProtocolDatagram deserialized = ProtocolDatagram.Parse(serialized, 0, serialized.Length);
+                            return deserialized;
+                        })
+                        .ThenCompose(deserialized => connectedNetwork.HandleReceiveAsync(
+                            LocalEndpoint, deserialized))
+                        .Finally(() => PromiseApi.EndCurrentLogicalThread());
+
+                    return ((DefaultPromise<VoidType>)transmissionResult).WrappedTask;
                 });
             }
 
             return sendResult;
         }
 
-        private Task HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram)
+        private AbstractPromise<VoidType> HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint,
+            ProtocolDatagram datagram)
         {
             try
             {
@@ -231,7 +246,7 @@ namespace ScalableIPC.Core.Networks
                         if (IsShuttingDown())
                         {
                             // silently ignore new session if shutting down.
-                            return Task.CompletedTask;
+                            return PromiseApi.CompletedPromise();
                         }
                         
                         if (SessionHandlerFactory == null)
@@ -246,15 +261,14 @@ namespace ScalableIPC.Core.Networks
                             new SessionHandlerWrapper(sessionHandler));
                     }
                 }
-                var promise = sessionHandler.ProcessReceiveAsync(datagram);
-                return ((DefaultPromise<VoidType>) promise).WrappedTask;
+                return sessionHandler.ProcessReceiveAsync(datagram);
             }
             catch (Exception ex)
             {
                 CustomLoggerFacade.Log(() =>
                     new CustomLogEvent("1dec508c-2d59-4336-8617-30bb71a9a5a8", "Error occured during message " +
                         $"receipt handling from {remoteEndpoint}", ex));
-                return Task.CompletedTask;
+                return PromiseApi.CompletedPromise();
             }
         }
 

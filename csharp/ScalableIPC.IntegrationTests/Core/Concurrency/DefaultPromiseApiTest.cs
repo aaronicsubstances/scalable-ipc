@@ -15,7 +15,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [Fact]
         public async Task TestPromiseCompositions()
         {
-            AbstractPromiseApi instance = new DefaultPromiseApi();
+            AbstractPromiseApi instance = DefaultPromiseApi.Instance;
             var errors = new List<string>();
             var finallyRuns = new List<string>();
             var promise = instance.Resolve(10)
@@ -249,7 +249,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         public async Task TestDelay()
         {
             int executionCount = 0;
-            var instance = new DefaultPromiseApi();
+            AbstractPromiseApi instance = DefaultPromiseApi.Instance;
             instance.Delay(2000).Then(_ =>
             {
                 Interlocked.Increment(ref executionCount);
@@ -273,11 +273,11 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [Fact]
         public async Task TestNativeTaskCancellationInteroperability()
         {
-            var instance = new DefaultPromiseApi();
-            var cancelledTaskSource = new TaskCompletionSource<int>();
-            var promise = new DefaultPromise<int>(instance, cancelledTaskSource.Task);
-            cancelledTaskSource.SetCanceled();
-            await Assert.ThrowsAsync<TaskCanceledException>(() => promise.WrappedTask);
+            AbstractPromiseApi instance = DefaultPromiseApi.Instance;
+            var tcs = new TaskCompletionSource<int>();
+            var promise = new DefaultPromise<int>(instance, tcs.Task);
+            tcs.SetCanceled();
+            await Assert.ThrowsAsync<TaskCanceledException>(() => tcs.Task);
 
             var errors = new List<string>();
             var finallyRuns = new List<string>();

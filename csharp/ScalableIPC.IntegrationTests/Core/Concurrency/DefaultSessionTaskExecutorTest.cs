@@ -1,4 +1,5 @@
-﻿using ScalableIPC.Core.Concurrency;
+﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Concurrency;
 using ScalableIPC.Core.Helpers;
 using System;
 using System.Collections.Generic;
@@ -184,7 +185,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
 
         internal static async Task GenericTestPromiseCallbackSuccess(DefaultSessionTaskExecutor instance)
         {
-            var relatedInstance = new DefaultPromiseApi();
+            AbstractPromiseApi relatedInstance = DefaultPromiseApi.Instance;
             var promiseCb = relatedInstance.CreateCallback<int>(instance);
             var nativePromise = ((DefaultPromise<int>)promiseCb.RelatedPromise).WrappedTask;
 
@@ -207,7 +208,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
 
         internal static async Task GenericTestPromiseCallbackError(DefaultSessionTaskExecutor instance)
         {
-            var relatedInstance = new DefaultPromiseApi();
+            AbstractPromiseApi relatedInstance = DefaultPromiseApi.Instance;
             var promiseCb = relatedInstance.CreateCallback<int>(instance);
             var nativePromise = ((DefaultPromise<int>)promiseCb.RelatedPromise).WrappedTask;
 
