@@ -1,5 +1,6 @@
 ﻿using ScalableIPC.Core.Concurrency;
 using System;
+using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Abstractions
 {
@@ -27,24 +28,25 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<T> Reject<T>(Exception reason);
         AbstractPromise<VoidType> CompletedPromise();
         AbstractPromise<VoidType> Delay(int millis);
-        AbstractPromise<string> StartNewLogicalThread();
-        void AddToCurrentLogicalThread(ILogicalThreadMember newMember);
-        void AddLogicalThreadMember(string logicalThreadId, ILogicalThreadMember newMember);
-        string CurrentLogicalThreadId { get; set; }
-        void TerminateCurrentLogicalThread();
-        void Terminate(string logicalThreadId);
+        AbstractPromise<T> WrapNative<T>(Task<T> nativePromise);
+        Guid? CurrentLogicalThreadId { get; }
+        Guid? _CurrentLogicalThreadId { get; set; }
+        AbstractPromise<Guid> StartLogicalThread(Guid newLogicalThreadId);
+        void EndLogicalThread(Guid logicalThreadId);
+        void EndCurrentLogicalThread();
+        void _AddToCurrentLogicalThread(_ILogicalThreadMember newMember);
+        void _AddLogicalThreadMember(Guid logicalThreadId, _ILogicalThreadMember newMember);
     }
 
-    public interface ILogicalThreadMember
+    public interface _ILogicalThreadMember
     {
-        AbstractPromiseApi PromiseApi { get; }
-        string LogicalThreadId { get; set; }
-        string ParentLogicalThreadId { get; set; }
-        bool Terminated { get; set;  }
-        void Terminate();
+        AbstractPromiseApi _PromiseApi { get; }
+        Guid? _LogicalThreadId { get; set; }
+        Guid? LogicalThreadId { get; }
+        void EndLogicalThread();
     }
 
-    public interface AbstractPromise<T>: ILogicalThreadMember
+    public interface AbstractPromise<T>: _ILogicalThreadMember
     {
         AbstractPromise<U> Then<U>(Func<T, U> onFulfilled);
         AbstractPromise<T> Catch(Action<AggregateException> onRejected);
