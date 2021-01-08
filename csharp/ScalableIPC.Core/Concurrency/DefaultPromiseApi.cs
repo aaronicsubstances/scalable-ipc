@@ -62,10 +62,6 @@ namespace ScalableIPC.Core.Concurrency
                 _currentLogicalThreadId = value;
             }
         }
-        public AbstractPromise<VoidType> StartLogicalThread(string newLogicalThreadId)
-        {
-            return StartLogicalThread(Guid.Parse(newLogicalThreadId));
-        }
 
         public AbstractPromise<VoidType> StartLogicalThread(Guid newLogicalThreadId)
         {

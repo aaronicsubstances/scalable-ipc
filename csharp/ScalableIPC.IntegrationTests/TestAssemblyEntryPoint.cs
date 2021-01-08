@@ -13,7 +13,7 @@ using System.IO;
 using System.Text;
 
 // Picked from: https://github.com/xunit/samples.xunit/blob/main/AssemblyFixtureExample/Samples.cs
-[assembly: Xunit.TestFramework("ScalableIPC.Tests.TestAssemblyEntryPoint", "ScalableIPC.IntegrationTests")]
+[assembly: Xunit.TestFramework("ScalableIPC.IntegrationTests.TestAssemblyEntryPoint", "ScalableIPC.IntegrationTests")]
 
 namespace ScalableIPC.IntegrationTests
 {
@@ -31,7 +31,7 @@ namespace ScalableIPC.IntegrationTests
                 Config = config.Get<TestConfiguration>();
                 CustomLoggerFacade.Logger = new TestLogger();
 
-                //ResetDb();
+                ResetDb();
             }
             catch (Exception ex)
             {
@@ -72,22 +72,10 @@ namespace ScalableIPC.IntegrationTests
         public void Log(CustomLogEvent logEvent)
         {
             var logBuilder = LOG.Info()
-                .Message(logEvent.Message ?? "");
-            if (logEvent.Data != null)
-            {
-                foreach (var k in logEvent.Data)
-                {
-                    logBuilder.Property(k.Key, k.Value);
-                }
-            }
+                .Message(logEvent.Message ?? "")
+                .Exception(logEvent.Error);
             var allProps = JObject.FromObject(logEvent.Data ?? new Dictionary<string, object>());
-            if (logEvent.LogPosition != null)
-            {
-                logBuilder.Property("LogPosition", logEvent.LogPosition);
-                allProps.Add("LogPosition", logEvent.LogPosition);
-            }
-            logBuilder.Property("AllProps", allProps.ToString(Formatting.None));
-            logBuilder.Exception(logEvent.Error);
+            logBuilder.Property("logData", allProps.ToString(Formatting.None));
             logBuilder.Write();
         }
     }

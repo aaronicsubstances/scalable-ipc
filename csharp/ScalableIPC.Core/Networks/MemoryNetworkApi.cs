@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using static ScalableIPC.Core.Helpers.CustomLogEvent;
 
 namespace ScalableIPC.Core.Networks
 {
@@ -106,9 +107,10 @@ namespace ScalableIPC.Core.Networks
         public void RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, Action<Exception> cb)
         {
             // Fire outside of event loop thread if possible.
+            var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
             Task.Run(() =>
             {
-                var promise = PromiseApi.StartLogicalThread("f0ff3665-59fd-49ed-8b8c-c1afe5ce249e")
+                var promise = PromiseApi.StartLogicalThread(newLogicalThreadId)
                     .ThenCompose(_ => HandleSendAsync(remoteEndpoint, message))
                     .Then(_ =>
                     {
@@ -119,13 +121,14 @@ namespace ScalableIPC.Core.Networks
                     {
                         cb(ex);
                         return PromiseApi.CompletedPromise();
-                    }).
-                    Finally(() => PromiseApi.EndCurrentLogicalThread());
+                    })
+                    .Finally(() => RecordAndEndLogicalThread());
                 return ((DefaultPromise<VoidType>)promise).WrappedTask;
             });
         }
 
-        public AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram)
+        public AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint,
+            ProtocolDatagram datagram)
         {
             // simulate sending.
 
@@ -176,11 +179,12 @@ namespace ScalableIPC.Core.Networks
             if (transmissionConfig == null)
             {
                 // interpret as immediate transfer to connected network.
+                var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
                 Task.Run(() => {
-                    var transmissionResult = PromiseApi.StartLogicalThread("f0103acd-d9a1-490f-93a7-3666137c4afa")
+                    var transmissionResult = PromiseApi.StartLogicalThread(newLogicalThreadId)
                         .ThenCompose(_ => connectedNetwork.HandleReceiveAsync(
                             LocalEndpoint, datagram))
-                        .Finally(() => PromiseApi.EndCurrentLogicalThread());
+                        .Finally(() => RecordAndEndLogicalThread());
                     return ((DefaultPromise<VoidType>)transmissionResult).WrappedTask;
                 });
                 return sendResult;
@@ -195,8 +199,9 @@ namespace ScalableIPC.Core.Networks
             {
                 // capture usage of index i before entering closure
                 int transmissionDelay = transmissionConfig.Delays[i];
+                var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
                 Task.Run(() => {
-                    var transmissionResult = PromiseApi.StartLogicalThread("b8da9b7e-a570-40ea-9750-d52560c67a3e")
+                    var transmissionResult = PromiseApi.StartLogicalThread(newLogicalThreadId)
                         .ThenCompose(_ =>
                         {
                             if (transmissionDelay > 0)
@@ -219,7 +224,7 @@ namespace ScalableIPC.Core.Networks
                         })
                         .ThenCompose(deserialized => connectedNetwork.HandleReceiveAsync(
                             LocalEndpoint, deserialized))
-                        .Finally(() => PromiseApi.EndCurrentLogicalThread());
+                        .Finally(() => RecordAndEndLogicalThread());
 
                     return ((DefaultPromise<VoidType>)transmissionResult).WrappedTask;
                 });
@@ -266,17 +271,22 @@ namespace ScalableIPC.Core.Networks
             catch (Exception ex)
             {
                 CustomLoggerFacade.Log(() =>
-                    new CustomLogEvent("1dec508c-2d59-4336-8617-30bb71a9a5a8", "Error occured during message " +
-                        $"receipt handling from {remoteEndpoint}", ex));
+                    new CustomLogEvent("Error occured during message " +
+                            $"receipt handling from {remoteEndpoint}", ex)
+                        .AddData(LogDataKeyLogPositionId, "bb741504-3a4b-4ea3-a749-21fc8aec347f"));
                 return PromiseApi.CompletedPromise();
             }
         }
 
-        public void RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint, string sessionId, SessionDisposedException cause)
+        public void RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint,
+            string sessionId, SessionDisposedException cause)
         {
             // Fire outside of event loop thread if possible.
+            var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
             Task.Run(() => {
-                var promise = DisposeSessionAsync(remoteEndpoint, sessionId, cause);
+                var promise = PromiseApi.StartLogicalThread(newLogicalThreadId)
+                    .ThenCompose(_ => DisposeSessionAsync(remoteEndpoint, sessionId, cause))
+                    .Finally(() => RecordAndEndLogicalThread());
                 return ((DefaultPromise<VoidType>)promise).WrappedTask;
             });
         }
@@ -299,10 +309,11 @@ namespace ScalableIPC.Core.Networks
 
         private AbstractPromise<VoidType> SwallowException(AbstractPromise<VoidType> promise)
         {
-            return promise.CatchCompose(err =>
+            return promise.CatchCompose(ex =>
             {
-                CustomLoggerFacade.Log(() => new CustomLogEvent("27d232da-f4e4-4f25-baeb-56bd53ed49fa",
-                    "Exception occurred here", err));
+                CustomLoggerFacade.Log(() => new CustomLogEvent(
+                        "Error encountered while disposing session handler", ex)
+                    .AddData(LogDataKeyLogPositionId, "86a662a4-c098-4053-ac26-32b984079419"));
                 return PromiseApi.CompletedPromise();
             });
         }
@@ -323,6 +334,37 @@ namespace ScalableIPC.Core.Networks
             {
                 return _isShuttingDown;
             }
+        }
+
+        private Guid GenerateAndRecordLogicalThreadId()
+        {
+            var logicalThreadId = Guid.NewGuid();
+            CustomLoggerFacade.Log(() =>
+            {
+                var logEvent = new CustomLogEvent("Starting new logical thread")
+                    .AddData(LogDataKeyNewLogicalThreadId, logicalThreadId)
+                    .AddData(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId);
+                return logEvent;
+            });
+            return logicalThreadId;
+        }
+
+        private void RecordAndEndLogicalThread()
+        {
+            CustomLoggerFacade.Log(() =>
+            {
+                var logEvent = new CustomLogEvent("Ending current logical thread")
+                    .AddData(LogDataKeyEndingLogicalThreadId, PromiseApi.CurrentLogicalThreadId);
+                return logEvent;
+            });
+            PromiseApi.EndCurrentLogicalThread();
+        }
+
+        private void Record(string logPosition, CustomLogEvent logEvent)
+        {
+            logEvent.AddData(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId)
+                .AddData(LogDataKeyLogPositionId, logPosition);
+            CustomLoggerFacade.Log(() => logEvent);
         }
 
         /*public virtual AbstractPromise<VoidType> CloseSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,

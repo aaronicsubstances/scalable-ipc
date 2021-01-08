@@ -78,14 +78,12 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 {
                     string dataMessage = ProtocolDatagram.ConvertBytesToString(m.DataBytes, m.DataOffset,
                         m.DataLength);
-                    CustomLoggerFacade.Log(() => new CustomLogEvent("71931970-3923-4472-b110-3449141998e3",
-                        $"Received data: {dataMessage}", null));
+                    CustomLoggerFacade.Log(() => new CustomLogEvent($"Received data: {dataMessage}", null));
                 };
 
-                SessionDisposedHandler = (_, e) =>
+                SessionDisposedHandler = (_, ex) =>
                 {
-                    CustomLoggerFacade.Log(() => new CustomLogEvent("06f62330-a218-4667-9df5-b8851fed628a",
-                           $"Received session dispose event", e));
+                    CustomLoggerFacade.Log(() => new CustomLogEvent("Received session dispose event", ex));
                 };
             }
         }

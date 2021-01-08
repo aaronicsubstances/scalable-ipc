@@ -34,7 +34,6 @@ namespace ScalableIPC.Core.Abstractions
         // this project during the protocol's operation.
         Guid? CurrentLogicalThreadId { get; }
         Guid? _CurrentLogicalThreadId { set; }
-        AbstractPromise<VoidType> StartLogicalThread(string newLogicalThreadId);
         AbstractPromise<VoidType> StartLogicalThread(Guid newLogicalThreadId);
         void EndLogicalThread(Guid logicalThreadId);
         void EndCurrentLogicalThread();
