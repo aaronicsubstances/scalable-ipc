@@ -67,11 +67,24 @@ namespace ScalableIPC.IntegrationTests
     class TestLogger : ICustomLogger
     {
         private static Logger LOG = LogManager.GetCurrentClassLogger();
-        public bool Enabled => true;
+        private static Logger TEST_LOG = LogManager.GetLogger(nameof(IntegrationTests));
+
+        public bool LogEnabled => true;
+        public bool TestLogEnabled => true;
 
         public void Log(CustomLogEvent logEvent)
         {
             var logBuilder = LOG.Info()
+                .Message(logEvent.Message ?? "")
+                .Exception(logEvent.Error);
+            var allProps = JObject.FromObject(logEvent.Data ?? new Dictionary<string, object>());
+            logBuilder.Property("logData", allProps.ToString(Formatting.None));
+            logBuilder.Write();
+        }
+
+        public void TestLog(CustomLogEvent logEvent)
+        {
+            var logBuilder = TEST_LOG.Info()
                 .Message(logEvent.Message ?? "")
                 .Exception(logEvent.Error);
             var allProps = JObject.FromObject(logEvent.Data ?? new Dictionary<string, object>());

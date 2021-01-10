@@ -45,6 +45,143 @@ namespace ScalableIPC.Core.Concurrency
                 .ContinueWith(_ => VoidType.Instance));
         }
 
+        public AbstractPromise<List<PromiseResult<T>>> WhenAll<T>(params AbstractPromise<T>[] promises)
+        {
+            var nativePromises = ToNativePromises(promises);
+            var raceOutcomeTask = Task.WhenAll(nativePromises)
+                .ContinueWith(_ =>
+                {
+                    return nativePromises.Select(t =>
+                    {
+                        if (t.Status == TaskStatus.RanToCompletion)
+                        {
+                            return PromiseResult<T>.CreateSuccess(t.Result);
+                        }
+                        else if (t.Exception != null)
+                        {
+                            return PromiseResult<T>.CreateFailure(t.Exception);
+                        }
+                        else
+                        {
+                            return PromiseResult<T>.CreateCancellation(t);
+                        }
+                    }).ToList();
+                });
+            return new DefaultPromise<List<PromiseResult<T>>>(this, raceOutcomeTask);
+        }
+
+        public AbstractPromise<int> WhenAny<T>(params AbstractPromise<T>[] promises)
+        {
+            var nativePromises = ToNativePromises(promises);
+            var raceOutcomeTask = Task.WhenAny(nativePromises)
+                .ContinueWith(t => nativePromises.IndexOf(t.Result));
+            return new DefaultPromise<int>(this, raceOutcomeTask);
+        }
+
+        public AbstractPromise<int> WhenAnySucceed<T>(params AbstractPromise<T>[] promises)
+        {
+            var nativePromises = ToNativePromises(promises);
+            var raceOutcomeTask = WhenAnySucceedImpl(nativePromises, nativePromises,
+                new AggregateException[promises.Length]);
+            return new DefaultPromise<int>(this, raceOutcomeTask);
+        }
+
+        private Task<int> WhenAnySucceedImpl<T>(List<Task<T>> nativePromises, List<Task<T>> uncompleted,
+            AggregateException[] tempExceptions)
+        {
+            return Task.WhenAny(uncompleted)
+                .ContinueWith(t =>
+                {
+                    int tIndex = nativePromises.IndexOf(t.Result);
+                    if (nativePromises[tIndex].Status == TaskStatus.RanToCompletion)
+                    {
+                        return Task.FromResult(tIndex);
+                    }
+                    else
+                    {
+                        // for thread safety, leverage immutability and create new
+                        var newExceptions = new AggregateException[tempExceptions.Length];
+                        for (int i = 0; i < newExceptions.Length; i++)
+                        {
+                            newExceptions[i] = tempExceptions[i];
+                        }
+                        newExceptions[tIndex] = t.Result.Exception ?? new AggregateException(
+                            new TaskCanceledException(t.Result));
+                        var newUncompleted = new List<Task<T>>();
+                        foreach (var entry in uncompleted)
+                        {
+                            if (entry != t.Result)
+                            {
+                                newUncompleted.Add(entry);
+                            }
+                        }
+                        if (newUncompleted.Count == 0)
+                        {
+                            return Task.FromException<int>(new AggregateException(newExceptions));
+                        }
+                        else
+                        {
+                            return WhenAnySucceedImpl(nativePromises, newUncompleted, newExceptions);
+                        }
+                    }
+                }).Unwrap();
+        }
+
+        public AbstractPromise<List<T>> WhenAllSucceed<T>(params AbstractPromise<T>[] promises)
+        {
+            var nativePromises = ToNativePromises(promises);
+            var raceOutcomeTask = WhenAllSucceedImpl(nativePromises, nativePromises,
+                new T[promises.Length]);
+            return new DefaultPromise<T[]>(this, raceOutcomeTask).Then(r => r.ToList());
+        }
+
+        private Task<T[]> WhenAllSucceedImpl<T>(List<Task<T>> nativePromises,
+            List<Task<T>> uncompleted, T[] tempResults)
+        {
+            return Task.WhenAny(uncompleted)
+                .ContinueWith(t =>
+                {
+                    int tIndex = nativePromises.IndexOf(t.Result);
+                    if (nativePromises[tIndex].Status != TaskStatus.RanToCompletion)
+                    {
+                        return Task.FromException<T[]>(t.Result.Exception ??
+                            new AggregateException(new TaskCanceledException(t.Result)));
+                    }
+                    else
+                    {
+                        // for thread safety, leverage immutability and create new
+                        var newResults = new T[tempResults.Length];
+                        for (int i = 0; i < newResults.Length; i++)
+                        {
+                            newResults[i] = tempResults[i];
+                        }
+                        newResults[tIndex] = t.Result.Result;
+
+                        var newUncompleted = new List<Task<T>>();
+                        foreach (var entry in uncompleted)
+                        {
+                            if (entry != t.Result)
+                            {
+                                newUncompleted.Add(entry);
+                            }
+                        }
+                        if (newUncompleted.Count == 0)
+                        {
+                            return Task.FromResult(newResults);
+                        }
+                        else
+                        {
+                            return WhenAllSucceedImpl(nativePromises, newUncompleted, newResults);
+                        }
+                    }
+                }).Unwrap();
+        }
+
+        private List<Task<T>> ToNativePromises<T>(AbstractPromise<T>[] promises)
+        {
+            return promises.Select(p => ((DefaultPromise<T>)p).WrappedTask).ToList();
+        }
+
         // begin implementing logical threading methods
 
         public Guid? CurrentLogicalThreadId

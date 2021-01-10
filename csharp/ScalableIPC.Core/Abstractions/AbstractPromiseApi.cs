@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Abstractions
@@ -27,6 +28,10 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<T> Reject<T>(Exception reason);
         AbstractPromise<VoidType> CompletedPromise();
         AbstractPromise<VoidType> Delay(int millis);
+        AbstractPromise<List<PromiseResult<T>>> WhenAll<T>(params AbstractPromise<T>[] promises);
+        AbstractPromise<List<T>> WhenAllSucceed<T>(params AbstractPromise<T>[] promises);
+        AbstractPromise<int> WhenAny<T>(params AbstractPromise<T>[] promises);
+        AbstractPromise<int> WhenAnySucceed<T>(params AbstractPromise<T>[] promises);
 
         // The following properties/methods and _ILogicalThreadMember properties/methods 
         // are for identifying logical threads of control with
@@ -39,6 +44,39 @@ namespace ScalableIPC.Core.Abstractions
         void EndCurrentLogicalThread();
         Guid? _GetUpToDateCurrentLogicalThread();
         Guid? _GetUpToDateLogicalThreadId(Guid? logicalThreadMemberId);
+    }
+
+    public class PromiseResult<T>
+    {
+        public static PromiseResult<T> CreateSuccess(T value)
+        {
+            return new PromiseResult<T>(true, false, value, null);
+        }
+
+        public static PromiseResult<T> CreateFailure(AggregateException ex)
+        {
+            return new PromiseResult<T>(false, false, default, ex);
+        }
+
+        public static PromiseResult<T> CreateCancellation(Task<T> t)
+        {
+            return new PromiseResult<T>(false, true, default,
+                new AggregateException(new TaskCanceledException(t)));
+        }
+
+        private PromiseResult(bool successful, bool cancelled, 
+            T successValue, AggregateException failureReason)
+        {
+            Successful = successful;
+            Cancelled = cancelled;
+            SuccessValue = successValue;
+            FailureReason = failureReason;
+        }
+
+        public bool Successful { get; }
+        public bool Cancelled { get; }
+        public T SuccessValue { get; }
+        public AggregateException FailureReason { get; }
     }
 
     /// <summary>

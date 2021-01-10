@@ -6,7 +6,9 @@ namespace ScalableIPC.Core.Helpers
 {
     public interface ICustomLogger
     {
-        bool Enabled { get; }
+        bool LogEnabled { get; }
         void Log(CustomLogEvent logEvent);
+        bool TestLogEnabled { get; }
+        void TestLog(CustomLogEvent logEvent);
     }
 }

@@ -13,12 +13,13 @@ namespace ScalableIPC.Core.Helpers
     {
         public static ICustomLogger Logger { get; set; }
         public static bool IgnoreLogFailures { get; set; }
+        public static bool IgnoreTestLogFailures { get; set; }
 
         public static void Log(Func<CustomLogEvent> logEventSupplier)
         {
             try
             {
-                if (Logger == null || !Logger.Enabled)
+                if (Logger == null || !Logger.LogEnabled)
                 {
                     return;
                 }
@@ -28,6 +29,26 @@ namespace ScalableIPC.Core.Helpers
             catch (Exception ex)
             {
                 if (!IgnoreLogFailures)
+                {
+                    throw ex;
+                }
+            }
+        }
+
+        public static void TestLog(Func<CustomLogEvent> logEventSupplier)
+        {
+            try
+            {
+                if (Logger == null || !Logger.TestLogEnabled)
+                {
+                    return;
+                }
+                var logEvent = logEventSupplier.Invoke();
+                Logger.TestLog(logEvent);
+            }
+            catch (Exception ex)
+            {
+                if (!IgnoreTestLogFailures)
                 {
                     throw ex;
                 }

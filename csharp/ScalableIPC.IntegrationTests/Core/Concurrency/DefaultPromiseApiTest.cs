@@ -312,5 +312,145 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             Assert.Equal(new List<string> { "2138150b-adc6-4bb9-b0f2-311a0c836d71" }, finallyRuns);
             Assert.Equal("ok", finalValue);
         }
+
+        [Fact]
+        public async Task TestWhenAll()
+        {
+            var instance = DefaultPromiseApi.Instance;
+            var promise1 = instance.Delay(30).Then(_ => 3);
+            var promise2 = instance.Resolve(4);
+            var promise3 = instance.Delay(100).Then(_ => 5);
+            var raceOutcomePromise = instance.WhenAll(promise1, promise2, promise3);
+            var results = await ((DefaultPromise<List<PromiseResult<int>>>)raceOutcomePromise).WrappedTask;
+            Assert.Equal(3, results.Count);
+            Assert.True(results[0].Successful);
+            Assert.Equal(3, results[0].SuccessValue);
+            Assert.True(results[1].Successful);
+            Assert.Equal(4, results[1].SuccessValue);
+            Assert.True(results[2].Successful);
+            Assert.Equal(5, results[2].SuccessValue);
+
+            promise1 = instance.Reject<int>(new ArgumentException());
+            promise2 = instance.Delay(4).Then<int>(_ => throw new ArgumentNullException());
+            promise3 = instance.Delay(100).Then(_ => 5);
+            raceOutcomePromise = instance.WhenAll(promise1, promise2, promise3);
+            results = await ((DefaultPromise<List<PromiseResult<int>>>)raceOutcomePromise).WrappedTask;
+            Assert.Equal(3, results.Count);
+            Assert.False(results[0].Successful);
+            Assert.Equal(typeof(ArgumentException), 
+                results[0].FailureReason.InnerExceptions[0].GetType());
+            Assert.False(results[1].Successful);
+            Assert.Equal(typeof(ArgumentNullException),
+                results[1].FailureReason.InnerExceptions[0].GetType());
+            Assert.True(results[2].Successful);
+            Assert.Equal(5, results[2].SuccessValue);
+
+            promise1 = instance.Reject<int>(new ArgumentException());
+            promise2 = instance.Delay(4).Then<int>(_ => throw new ArgumentNullException());
+            promise3 = instance.Delay(100).ThenCompose(_ =>
+                instance.Reject<int>(new ArgumentOutOfRangeException()));
+            raceOutcomePromise = instance.WhenAll(promise1, promise2, promise3);
+            results = await ((DefaultPromise<List<PromiseResult<int>>>)raceOutcomePromise).WrappedTask;
+            Assert.Equal(3, results.Count);
+            Assert.False(results[0].Successful);
+            Assert.Equal(typeof(ArgumentException),
+                results[0].FailureReason.InnerExceptions[0].GetType());
+            Assert.False(results[1].Successful);
+            Assert.Equal(typeof(ArgumentNullException),
+                results[1].FailureReason.InnerExceptions[0].GetType());
+            Assert.False(results[2].Successful);
+            Assert.Equal(typeof(ArgumentOutOfRangeException),
+                results[2].FailureReason.InnerExceptions[0].GetType());
+        }
+
+        [Fact]
+        public async Task TestWhenAllSucceed()
+        {
+            var instance = DefaultPromiseApi.Instance;
+            var promise1 = instance.Delay(30).Then(_ => 3);
+            var promise2 = instance.Resolve(4);
+            var promise3 = instance.Delay(100).Then(_ => 5);
+            var raceOutcomePromise = instance.WhenAllSucceed(promise1, promise2, promise3);
+            var results = await ((DefaultPromise<List<int>>)raceOutcomePromise).WrappedTask;
+            Assert.Equal(new List<int> { 3, 4, 5 }, results);
+
+            promise1 = instance.Resolve<int>(3);
+            promise2 = instance.Delay(100).Then<int>(_ => throw new ArgumentNullException());
+            promise3 = instance.Delay(10).Then(_ => 5);
+            raceOutcomePromise = instance.WhenAllSucceed(promise1, promise2, promise3);
+            var exception = await Assert.ThrowsAsync<AggregateException>(() =>
+                ((DefaultPromise<List<int>>)raceOutcomePromise).WrappedTask);
+            AssertRelevantExceptionTypePrescence(typeof(ArgumentNullException), exception);
+
+            promise1 = instance.Reject<int>(new ArgumentException());
+            promise2 = instance.Delay(4).Then<int>(_ => throw new ArgumentNullException());
+            promise3 = instance.Delay(100).ThenCompose(_ =>
+                instance.Reject<int>(new ArgumentOutOfRangeException()));
+            raceOutcomePromise = instance.WhenAllSucceed(promise1, promise2, promise3);
+            exception = await Assert.ThrowsAsync<AggregateException>(() =>
+                ((DefaultPromise<List<int>>)raceOutcomePromise).WrappedTask);
+            AssertRelevantExceptionTypePrescence(typeof(ArgumentException), exception);
+        }
+
+        [Fact]
+        public async Task TestWhenAny()
+        {
+            var instance = DefaultPromiseApi.Instance;
+            var promise1 = instance.Delay(30).Then(_ => 3);
+            var promise2 = instance.Resolve(4);
+            var promise3 = instance.Delay(100).Then(_ => 5);
+            var raceOutcomePromise = instance.WhenAny(promise1, promise2, promise3);
+            int firstIndexToArrive = await ((DefaultPromise<int>)raceOutcomePromise).WrappedTask;
+            Assert.Equal(1, firstIndexToArrive);
+
+            promise1 = instance.Reject<int>(new ArgumentException());
+            promise2 = instance.Delay(4).Then<int>(_ => throw new ArgumentNullException());
+            promise3 = instance.Delay(100).Then(_ => 5);
+            raceOutcomePromise = instance.WhenAny(promise1, promise2, promise3);
+            firstIndexToArrive = await ((DefaultPromise<int>)raceOutcomePromise).WrappedTask;
+            Assert.Equal(0, firstIndexToArrive);
+
+            promise1 = instance.Delay(4).Then<int>(_ => throw new ArgumentNullException());
+            promise2 = instance.Delay(100).ThenCompose<int>(_ => 
+                instance.Reject<int>(new ArgumentOutOfRangeException()));
+            promise3 = instance.Reject<int>(new ArgumentException());
+            raceOutcomePromise = instance.WhenAny(promise1, promise2, promise3);
+            firstIndexToArrive = await ((DefaultPromise<int>)raceOutcomePromise).WrappedTask;
+            Assert.Equal(2, firstIndexToArrive);
+        }
+
+        [Fact]
+        public async Task TestWhenAnySucceed()
+        {
+            var instance = DefaultPromiseApi.Instance;
+            var promise1 = instance.Delay(30).Then(_ => 3);
+            var promise2 = instance.Resolve(4);
+            var promise3 = instance.Delay(100).Then(_ => 5);
+            var raceOutcomePromise = instance.WhenAnySucceed(promise1, promise2, promise3);
+            int firstIndexToArrive = await((DefaultPromise<int>)raceOutcomePromise).WrappedTask;
+            Assert.Equal(1, firstIndexToArrive);
+
+            promise1 = instance.Reject<int>(new ArgumentException());
+            promise2 = instance.Delay(4).Then<int>(_ => throw new ArgumentNullException());
+            promise3 = instance.Delay(100).Then(_ => 5);
+            raceOutcomePromise = instance.WhenAnySucceed(promise1, promise2, promise3);
+            firstIndexToArrive = await((DefaultPromise<int>)raceOutcomePromise).WrappedTask;
+            Assert.Equal(2, firstIndexToArrive);
+
+            promise1 = instance.Reject<int>(new ArgumentException());
+            promise2 = instance.Delay(4).Then<int>(_ => throw new ArgumentNullException());
+            promise3 = instance.Delay(100).ThenCompose<int>(_ =>
+                instance.Reject<int>(new ArgumentOutOfRangeException()));
+            raceOutcomePromise = instance.WhenAnySucceed(promise1, promise2, promise3);
+            var exception = await Assert.ThrowsAsync<AggregateException>(() =>
+                ((DefaultPromise<int>)raceOutcomePromise).WrappedTask);
+            Assert.Equal(3, exception.InnerExceptions.Count);
+            AssertRelevantExceptionTypePrescence(typeof(ArgumentException),
+                exception.InnerExceptions[0] as AggregateException);
+            AssertRelevantExceptionTypePrescence(typeof(ArgumentNullException),
+                exception.InnerExceptions[1] as AggregateException);
+            AssertRelevantExceptionTypePrescence(typeof(ArgumentOutOfRangeException),
+                exception.InnerExceptions[2] as AggregateException);
+        }
     }
 }

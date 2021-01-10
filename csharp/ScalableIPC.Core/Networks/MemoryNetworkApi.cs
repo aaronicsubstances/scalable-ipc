@@ -273,7 +273,7 @@ namespace ScalableIPC.Core.Networks
                 CustomLoggerFacade.Log(() =>
                     new CustomLogEvent("Error occured during message " +
                             $"receipt handling from {remoteEndpoint}", ex)
-                        .AddData(LogDataKeyLogPositionId, "bb741504-3a4b-4ea3-a749-21fc8aec347f"));
+                        .AddProperty(LogDataKeyLogPositionId, "bb741504-3a4b-4ea3-a749-21fc8aec347f"));
                 return PromiseApi.CompletedPromise();
             }
         }
@@ -313,7 +313,7 @@ namespace ScalableIPC.Core.Networks
             {
                 CustomLoggerFacade.Log(() => new CustomLogEvent(
                         "Error encountered while disposing session handler", ex)
-                    .AddData(LogDataKeyLogPositionId, "86a662a4-c098-4053-ac26-32b984079419"));
+                    .AddProperty(LogDataKeyLogPositionId, "86a662a4-c098-4053-ac26-32b984079419"));
                 return PromiseApi.CompletedPromise();
             });
         }
@@ -339,11 +339,11 @@ namespace ScalableIPC.Core.Networks
         private Guid GenerateAndRecordLogicalThreadId()
         {
             var logicalThreadId = Guid.NewGuid();
-            CustomLoggerFacade.Log(() =>
+            CustomLoggerFacade.TestLog(() =>
             {
                 var logEvent = new CustomLogEvent("Starting new logical thread")
-                    .AddData(LogDataKeyNewLogicalThreadId, logicalThreadId)
-                    .AddData(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId);
+                    .AddProperty(LogDataKeyNewLogicalThreadId, logicalThreadId)
+                    .AddProperty(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId);
                 return logEvent;
             });
             return logicalThreadId;
@@ -351,20 +351,22 @@ namespace ScalableIPC.Core.Networks
 
         private void RecordAndEndLogicalThread()
         {
-            CustomLoggerFacade.Log(() =>
+            CustomLoggerFacade.TestLog(() =>
             {
                 var logEvent = new CustomLogEvent("Ending current logical thread")
-                    .AddData(LogDataKeyEndingLogicalThreadId, PromiseApi.CurrentLogicalThreadId);
+                    .AddProperty(LogDataKeyEndingLogicalThreadId, PromiseApi.CurrentLogicalThreadId);
                 return logEvent;
             });
             PromiseApi.EndCurrentLogicalThread();
         }
 
-        private void Record(string logPosition, CustomLogEvent logEvent)
+        private void Record(string logPosition, Action<CustomLogEvent> logEventReceiver)
         {
-            logEvent.AddData(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId)
-                .AddData(LogDataKeyLogPositionId, logPosition);
-            CustomLoggerFacade.Log(() => logEvent);
+            var logEvent = new CustomLogEvent()
+                .AddProperty(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId)
+                .AddProperty(LogDataKeyLogPositionId, logPosition);
+            logEventReceiver.Invoke(logEvent);
+            CustomLoggerFacade.TestLog(() => logEvent);
         }
 
         /*public virtual AbstractPromise<VoidType> CloseSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
