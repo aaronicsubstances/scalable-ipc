@@ -182,6 +182,71 @@ namespace ScalableIPC.Core.Concurrency
             return promises.Select(p => ((DefaultPromise<T>)p).WrappedTask).ToList();
         }
 
+        public AbstractPromise<T> Poll<T>(Func<PollCallbackArg<T>, PollCallbackRet<T>> cb,
+            int intervalMillis, long totalDurationMillis)
+        {
+            var tcs = new TaskCompletionSource<T>();
+            Task.Run(() => StartPolling(DateTime.UtcNow, default, cb, 
+                intervalMillis, totalDurationMillis, tcs));
+            var promise = new DefaultPromise<T>(this, tcs.Task);
+            return promise;
+        }
+
+        private Task StartPolling<T>(DateTime startTime, T prevValue, 
+            Func<PollCallbackArg<T>, PollCallbackRet<T>> cb,
+            int intervalMillis, long totalDurationMillis,
+            TaskCompletionSource<T> tcs)
+        {
+            try
+            {
+                // NB: current implementation invokes callback at least once.
+                var cbArg = new PollCallbackArg<T>
+                {
+                    PreviousValue = prevValue,
+                    UpTimeMillis = (long)(DateTime.UtcNow - startTime).TotalMilliseconds
+                };
+
+                // for predictability in knowing which call of the callback is the last one,
+                // determine upfront rather than after callback is executed.
+                var onLastCall = (totalDurationMillis - cbArg.UpTimeMillis) < intervalMillis;
+                cbArg.IsLastCall = onLastCall;
+
+                // Now execute callback.
+                var cbRes = cb.Invoke(cbArg);
+                    
+                if (cbRes != null && cbRes.Stop)
+                {
+                    tcs.SetResult(cbRes.NextValue);
+                }
+                else
+                {
+                    T nextValue = default;
+                    if (cbRes != null)
+                    {
+                        nextValue = cbRes.NextValue;
+                    }
+
+                    // check if time is up.
+                    // just in case callback modified cbArg, don't depend on cbArg.LastCall.
+                    if (onLastCall)
+                    {
+                        tcs.SetResult(nextValue);
+                    }
+                    else
+                    {
+                        return Task.Delay(intervalMillis).ContinueWith(_ =>
+                            StartPolling(startTime, nextValue, cb, intervalMillis,
+                                totalDurationMillis, tcs));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+            return Task.CompletedTask;
+        }
+
         // begin implementing logical threading methods
 
         public Guid? CurrentLogicalThreadId

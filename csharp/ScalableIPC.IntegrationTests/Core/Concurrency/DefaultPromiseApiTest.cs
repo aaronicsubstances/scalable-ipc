@@ -452,5 +452,53 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             AssertRelevantExceptionTypePrescence(typeof(ArgumentOutOfRangeException),
                 exception.InnerExceptions[2] as AggregateException);
         }
+
+        [Fact]
+        public async Task TestPoll()
+        {
+            var instance = DefaultPromiseApi.Instance;
+
+            // test expected poll count.
+            var promise = instance.Poll<int>(a =>
+            {
+                return new PollCallbackRet<int>
+                {
+                    NextValue = a.PreviousValue + 1
+                };
+            }, 1000, 5000);
+            int retVal = await ((DefaultPromise<int>)promise).WrappedTask;
+            Assert.Equal(5, retVal);
+            
+            // test use of stop.
+            promise = instance.Poll<int>(a =>
+            {
+                return new PollCallbackRet<int>
+                {
+                    Stop = a.PreviousValue == 2,
+                    NextValue = a.PreviousValue + 1
+                };
+            }, 1000, 5000);
+            retVal = await ((DefaultPromise<int>)promise).WrappedTask;
+            Assert.Equal(3, retVal);
+
+            // test that null return equivalent to continue.
+            promise = instance.Poll<int>(a =>
+            {
+                return null;
+            }, 1000, 5000);
+            retVal = await ((DefaultPromise<int>)promise).WrappedTask;
+            Assert.Equal(0, retVal);
+
+            // test exception catch
+            promise = instance.Poll<int>(a =>
+            {
+                if (a.IsLastCall)
+                {
+                    throw new ArgumentException();
+                }
+                return null;
+            }, 1000, 5000);
+            await Assert.ThrowsAsync<ArgumentException>(() => ((DefaultPromise<int>)promise).WrappedTask);
+        }
     }
 }

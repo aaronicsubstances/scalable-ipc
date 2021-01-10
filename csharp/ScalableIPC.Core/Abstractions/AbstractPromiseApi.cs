@@ -28,6 +28,8 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<T> Reject<T>(Exception reason);
         AbstractPromise<VoidType> CompletedPromise();
         AbstractPromise<VoidType> Delay(int millis);
+        AbstractPromise<T> Poll<T>(Func<PollCallbackArg<T>, PollCallbackRet<T>> cb,
+            int intervalMillis, long totalDurationMillis); 
         AbstractPromise<List<PromiseResult<T>>> WhenAll<T>(params AbstractPromise<T>[] promises);
         AbstractPromise<List<T>> WhenAllSucceed<T>(params AbstractPromise<T>[] promises);
         AbstractPromise<int> WhenAny<T>(params AbstractPromise<T>[] promises);
@@ -44,6 +46,19 @@ namespace ScalableIPC.Core.Abstractions
         void EndCurrentLogicalThread();
         Guid? _GetUpToDateCurrentLogicalThread();
         Guid? _GetUpToDateLogicalThreadId(Guid? logicalThreadMemberId);
+    }
+
+    public class PollCallbackArg<T>
+    {
+        public T PreviousValue { get; set; }
+        public long UpTimeMillis { get; set; }
+        public bool IsLastCall { get; set; }
+    }
+
+    public class PollCallbackRet<T>
+    {
+        public T NextValue { get; set; }
+        public bool Stop { get; set; }
     }
 
     public class PromiseResult<T>
