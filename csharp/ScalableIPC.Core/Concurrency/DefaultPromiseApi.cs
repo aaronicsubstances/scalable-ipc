@@ -203,13 +203,13 @@ namespace ScalableIPC.Core.Concurrency
                 var cbArg = new PollCallbackArg<T>
                 {
                     PreviousValue = prevValue,
-                    UpTimeMillis = (long)(DateTime.UtcNow - startTime).TotalMilliseconds
+                    UptimeMillis = (long)(DateTime.UtcNow - startTime).TotalMilliseconds
                 };
 
                 // for predictability in knowing which call of the callback is the last one,
                 // determine upfront rather than after callback is executed.
-                var onLastCall = (totalDurationMillis - cbArg.UpTimeMillis) < intervalMillis;
-                cbArg.IsLastCall = onLastCall;
+                var onLastCall = (totalDurationMillis - cbArg.UptimeMillis) < intervalMillis;
+                cbArg.LastCall = onLastCall;
 
                 // Now execute callback.
                 var cbRes = cb.Invoke(cbArg);
@@ -293,11 +293,6 @@ namespace ScalableIPC.Core.Concurrency
             }
         }
 
-        public Guid? _GetUpToDateCurrentLogicalThread()
-        {
-            return _GetUpToDateLogicalThreadId(_currentLogicalThreadId);
-        }
-
         public Guid? _GetUpToDateLogicalThreadId(Guid? logicalThreadMemberId)
         {
             if (logicalThreadMemberId != null)
@@ -317,18 +312,17 @@ namespace ScalableIPC.Core.Concurrency
     public class DefaultPromise<T>: AbstractPromise<T>
     {
         public DefaultPromise(AbstractPromiseApi promiseApi, Task<T> task)
-        {
-            _PromiseApi = promiseApi;
-            WrappedTask = task;
-            LogicalThreadId = promiseApi._GetUpToDateCurrentLogicalThread();
-        }
+            : this(promiseApi, task, promiseApi.CurrentLogicalThreadId)
+        { }
 
         internal DefaultPromise(AbstractPromiseApi promiseApi, Task<T> task, 
             Guid? logicalThreadId)
         {
             _PromiseApi = promiseApi;
             WrappedTask = task;
-            LogicalThreadId = promiseApi._GetUpToDateLogicalThreadId(logicalThreadId);
+            // deal with invalid logical thread ids at moment of assigning to thread local variable,
+            // rather than here.
+            LogicalThreadId = logicalThreadId;
         }
 
         private DefaultPromise(_ILogicalThreadMember antecedent, Task<T> task) :
@@ -343,7 +337,7 @@ namespace ScalableIPC.Core.Concurrency
 
         private void InsertCurrentLogicalThreadId()
         {
-            _PromiseApi._CurrentLogicalThreadId = LogicalThreadId;
+            _PromiseApi._CurrentLogicalThreadId = _PromiseApi._GetUpToDateLogicalThreadId(LogicalThreadId);
         }
 
         private void ClearCurrentLogicalThreadId()

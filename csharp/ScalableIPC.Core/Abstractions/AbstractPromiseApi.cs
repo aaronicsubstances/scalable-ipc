@@ -44,15 +44,14 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> StartLogicalThread(Guid newLogicalThreadId);
         void EndLogicalThread(Guid logicalThreadId);
         void EndCurrentLogicalThread();
-        Guid? _GetUpToDateCurrentLogicalThread();
         Guid? _GetUpToDateLogicalThreadId(Guid? logicalThreadMemberId);
     }
 
     public class PollCallbackArg<T>
     {
         public T PreviousValue { get; set; }
-        public long UpTimeMillis { get; set; }
-        public bool IsLastCall { get; set; }
+        public long UptimeMillis { get; set; }
+        public bool LastCall { get; set; }
     }
 
     public class PollCallbackRet<T>

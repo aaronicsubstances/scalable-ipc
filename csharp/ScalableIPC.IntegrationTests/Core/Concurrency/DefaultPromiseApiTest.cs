@@ -492,13 +492,88 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             // test exception catch
             promise = instance.Poll<int>(a =>
             {
-                if (a.IsLastCall)
+                if (a.LastCall)
                 {
                     throw new ArgumentException();
                 }
                 return null;
             }, 1000, 5000);
             await Assert.ThrowsAsync<ArgumentException>(() => ((DefaultPromise<int>)promise).WrappedTask);
+        }
+
+        [Fact]
+        public async Task TestLogicalThreadIdAllocations()
+        {
+            var instance = DefaultPromiseApi.Instance;
+            var errors = new List<string>();
+            var logicalThreads = new AbstractPromise<int>[3];
+            for (int i = 0; i < logicalThreads.Length; i++)
+            {
+                logicalThreads[i] = CreateLogicalThread(instance, Guid.NewGuid(), errors);
+            }
+            var promise = instance.WhenAllSucceed(logicalThreads);
+            var allResults = await ((DefaultPromise<List<int>>)promise).WrappedTask;
+            Assert.Empty(errors);
+            Assert.Equal(Enumerable.Repeat(12, logicalThreads.Length).ToList(), allResults);
+        }
+
+        private AbstractPromise<int> CreateLogicalThread(AbstractPromiseApi instance, Guid expectedId,
+            List<string> errors)
+        {
+            Assert.Null(instance.CurrentLogicalThreadId);
+            var promise = instance.StartLogicalThread(expectedId)
+                .Then(_ =>
+                {
+                    Assert.Equal(expectedId, instance.CurrentLogicalThreadId);
+                    return 111;
+                })
+                .ThenCompose(_ =>
+                {
+                    Assert.Equal(expectedId, instance.CurrentLogicalThreadId);
+                    return instance.Resolve(10);
+                })
+                .Then(_ =>
+                {
+                    Assert.Equal(expectedId, instance.CurrentLogicalThreadId);
+                    return 9;
+                })
+                .ThenOrCatchCompose(v =>
+                {
+                    Assert.Equal(expectedId, instance.CurrentLogicalThreadId);
+                    return instance.Reject<int>(new Exception());
+                }, ex =>
+                {
+                    errors.Add("86a701f5-0629-4ab9-80ab-60ad7081c3b1");
+                    return instance.Resolve(0);
+                })
+                .Finally(() => Assert.Equal(expectedId, instance.CurrentLogicalThreadId))
+                .Catch(ex =>
+                {
+                    Assert.Equal(expectedId, instance.CurrentLogicalThreadId);
+                })
+                .Finally(() => Assert.Equal(expectedId, instance.CurrentLogicalThreadId))
+                .CatchCompose(ex =>
+                {
+                    Assert.Equal(expectedId, instance.CurrentLogicalThreadId);
+                    throw ex;
+                })
+                .Finally(() => Assert.Equal(expectedId, instance.CurrentLogicalThreadId))
+                .ThenOrCatchCompose(v =>
+                {
+                    errors.Add("4601d8aa-1375-40e7-a5cd-bc05f113f8b5");
+                    return instance.Resolve(0);
+                }, ex =>
+                {
+                    Assert.Equal(expectedId, instance.CurrentLogicalThreadId);
+                    return instance.Resolve(11);
+                })
+                .Finally(() => instance.EndCurrentLogicalThread())
+                .Then(_ =>
+                {
+                    Assert.Null(instance.CurrentLogicalThreadId);
+                    return 12;
+                });
+            return promise;
         }
     }
 }

@@ -16,7 +16,7 @@ namespace ScalableIPC.IntegrationTests.Helpers
             var promise = instance.Poll<VoidType>(arg =>
             {
                 Assert.True(conditionAssertion.Invoke(), $"condition being asserted is false after " +
-                    $"{arg.UpTimeMillis} ms");
+                    $"{arg.UptimeMillis} ms");
                 return null;
             }, 1000, (long)duration.TotalMilliseconds);
             await ((DefaultPromise<VoidType>)promise).WrappedTask;
@@ -34,7 +34,7 @@ namespace ScalableIPC.IntegrationTests.Helpers
                         Stop = true
                     };
                 }
-                Assert.False(arg.IsLastCall, $"Condition being awaited is still false after " +
+                Assert.False(arg.LastCall, $"Condition being awaited is still false after " +
                     $"{duration.TotalMilliseconds} ms");
                 return null;
             }, 1000, (long)duration.TotalMilliseconds);
