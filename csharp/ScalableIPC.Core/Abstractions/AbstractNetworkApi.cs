@@ -37,14 +37,14 @@ namespace ScalableIPC.Core.Abstractions
         // this separation between RequestSend and HandleSendAsync is for the purpose of
         // launching HandleSendAsync in a separate thread of control.
         void RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram, Action<Exception> cb);
-        AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
+        AbstractPromise<VoidType> _HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
         
         // similar to send case, this separation between RequestSessionDispose and DisposeSessionAsync is
         // required so DisposeSessionAsync can be called in a separate thread of control, and then
         // RequestSessionDipose can return for session handlers to update their internal state prior to final
         // disposal.
         void RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint, string sessionId, SessionDisposedException cause);
-        AbstractPromise<VoidType> DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
+        AbstractPromise<VoidType> _DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             SessionDisposedException cause);
 
         AbstractPromise<VoidType> ShutdownAsync(int waitPeriod);

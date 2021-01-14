@@ -16,25 +16,26 @@ namespace ScalableIPC.Core.Helpers
         public delegate string CustomLogEventMessageGenerator(
             Func<string, string> jsonSerializerFunc, Func<string, string> stringifyFunc);
 
-        public CustomLogEvent()
-            : this(null, null)
+        public CustomLogEvent(Type targetLogger)
+            : this(targetLogger,null, null)
         { }
 
-        public CustomLogEvent(string message)
-            : this(message, null)
+        public CustomLogEvent(Type targetLogger, string message)
+            : this(targetLogger, message, null)
         { }
 
-        public CustomLogEvent(string message, Exception error)
+        public CustomLogEvent(Type targetLogger, string message, Exception error)
         {
             Message = message;
             Error = error;
+            TargetLogger = targetLogger?.FullName;
         }
 
         public string Message { get; set; }
         public List<object> Arguments { get; set; }
         public Exception Error { get; set; }
-
         public object Data { get; set; }
+        public string TargetLogger { get; set; }
 
         public CustomLogEvent AddProperty(string name, object value)
         {

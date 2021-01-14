@@ -69,7 +69,7 @@ namespace ScalableIPC.Core.Concurrency
 
         public virtual void HandleCallbackException(Exception ex)
         {
-            CustomLoggerFacade.Log(() => new CustomLogEvent(
+            CustomLoggerFacade.Log(() => new CustomLogEvent(GetType(),
                     "Error occured during session task executor callback processing", ex)
                 .AddProperty(CustomLogEvent.LogDataKeyLogPositionId, "5394ab18-fb91-4ea3-b07a-e9a1aa150dd6"));
         }

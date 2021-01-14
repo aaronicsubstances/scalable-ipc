@@ -44,15 +44,17 @@ namespace ScalableIPC.Core.Networks
             ConnectedNetworks = new Dictionary<GenericNetworkIdentifier, MemoryNetworkApi>();
         }
 
-        public Dictionary<GenericNetworkIdentifier, MemoryNetworkApi> ConnectedNetworks { get; }
+        public AbstractPromiseApi PromiseApi { get; set; }
+        public ISessionTaskExecutor SessionTaskExecutor { get; set; }
+        public ISessionHandlerFactory SessionHandlerFactory { get; set; }
+
+        public GenericNetworkIdentifier LocalEndpoint { get; set; }
+
+        public Dictionary<GenericNetworkIdentifier, MemoryNetworkApi> ConnectedNetworks { get; set; }
 
         public ISendBehaviour SendBehaviour { get; set; }
 
         public ITransmissionBehaviour TransmissionBehaviour { get; set; }
-
-        public GenericNetworkIdentifier LocalEndpoint { get; set; }
-        public AbstractPromiseApi PromiseApi { get; set; }
-        public ISessionTaskExecutor SessionTaskExecutor { get; set; }
         public int IdleTimeout { get; set; }
         public int MinRemoteIdleTimeout { get; set; }
         public int MaxRemoteIdleTimeout { get; set; }
@@ -61,7 +63,6 @@ namespace ScalableIPC.Core.Networks
         public int MaxReceiveWindowSize { get; set; }
         public int MaxRetryCount { get; set; }
         public int MaximumTransferUnitSize { get; set; }
-        public ISessionHandlerFactory SessionHandlerFactory { get; set; }
 
         public AbstractPromise<VoidType> StartAsync()
         {
@@ -78,6 +79,12 @@ namespace ScalableIPC.Core.Networks
                 {
                     throw new Exception("Cannot start new session due to shutdown");
                 }
+
+                if (!ConnectedNetworks.ContainsKey(remoteEndpoint))
+                {
+                    throw new Exception($"{remoteEndpoint} remote endpoint not found.");
+                }
+
                 if (sessionId == null)
                 {
                     sessionId = ProtocolDatagram.GenerateSessionId();
@@ -89,13 +96,17 @@ namespace ScalableIPC.Core.Networks
                         throw new Exception("Must provide sessionHandler if SessionHandlerFactory is null");
                     }
                     sessionHandler = SessionHandlerFactory.Create();
+                    if (sessionHandler == null)
+                    {
+                        throw new Exception("SessionHandlerFactory failed to create session handler");
+                    }
                 }
-                sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
                 lock (_sessionHandlerStore)
                 {
                     _sessionHandlerStore.Add(remoteEndpoint, sessionId,
                         new SessionHandlerWrapper(sessionHandler));
                 }
+                sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
                 return PromiseApi.Resolve(sessionHandler);
             }
             catch (Exception ex)
@@ -111,7 +122,7 @@ namespace ScalableIPC.Core.Networks
             Task.Run(() =>
             {
                 var promise = PromiseApi.StartLogicalThread(newLogicalThreadId)
-                    .ThenCompose(_ => HandleSendAsync(remoteEndpoint, message))
+                    .ThenCompose(_ => _HandleSendAsync(remoteEndpoint, message))
                     .Then(_ =>
                     {
                         cb(null);
@@ -127,7 +138,7 @@ namespace ScalableIPC.Core.Networks
             });
         }
 
-        public AbstractPromise<VoidType> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint,
+        public AbstractPromise<VoidType> _HandleSendAsync(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram datagram)
         {
             // simulate sending.
@@ -271,7 +282,7 @@ namespace ScalableIPC.Core.Networks
             catch (Exception ex)
             {
                 CustomLoggerFacade.Log(() =>
-                    new CustomLogEvent("Error occured during message " +
+                    new CustomLogEvent(GetType(), "Error occured during message " +
                             $"receipt handling from {remoteEndpoint}", ex)
                         .AddProperty(LogDataKeyLogPositionId, "bb741504-3a4b-4ea3-a749-21fc8aec347f"));
                 return PromiseApi.CompletedPromise();
@@ -285,13 +296,13 @@ namespace ScalableIPC.Core.Networks
             var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
             Task.Run(() => {
                 var promise = PromiseApi.StartLogicalThread(newLogicalThreadId)
-                    .ThenCompose(_ => DisposeSessionAsync(remoteEndpoint, sessionId, cause))
+                    .ThenCompose(_ => _DisposeSessionAsync(remoteEndpoint, sessionId, cause))
                     .Finally(() => RecordAndEndLogicalThread());
                 return ((DefaultPromise<VoidType>)promise).WrappedTask;
             });
         }
 
-        public AbstractPromise<VoidType> DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
+        public AbstractPromise<VoidType> _DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             SessionDisposedException cause)
         {
             SessionHandlerWrapper sessionHandler;
@@ -311,7 +322,7 @@ namespace ScalableIPC.Core.Networks
         {
             return promise.CatchCompose(ex =>
             {
-                CustomLoggerFacade.Log(() => new CustomLogEvent(
+                CustomLoggerFacade.Log(() => new CustomLogEvent(GetType(),
                         "Error encountered while disposing session handler", ex)
                     .AddProperty(LogDataKeyLogPositionId, "86a662a4-c098-4053-ac26-32b984079419"));
                 return PromiseApi.CompletedPromise();
@@ -330,10 +341,7 @@ namespace ScalableIPC.Core.Networks
 
         public bool IsShuttingDown()
         {
-            lock (_isShuttingDownLock)
-            {
-                return _isShuttingDown;
-            }
+            return _isShuttingDown;
         }
 
         private Guid GenerateAndRecordLogicalThreadId()
@@ -341,7 +349,7 @@ namespace ScalableIPC.Core.Networks
             var logicalThreadId = Guid.NewGuid();
             CustomLoggerFacade.TestLog(() =>
             {
-                var logEvent = new CustomLogEvent("Starting new logical thread")
+                var logEvent = new CustomLogEvent(GetType(), "Starting new logical thread")
                     .AddProperty(LogDataKeyNewLogicalThreadId, logicalThreadId)
                     .AddProperty(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId);
                 return logEvent;
@@ -353,7 +361,7 @@ namespace ScalableIPC.Core.Networks
         {
             CustomLoggerFacade.TestLog(() =>
             {
-                var logEvent = new CustomLogEvent("Ending current logical thread")
+                var logEvent = new CustomLogEvent(GetType(), "Ending current logical thread")
                     .AddProperty(LogDataKeyEndingLogicalThreadId, PromiseApi.CurrentLogicalThreadId);
                 return logEvent;
             });
@@ -362,7 +370,7 @@ namespace ScalableIPC.Core.Networks
 
         private void Record(string logPosition, Action<CustomLogEvent> logEventReceiver)
         {
-            var logEvent = new CustomLogEvent()
+            var logEvent = new CustomLogEvent(GetType())
                 .AddProperty(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId)
                 .AddProperty(LogDataKeyLogPositionId, logPosition);
             logEventReceiver.Invoke(logEvent);

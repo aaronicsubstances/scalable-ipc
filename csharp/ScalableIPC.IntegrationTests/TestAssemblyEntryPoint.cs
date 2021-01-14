@@ -1,4 +1,5 @@
-﻿using Microsoft.Data.SqlClient;
+﻿using Dapper;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -10,6 +11,8 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Text;
 
 // Picked from: https://github.com/xunit/samples.xunit/blob/main/AssemblyFixtureExample/Samples.cs
@@ -30,8 +33,6 @@ namespace ScalableIPC.IntegrationTests
                 NLog.Extensions.Logging.ConfigSettingLayoutRenderer.DefaultConfiguration = config;
                 Config = config.Get<TestConfiguration>();
                 CustomLoggerFacade.Logger = new TestLogger();
-
-                ResetDb();
             }
             catch (Exception ex)
             {
@@ -42,16 +43,25 @@ namespace ScalableIPC.IntegrationTests
             }
         }
 
-        private void ResetDb()
+        internal static void ResetDb()
         {
             using (SqlConnection conn = new SqlConnection(Config.ConnectionString))
             {
                 conn.Open();
-                using (SqlCommand cmd = new SqlCommand("DELETE FROM [dbo].[NLog] WHERE [App] = 'scalableipc'", conn))
+                using (SqlCommand cmd = new SqlCommand("DELETE FROM Logs", conn))
                 {
                     cmd.ExecuteNonQuery();
                 }
             }
+        }
+
+        internal static List<TestLogRecord> GetTestLogs(Func<TestLogRecord, bool> validateAndFilter)
+        {
+            return AccessDb(dbConn =>
+            {
+                return dbConn.Query<TestLogRecord>("SELECT * FROM Logs ORDER BY Id")
+                    .Where(validateAndFilter).ToList();
+            });
         }
 
         internal static T AccessDb<T>(Func<IDbConnection, T> dbProc)
@@ -66,15 +76,15 @@ namespace ScalableIPC.IntegrationTests
 
     class TestLogger : ICustomLogger
     {
-        private static Logger LOG = LogManager.GetCurrentClassLogger();
-        private static Logger TEST_LOG = LogManager.GetLogger(nameof(IntegrationTests));
-
         public bool LogEnabled => true;
         public bool TestLogEnabled => true;
 
         public void Log(CustomLogEvent logEvent)
         {
-            var logBuilder = LOG.Info()
+            Logger logger4Evt = logEvent.TargetLogger != null ?
+                LogManager.GetLogger(logEvent.TargetLogger) :
+                LogManager.GetCurrentClassLogger();
+            var logBuilder = logger4Evt.Warn()
                 .Message(logEvent.Message ?? "")
                 .Exception(logEvent.Error);
             var allProps = JObject.FromObject(logEvent.Data ?? new Dictionary<string, object>());
@@ -84,11 +94,13 @@ namespace ScalableIPC.IntegrationTests
 
         public void TestLog(CustomLogEvent logEvent)
         {
-            var logBuilder = TEST_LOG.Info()
+            Logger logger4TestEvt = LogManager.GetLogger(Assembly.GetExecutingAssembly().GetName().Name);
+            var logBuilder = logger4TestEvt.Info()
                 .Message(logEvent.Message ?? "")
                 .Exception(logEvent.Error);
             var allProps = JObject.FromObject(logEvent.Data ?? new Dictionary<string, object>());
             logBuilder.Property("logData", allProps.ToString(Formatting.None));
+            logBuilder.Property("targetLogger", logEvent.TargetLogger ?? logger4TestEvt.Name);
             logBuilder.Write();
         }
     }
