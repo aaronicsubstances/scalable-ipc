@@ -23,15 +23,16 @@ namespace ScalableIPC.Core
         public const byte OpCodeDataAck = 0x01;
         public const byte OpCodeClose = 0x02;
         public const byte OpCodeCloseAck = 0x03;
-        public const byte OpCodeCloseAll = 0x7f;
+        public const byte OpCodeRestart = 0x7e;
+        public const byte OpCodeShutdown = 0x7f;
 
         public const int AbortCodeNormalClose = 0;
         public const int AbortCodeTimeout = 1;
         public const int AbortCodeForceClose = 2;
-        public const int AbortCodeCloseAll = 3;
-        public const int AbortCodeShutdown = 4;
-        public const int AbortCodeError = 5;
-        public const int AbortCodeWindowGroupOverflow = 6;
+        public const int AbortCodeError = 3;
+        public const int AbortCodeWindowGroupOverflow = 4;
+        public const int AbortCodeRestart = 98;
+        public const int AbortCodeShutdown = 99;
 
         public const byte NullTerminator = 0;
 
@@ -631,16 +632,16 @@ namespace ScalableIPC.Core
                 return "TIMEOUT";
             else if (code == AbortCodeForceClose)
                 return "FORCED CLOSE";
-            else if (code == AbortCodeCloseAll)
-                return "CLOSE ALL";
-            else if (code == AbortCodeShutdown)
-                return "SHUTTING DOWN";
             else if (code == AbortCodeError)
                 return "INTERNAL ERROR";
             else if (code == AbortCodeWindowGroupOverflow)
                 return "WINDOW GROUP OVERLFOW";
+            else if (code == AbortCodeRestart)
+                return "RESTART";
+            else if (code == AbortCodeShutdown)
+                return "SHUTTING DOWN";
             else
-                return "UNSPECIFIED";
+                return $"UNKNOWN ({code})";
         }
     }
 }

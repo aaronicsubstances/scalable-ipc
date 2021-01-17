@@ -70,8 +70,17 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessReceiveClose(ProtocolDatagram datagram)
         {
+            var recvdAbortCode = datagram.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose;
+            // reject abort code if not valid for a close opcode.
+            if (recvdAbortCode == ProtocolDatagram.AbortCodeRestart || 
+                recvdAbortCode == ProtocolDatagram.AbortCodeShutdown)
+            {
+                _sessionHandler.OnDatagramDiscarded(datagram);
+                return;
+            }
+
             // if graceful close, then try and validate before proceeding with close.
-            if (datagram.Options?.AbortCode == null || datagram.Options.AbortCode == ProtocolDatagram.AbortCodeNormalClose)
+            if (recvdAbortCode == ProtocolDatagram.AbortCodeNormalClose)
             {
                 // Reject close datagram with invalid window id or sequence number.
                 if (!(datagram.SequenceNumber == 0 && ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId,
@@ -82,7 +91,7 @@ namespace ScalableIPC.Core.Session
                 }
             }
 
-            var cause = new SessionDisposedException(true, datagram.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose);
+            var cause = new SessionDisposedException(true, recvdAbortCode);
 
             // send back acknowledgement if closing gracefully, but ignore errors.
             // also don't wait.
