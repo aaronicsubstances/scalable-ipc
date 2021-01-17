@@ -132,22 +132,46 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [MemberData(nameof(CreateTestTimeoutData))]
         public async Task TestTimeout(int delaySecs, bool cancel)
         {
+            // contract to test is that during a PostCallback, cancel works regardless of
+            // how long we spend inside it.
             var eventLoop = new DefaultSessionTaskExecutor();
+            var promiseCb = new DefaultPromiseCompletionSource<VoidType>(DefaultPromiseApi.Instance,
+                null);
             var startTime = DateTime.UtcNow;
             DateTime? stopTime = null;
-            object timeoutId = eventLoop.ScheduleTimeout(delaySecs * 1000, () =>
+            eventLoop.PostCallback(() =>
             {
-                stopTime = DateTime.UtcNow;
+                try
+                {
+                    object timeoutId = eventLoop.ScheduleTimeout(delaySecs * 1000, () =>
+                    {
+                        stopTime = DateTime.UtcNow;
+                    });
+
+                    // test that even sleeping past schedule timeout delay AND cancelling
+                    // will still achieve cancellation.
+                    Thread.Sleep(TimeSpan.FromSeconds(Math.Max(0, delaySecs + (cancel ? 1 : -1))));
+                    if (cancel)
+                    {
+                        eventLoop.CancelTimeout(timeoutId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    promiseCb.CompleteExceptionally(ex);
+                }
+                finally
+                {
+                    // will be ignored if exception is raised first.
+                    promiseCb.CompleteSuccessfully(VoidType.Instance);
+                }
             });
-            if (delaySecs > 1)
-            {
-                await Task.Delay(TimeSpan.FromSeconds(delaySecs - 1));
-            }
-            if (cancel)
-            {
-                eventLoop.CancelTimeout(timeoutId);
-            }
-            await Task.Delay(TimeSpan.FromSeconds(2));
+
+            await ((DefaultPromise<VoidType>)promiseCb.RelatedPromise).WrappedTask;
+
+            // wait for any pending callback to execute.
+            await Task.Delay(2000);
+
             if (cancel)
             {
                 Assert.Null(stopTime);
@@ -156,8 +180,8 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             {
                 Assert.NotNull(stopTime);
                 var expectedStopTime = startTime.AddSeconds(delaySecs);
-                // allow half sec precision in comparison.
-                Assert.InRange(stopTime.Value, expectedStopTime.AddSeconds(-0.5), expectedStopTime.AddSeconds(0.5));
+                // allow 1 sec precision in comparison.
+                Assert.InRange(stopTime.Value, expectedStopTime.AddSeconds(-1), expectedStopTime.AddSeconds(1));
             }
         }
 
@@ -170,6 +194,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 new object[]{ 1, false },
                 new object[]{ 1, true },
                 new object[]{ 2, false },
+                new object[]{ 2, true },
                 new object[]{ 3, false },
                 new object[]{ 3, true }
             };

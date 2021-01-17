@@ -1,5 +1,4 @@
-﻿using Newtonsoft.Json;
-using ScalableIPC.Core;
+﻿using ScalableIPC.Core;
 using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Concurrency;
 using ScalableIPC.Core.Helpers;
@@ -19,7 +18,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
     public class MemoryNetworkApiTest
     {
         internal static readonly string LogDataKeySessionId = "sessionId";
-        internal static readonly string LogDataKeyNetworkApi = "networkApi";
         internal static readonly string LogDataKeyRemoteEndpoint = "remoteEndpoint";
         internal static readonly string LogDataKeyConfiguredForSend = "configuredForSend";
 
@@ -51,7 +49,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
         private List<TestLogRecord> GetValidatedTestLogs()
         {
-            return TestAssemblyEntryPoint.GetTestLogs(record =>
+            return TestDatabase.GetTestLogs(record =>
             {
                 if (record.Logger.Contains(typeof(MemoryNetworkApi).FullName) ||
                     record.Logger.Contains(typeof(MemoryNetworkApiTest).FullName))
@@ -62,9 +60,45 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             });
         }
 
-        private Dictionary<string, object> ParseLogRecordProperties(TestLogRecord logRecord)
+        private Task<List<string>> WaitForAllLogicalThreads(int waitTimeSecs)
         {
-            return JsonConvert.DeserializeObject<Dictionary<string, object>>(logRecord.Properties);
+            return WaitForNextRoundOfLogicalThreads(waitTimeSecs, -1);
+        }
+
+        private async Task<List<string>> WaitForNextRoundOfLogicalThreads(int waitTimeSecs, int lastId)
+        {
+            var testLogs = GetValidatedTestLogs().Where(x => x.Id > lastId);
+            var newLogicalThreadIds = new List<string>();
+            foreach (var testLog in testLogs)
+            {
+                if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyNewLogicalThreadId))
+                {
+                    newLogicalThreadIds.Add((string)testLog.ParsedProperties[
+                        CustomLogEvent.LogDataKeyNewLogicalThreadId]);
+                    lastId = testLog.Id;
+                }
+            }
+            if (newLogicalThreadIds.Count == 0)
+            {
+                return GetValidatedTestLogs().Where(x => x.ParsedProperties.ContainsKey(
+                    CustomLogEvent.LogDataKeyNewLogicalThreadId))
+                    .Select(x => (string)x.ParsedProperties[CustomLogEvent.LogDataKeyNewLogicalThreadId])
+                    .ToList();
+            }
+            await Awaitility.WaitAsync(TimeSpan.FromSeconds(waitTimeSecs), () =>
+            {
+                var testLogs = GetValidatedTestLogs().Where(x => x.Id > lastId);
+                foreach (var testLog in testLogs)
+                {
+                    if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyEndingLogicalThreadId))
+                    {
+                        newLogicalThreadIds.Remove((string)testLog.ParsedProperties[
+                            CustomLogEvent.LogDataKeyEndingLogicalThreadId]);
+                    }
+                }
+                return newLogicalThreadIds.Count == 0;
+            });
+            return await WaitForNextRoundOfLogicalThreads(waitTimeSecs, lastId);
         }
 
         [Fact]
@@ -72,7 +106,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
         {
             Assert.False(_accraEndpoint.IsShuttingDown());
 
-            TestAssemblyEntryPoint.ResetDb();
+            TestDatabase.ResetDb();
             var sessionId = Guid.NewGuid().ToString("n");
             var handlerArg = new TestSessionHandler(false);
             var openPromise = _accraEndpoint.OpenSessionAsync(_kumasiAddr, sessionId,
@@ -80,6 +114,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var sessionHandler = await ((DefaultPromise<ISessionHandler>)openPromise).WrappedTask;
 
             Assert.Equal(handlerArg, sessionHandler);
+            Assert.Equal(_accraEndpoint, sessionHandler.NetworkApi);
 
             var testLogs = GetValidatedTestLogs();
             var logNavigator = new LogNavigator<TestLogRecord>(testLogs);
@@ -89,11 +124,9 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.Null(record);
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
-            var parsed = ParseLogRecordProperties(record);
-            Assert.Equal(sessionId, parsed[LogDataKeySessionId]);
-            Assert.Equal(_kumasiAddr.ToString(), parsed[LogDataKeyRemoteEndpoint]);
-            Assert.Equal(_accraEndpoint.ToString(), parsed[LogDataKeyNetworkApi]);
-            Assert.Equal(true, parsed[LogDataKeyConfiguredForSend]);
+            Assert.Equal(sessionId, record.ParsedProperties[LogDataKeySessionId]);
+            Assert.Equal(_kumasiAddr.ToString(), record.ParsedProperties[LogDataKeyRemoteEndpoint]);
+            Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSend]);
 
             // test that session id can't be reused. 
             await Assert.ThrowsAnyAsync<Exception>(() =>
@@ -104,12 +137,13 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             });
 
             // test without prespecified session id or handler.
-            TestAssemblyEntryPoint.ResetDb();
+            TestDatabase.ResetDb();
             openPromise = _accraEndpoint.OpenSessionAsync(_kumasiAddr, null,
                 null);
             var sessionHandler2 = await ((DefaultPromise<ISessionHandler>)openPromise).WrappedTask;
 
             Assert.Equal(typeof(TestSessionHandler), sessionHandler2.GetType());
+            Assert.Equal(_accraEndpoint, sessionHandler2.NetworkApi);
 
             testLogs = GetValidatedTestLogs();
             logNavigator = new LogNavigator<TestLogRecord>(testLogs);
@@ -119,12 +153,10 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.NotNull(record);
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
-            parsed = ParseLogRecordProperties(record);
-            var sessionId2 = (string)parsed[LogDataKeySessionId];
+            var sessionId2 = (string)record.ParsedProperties[LogDataKeySessionId];
             Assert.NotNull(sessionId2);
-            Assert.Equal(_kumasiAddr.ToString(), parsed[LogDataKeyRemoteEndpoint]);
-            Assert.Equal(_accraEndpoint.ToString(), parsed[LogDataKeyNetworkApi]);
-            Assert.Equal(true, parsed[LogDataKeyConfiguredForSend]);
+            Assert.Equal(_kumasiAddr.ToString(), record.ParsedProperties[LogDataKeyRemoteEndpoint]);
+            Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSend]);
 
             // test that session id can't be reused. 
             await Assert.ThrowsAnyAsync<Exception>(() =>
@@ -175,8 +207,83 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             };
             _accraEndpoint.RequestSend(_kumasiAddr, message, null);
 
+            */
+        }
+
+        [Fact]
+        public async Task TestSessionDispose()
+        {
+            // Test normal dispose call in which endpoint and session id exist.
+            var sessionId = Guid.NewGuid().ToString("n");
+            var openPromise = _accraEndpoint.OpenSessionAsync(_kumasiAddr, sessionId,
+                null);
+
+            TestDatabase.ResetDb();
             _accraEndpoint.RequestSessionDispose(_kumasiAddr, sessionId,
-                null);*/
+                new SessionDisposedException(false,ProtocolDatagram.AbortCodeNormalClose));
+            var logicalThreadIds = await WaitForAllLogicalThreads(2);
+            Assert.Single(logicalThreadIds);
+
+            var testLogs = GetValidatedTestLogs();
+            var logNavigator = new LogNavigator<TestLogRecord>(testLogs);
+            // check that FinalizeDisposeAsync is called on session handler.
+            var record = logNavigator.Next(
+                rec => rec.Properties.Contains("db8ca05b-5bd9-48e1-a74d-cb0542cd1587"));
+            Assert.NotNull(record);
+            // check that no exception is logged.
+            record = logNavigator.Next(
+                rec => rec.Properties.Contains("86a662a4-c098-4053-ac26-32b984079419"));
+            Assert.Null(record);
+
+            // test disposing non-existent session id
+            TestDatabase.ResetDb();
+            _accraEndpoint.RequestSessionDispose(_kumasiAddr, sessionId,
+                new SessionDisposedException(false, ProtocolDatagram.AbortCodeNormalClose));
+            logicalThreadIds = await WaitForAllLogicalThreads(2);
+            Assert.Single(logicalThreadIds);
+
+            testLogs = GetValidatedTestLogs();
+            logNavigator = new LogNavigator<TestLogRecord>(testLogs);
+            // check that FinalizeDisposeAsync is NOT called again on session handler.
+            record = logNavigator.Next(
+                rec => rec.Properties.Contains("db8ca05b-5bd9-48e1-a74d-cb0542cd1587"));
+            Assert.Null(record);
+            // check that no exception is logged.
+            record = logNavigator.Next(
+                rec => rec.Properties.Contains("86a662a4-c098-4053-ac26-32b984079419"));
+            Assert.Null(record);
+
+            // test that FinalizeDisposeAsync is not called in erroneous call.
+            TestDatabase.ResetDb();
+            _accraEndpoint.RequestSessionDispose(null, sessionId,
+                new SessionDisposedException(false, ProtocolDatagram.AbortCodeNormalClose));
+            logicalThreadIds = await WaitForAllLogicalThreads(2);
+            Assert.Single(logicalThreadIds);
+
+            testLogs = GetValidatedTestLogs();
+            logNavigator = new LogNavigator<TestLogRecord>(testLogs);
+            record = logNavigator.Next(
+                rec => rec.Properties.Contains("db8ca05b-5bd9-48e1-a74d-cb0542cd1587"));
+            Assert.Null(record);
+
+            // test that FinalizeDisposeAsync swallows exceptions from session handler.
+            sessionId = Guid.NewGuid().ToString("n");
+            openPromise = _accraEndpoint.OpenSessionAsync(_kumasiAddr, sessionId,
+                null);
+            TestDatabase.ResetDb();
+            _accraEndpoint.RequestSessionDispose(_kumasiAddr, sessionId, null);
+            logicalThreadIds = await WaitForAllLogicalThreads(2);
+            Assert.Single(logicalThreadIds);
+
+            testLogs = GetValidatedTestLogs();
+            logNavigator = new LogNavigator<TestLogRecord>(testLogs);
+            record = logNavigator.Next(
+                rec => rec.Properties.Contains("db8ca05b-5bd9-48e1-a74d-cb0542cd1587"));
+            Assert.NotNull(record);
+            // check that exception is logged.
+            record = logNavigator.Next(
+                rec => rec.Properties.Contains("86a662a4-c098-4053-ac26-32b984079419"));
+            Assert.NotNull(record);
         }
 
         class TestSessionHandler : ISessionHandler
@@ -201,12 +308,12 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
                         "3f4f66e2-dafc-4c79-aa42-6f988a337d78")
                     .AddProperty(LogDataKeySessionId, sessionId)
-                    .AddProperty(LogDataKeyNetworkApi, networkApi.ToString())
                     .AddProperty(LogDataKeyRemoteEndpoint, remoteEndpoint.ToString())
                     .AddProperty(LogDataKeyConfiguredForSend, configureForInitialSend));
+                NetworkApi = networkApi;
             }
 
-            public AbstractNetworkApi NetworkApi => throw new NotImplementedException();
+            public AbstractNetworkApi NetworkApi { get; private set; }
 
             public GenericNetworkIdentifier RemoteEndpoint => throw new NotImplementedException();
 
@@ -235,7 +342,14 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
             public AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause)
             {
-                throw new NotImplementedException();
+                CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "FinaliseDisposeAsync() called")
+                       .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
+                           "db8ca05b-5bd9-48e1-a74d-cb0542cd1587"));
+                if (cause == null)
+                {
+                    throw new ArgumentNullException(nameof(cause));
+                }
+                return NetworkApi.PromiseApi.CompletedPromise();
             }
 
             public AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram)

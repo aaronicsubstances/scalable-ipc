@@ -18,7 +18,7 @@ namespace ScalableIPC.IntegrationTests.Helpers
                 Assert.True(conditionAssertion.Invoke(), $"condition being asserted is false after " +
                     $"{arg.UptimeMillis} ms");
                 return null;
-            }, 1000, (long)duration.TotalMilliseconds);
+            }, 1000, (long)duration.TotalMilliseconds, null);
             await ((DefaultPromise<VoidType>)promise).WrappedTask;
         }
 
@@ -34,10 +34,12 @@ namespace ScalableIPC.IntegrationTests.Helpers
                         Stop = true
                     };
                 }
-                Assert.False(arg.LastCall, $"Condition being awaited is still false after " +
+                // for better assert failure agreement with message, use Assert.True
+                // rather than Assert.False
+                Assert.True(!arg.LastCall, $"Condition being awaited is still false after " +
                     $"{duration.TotalMilliseconds} ms");
                 return null;
-            }, 1000, (long)duration.TotalMilliseconds);
+            }, 1000, (long)duration.TotalMilliseconds, null);
             await ((DefaultPromise<VoidType>)promise).WrappedTask;
         }
 

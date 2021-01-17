@@ -29,7 +29,7 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> CompletedPromise();
         AbstractPromise<VoidType> Delay(int millis);
         AbstractPromise<T> Poll<T>(Func<PollCallbackArg<T>, PollCallbackRet<T>> cb,
-            int intervalMillis, long totalDurationMillis); 
+            int intervalMillis, long totalDurationMillis, T initialValue); 
         AbstractPromise<List<PromiseResult<T>>> WhenAll<T>(params AbstractPromise<T>[] promises);
         AbstractPromise<List<T>> WhenAllSucceed<T>(params AbstractPromise<T>[] promises);
         AbstractPromise<int> WhenAny<T>(params AbstractPromise<T>[] promises);
@@ -49,7 +49,7 @@ namespace ScalableIPC.Core.Abstractions
 
     public class PollCallbackArg<T>
     {
-        public T PreviousValue { get; set; }
+        public T Value { get; set; }
         public long UptimeMillis { get; set; }
         public bool LastCall { get; set; }
     }

@@ -172,12 +172,6 @@ namespace ScalableIPC.Core.Networks
 
             // done with simulating sending.
 
-            if (!ConnectedNetworks.ContainsKey(remoteEndpoint))
-            {
-                throw new Exception($"{remoteEndpoint} remote endpoint not found.");
-            }
-            var connectedNetwork = ConnectedNetworks[remoteEndpoint];
-
             // Simulate transmission delays and duplication of datagrams.
             // NB: null/empty array of transmission delays simulates dropping of datagrams.
             // multiple transmission delays simulates duplication of datagrams
@@ -190,15 +184,10 @@ namespace ScalableIPC.Core.Networks
             if (transmissionConfig == null)
             {
                 // interpret as immediate transfer to connected network.
-                var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
-                Task.Run(() => {
-                    var transmissionResult = PromiseApi.StartLogicalThread(newLogicalThreadId)
-                        .ThenCompose(_ => connectedNetwork.HandleReceiveAsync(
-                            LocalEndpoint, datagram))
-                        .Finally(() => RecordAndEndLogicalThread());
-                    return ((DefaultPromise<VoidType>)transmissionResult).WrappedTask;
-                });
-                return sendResult;
+                transmissionConfig = new TransmissionConfig
+                {
+                    Delays = new int[] { 0 }
+                };
             }
 
             // do nothing if delays are not specified.
@@ -206,6 +195,8 @@ namespace ScalableIPC.Core.Networks
             {
                 return sendResult;
             }
+
+            var connectedNetwork = ConnectedNetworks[remoteEndpoint];
             for (int i = 0; i < transmissionConfig.Delays.Length; i++)
             {
                 // capture usage of index i before entering closure
@@ -235,6 +226,10 @@ namespace ScalableIPC.Core.Networks
                         })
                         .ThenCompose(deserialized => connectedNetwork.HandleReceiveAsync(
                             LocalEndpoint, deserialized))
+                        .CatchCompose(ex => RecordLogicalThreadException(
+                            "bb741504-3a4b-4ea3-a749-21fc8aec347f",
+                            $"Error occured during message receipt handling from {remoteEndpoint}",
+                            ex))
                         .Finally(() => RecordAndEndLogicalThread());
 
                     return ((DefaultPromise<VoidType>)transmissionResult).WrappedTask;
@@ -247,46 +242,35 @@ namespace ScalableIPC.Core.Networks
         private AbstractPromise<VoidType> HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram datagram)
         {
-            try
+            ISessionHandler sessionHandler;
+            lock (_sessionHandlerStore)
             {
-                ISessionHandler sessionHandler;
-                lock (_sessionHandlerStore)
+                var sessionHandlerWrapper = _sessionHandlerStore.Get(remoteEndpoint, datagram.SessionId);
+                if (sessionHandlerWrapper != null)
                 {
-                    var sessionHandlerWrapper = _sessionHandlerStore.Get(remoteEndpoint, datagram.SessionId);
-                    if (sessionHandlerWrapper != null)
-                    {
-                        sessionHandler = sessionHandlerWrapper.SessionHandler;
-                    }
-                    else
-                    {
-                        if (IsShuttingDown())
-                        {
-                            // silently ignore new session if shutting down.
-                            return PromiseApi.CompletedPromise();
-                        }
-                        
-                        if (SessionHandlerFactory == null)
-                        {
-                            throw new Exception("SessionHandlerFactory is null so new session handler could not be " +
-                                "created for incoming message");
-                        }
-
-                        sessionHandler = SessionHandlerFactory.Create();
-                        sessionHandler.CompleteInit(datagram.SessionId, false, this, remoteEndpoint);
-                        _sessionHandlerStore.Add(remoteEndpoint, datagram.SessionId,
-                            new SessionHandlerWrapper(sessionHandler));
-                    }
+                    sessionHandler = sessionHandlerWrapper.SessionHandler;
                 }
-                return sessionHandler.ProcessReceiveAsync(datagram);
+                else
+                {
+                    if (IsShuttingDown())
+                    {
+                        // silently ignore new session if shutting down.
+                        return PromiseApi.CompletedPromise();
+                    }
+                        
+                    if (SessionHandlerFactory == null)
+                    {
+                        throw new Exception("SessionHandlerFactory is null so new session handler could not be " +
+                            "created for incoming message");
+                    }
+
+                    sessionHandler = SessionHandlerFactory.Create();
+                    sessionHandler.CompleteInit(datagram.SessionId, false, this, remoteEndpoint);
+                    _sessionHandlerStore.Add(remoteEndpoint, datagram.SessionId,
+                        new SessionHandlerWrapper(sessionHandler));
+                }
             }
-            catch (Exception ex)
-            {
-                CustomLoggerFacade.Log(() =>
-                    new CustomLogEvent(GetType(), "Error occured during message " +
-                            $"receipt handling from {remoteEndpoint}", ex)
-                        .AddProperty(LogDataKeyLogPositionId, "bb741504-3a4b-4ea3-a749-21fc8aec347f"));
-                return PromiseApi.CompletedPromise();
-            }
+            return sessionHandler.ProcessReceiveAsync(datagram);
         }
 
         public void RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint,
@@ -297,6 +281,9 @@ namespace ScalableIPC.Core.Networks
             Task.Run(() => {
                 var promise = PromiseApi.StartLogicalThread(newLogicalThreadId)
                     .ThenCompose(_ => _DisposeSessionAsync(remoteEndpoint, sessionId, cause))
+                    .CatchCompose(ex => RecordLogicalThreadException(
+                        "86a662a4-c098-4053-ac26-32b984079419",
+                        "Error encountered while disposing session handler", ex))
                     .Finally(() => RecordAndEndLogicalThread());
                 return ((DefaultPromise<VoidType>)promise).WrappedTask;
             });
@@ -313,20 +300,9 @@ namespace ScalableIPC.Core.Networks
             }
             if (sessionHandler != null)
             {
-                return SwallowException(sessionHandler.SessionHandler.FinaliseDisposeAsync(cause));
+                return sessionHandler.SessionHandler.FinaliseDisposeAsync(cause);
             }
             return PromiseApi.CompletedPromise();
-        }
-
-        private AbstractPromise<VoidType> SwallowException(AbstractPromise<VoidType> promise)
-        {
-            return promise.CatchCompose(ex =>
-            {
-                CustomLoggerFacade.Log(() => new CustomLogEvent(GetType(),
-                        "Error encountered while disposing session handler", ex)
-                    .AddProperty(LogDataKeyLogPositionId, "86a662a4-c098-4053-ac26-32b984079419"));
-                return PromiseApi.CompletedPromise();
-            });
         }
 
         public AbstractPromise<VoidType> ShutdownAsync(int waitPeriod)
@@ -368,6 +344,17 @@ namespace ScalableIPC.Core.Networks
             PromiseApi.EndCurrentLogicalThread();
         }
 
+        private AbstractPromise<VoidType> RecordLogicalThreadException(string logPosition,
+            string message, Exception ex)
+        {
+            var logEvent = new CustomLogEvent(GetType(), message, ex)
+                   .AddProperty(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId)
+                   .AddProperty(LogDataKeyLogPositionId, logPosition);
+            CustomLoggerFacade.Log(() => logEvent);
+            CustomLoggerFacade.TestLog(() => logEvent);
+            return PromiseApi.CompletedPromise();
+        }
+
         private void Record(string logPosition, Action<CustomLogEvent> logEventReceiver)
         {
             var logEvent = new CustomLogEvent(GetType())
@@ -376,39 +363,5 @@ namespace ScalableIPC.Core.Networks
             logEventReceiver.Invoke(logEvent);
             CustomLoggerFacade.TestLog(() => logEvent);
         }
-
-        /*public virtual AbstractPromise<VoidType> CloseSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
-            SessionDisposedException cause)
-        {
-            SessionHandlerWrapper sessionHandler;
-            lock (_sessionHandlerStore)
-            {
-                sessionHandler = _sessionHandlerStore.Get(remoteEndpoint, sessionId);
-                _sessionHandlerStore.Remove(remoteEndpoint, sessionId);
-            }
-            if (sessionHandler != null)
-            {
-                return SwallowException(sessionHandler.SessionHandler.FinaliseDisposeAsync(cause));
-            }
-            return PromiseApi.Resolve(VoidType.Instance);
-        }
-
-        public virtual AbstractPromise<VoidType> CloseSessionsAsync(GenericNetworkIdentifier remoteEndpoint,
-            SessionDisposedException cause)
-        {
-            List<SessionHandlerWrapper> sessionHandlers;
-            lock (_sessionHandlerStore)
-            {
-                sessionHandlers = _sessionHandlerStore.GetSessionHandlers(remoteEndpoint);
-                _sessionHandlerStore.Remove(remoteEndpoint);
-            }
-            var retVal = PromiseApi.Resolve(VoidType.Instance);
-            foreach (var sessionHandler in sessionHandlers)
-            {
-                retVal = retVal.ThenCompose(_ => SwallowException(
-                    sessionHandler.SessionHandler.FinaliseDisposeAsync(cause)));
-            }
-            return retVal;
-        }*/
     }
 }

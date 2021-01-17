@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Dapper.Contrib.Extensions;
+using System;
+using System.Collections.Generic;
 
 namespace ScalableIPC.IntegrationTests.Helpers
 {
@@ -12,5 +14,8 @@ namespace ScalableIPC.IntegrationTests.Helpers
         public string Properties { get; set; }
         public string Callsite { get; set; }
         public string Exception { get; set; }
+
+        [Computed]
+        public Dictionary<string, object> ParsedProperties { get; set; }
     }
 }

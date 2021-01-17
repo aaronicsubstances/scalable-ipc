@@ -459,45 +459,45 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             var instance = DefaultPromiseApi.Instance;
 
             // test expected poll count.
-            var promise = instance.Poll<int>(a =>
+            var promise = instance.Poll(a =>
             {
                 return new PollCallbackRet<int>
                 {
-                    NextValue = a.PreviousValue + 1
+                    NextValue = a.Value + 1
                 };
-            }, 1000, 5000);
+            }, 1000, 5000, 1);
             int retVal = await ((DefaultPromise<int>)promise).WrappedTask;
-            Assert.Equal(5, retVal);
+            Assert.Equal(6, retVal);
             
             // test use of stop.
-            promise = instance.Poll<int>(a =>
+            promise = instance.Poll(a =>
             {
                 return new PollCallbackRet<int>
                 {
-                    Stop = a.PreviousValue == 2,
-                    NextValue = a.PreviousValue + 1
+                    Stop = a.Value == 2,
+                    NextValue = a.Value + 1
                 };
-            }, 1000, 5000);
+            }, 1000, 5000, 0);
             retVal = await ((DefaultPromise<int>)promise).WrappedTask;
             Assert.Equal(3, retVal);
 
             // test that null return equivalent to continue.
-            promise = instance.Poll<int>(a =>
+            promise = instance.Poll(a =>
             {
                 return null;
-            }, 1000, 5000);
+            }, 1000, 5000, 0);
             retVal = await ((DefaultPromise<int>)promise).WrappedTask;
             Assert.Equal(0, retVal);
 
             // test exception catch
-            promise = instance.Poll<int>(a =>
+            promise = instance.Poll(a =>
             {
                 if (a.LastCall)
                 {
                     throw new ArgumentException();
                 }
                 return null;
-            }, 1000, 5000);
+            }, 1000, 5000, 0);
             await Assert.ThrowsAsync<ArgumentException>(() => ((DefaultPromise<int>)promise).WrappedTask);
         }
 

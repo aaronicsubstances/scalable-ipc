@@ -1,6 +1,4 @@
-﻿using Dapper;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using NLog;
@@ -9,9 +7,7 @@ using ScalableIPC.Core.Helpers;
 using ScalableIPC.IntegrationTests.Helpers;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Text;
 
@@ -40,36 +36,6 @@ namespace ScalableIPC.IntegrationTests
                 File.AppendAllText($"logs/{errorTime.ToString("yyyy-MM-dd")}.log",
                     $"{errorTime} Failed to initialize test project {ex}\n");
                 Environment.Exit(1);
-            }
-        }
-
-        internal static void ResetDb()
-        {
-            using (SqlConnection conn = new SqlConnection(Config.ConnectionString))
-            {
-                conn.Open();
-                using (SqlCommand cmd = new SqlCommand("DELETE FROM Logs", conn))
-                {
-                    cmd.ExecuteNonQuery();
-                }
-            }
-        }
-
-        internal static List<TestLogRecord> GetTestLogs(Func<TestLogRecord, bool> validateAndFilter)
-        {
-            return AccessDb(dbConn =>
-            {
-                return dbConn.Query<TestLogRecord>("SELECT * FROM Logs ORDER BY Id")
-                    .Where(validateAndFilter).ToList();
-            });
-        }
-
-        internal static T AccessDb<T>(Func<IDbConnection, T> dbProc)
-        {
-            using (IDbConnection conn = new SqlConnection(Config.ConnectionString))
-            {
-                conn.Open();
-                return dbProc.Invoke(conn);
             }
         }
     }

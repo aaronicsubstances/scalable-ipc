@@ -183,10 +183,10 @@ namespace ScalableIPC.Core.Concurrency
         }
 
         public AbstractPromise<T> Poll<T>(Func<PollCallbackArg<T>, PollCallbackRet<T>> cb,
-            int intervalMillis, long totalDurationMillis)
+            int intervalMillis, long totalDurationMillis, T initialValue)
         {
             var tcs = new TaskCompletionSource<T>();
-            Task.Run(() => StartPolling(DateTime.UtcNow, default, cb, 
+            Task.Run(() => StartPolling(DateTime.UtcNow, initialValue, cb, 
                 intervalMillis, totalDurationMillis, tcs));
             var promise = new DefaultPromise<T>(this, tcs.Task);
             return promise;
@@ -202,7 +202,7 @@ namespace ScalableIPC.Core.Concurrency
                 // NB: current implementation invokes callback at least once.
                 var cbArg = new PollCallbackArg<T>
                 {
-                    PreviousValue = prevValue,
+                    Value = prevValue,
                     UptimeMillis = (long)(DateTime.UtcNow - startTime).TotalMilliseconds
                 };
 
@@ -544,26 +544,41 @@ namespace ScalableIPC.Core.Concurrency
         public DefaultPromiseCompletionSource(AbstractPromiseApi promiseApi,
             ISessionTaskExecutor sessionTaskExecutor)
         {
+            // allow null for sessionTaskExecutor so that promise completion sources
+            // can be created independently of session task executors.
             _sessionTaskExecutor = sessionTaskExecutor;
-            WrappedSource = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            WrappedSource = new TaskCompletionSource<T>();
             RelatedPromise = new DefaultPromise<T>(promiseApi, WrappedSource.Task);
         }
 
         public TaskCompletionSource<T> WrappedSource { get; }
         public AbstractPromise<T> RelatedPromise { get; }
 
-        // Contract here is that both Complete* methods should behave like notifications, and
-        // hence aftermath of these calls should execute outside event loop if possible, but after current
-        // event in event loop has been processed. 
-        // NB: Hence use of RunContinuationsAsynchronously in constructor.
+        // Contract here is that both Complete* methods should execute after current
+        // event in event loop has been processed.
         public void CompleteSuccessfully(T value)
         {
-            _sessionTaskExecutor.PostCallback(() => WrappedSource.TrySetResult(value));
+            if (_sessionTaskExecutor != null)
+            {
+                _sessionTaskExecutor.PostCallback(() => WrappedSource.TrySetResult(value));
+            }
+            else
+            {
+                WrappedSource.TrySetResult(value);
+            }
         }
 
         public void CompleteExceptionally(Exception error)
         {
-            _sessionTaskExecutor.PostCallback(() => WrappedSource.TrySetException(error));
+            if (_sessionTaskExecutor != null)
+            {
+                _sessionTaskExecutor.PostCallback(() => WrappedSource.TrySetException(error));
+            }
+            else
+            {
+                WrappedSource.TrySetException(error);
+            }
         }
     }
 }
