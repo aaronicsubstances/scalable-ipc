@@ -82,7 +82,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [Fact]
         public void TestNormalUsage()
         {
-            var instance = new TestSessionTaskExecutor(0);
+            var instance = new TestSessionTaskExecutor(null, 0);
             Assert.Equal(0, instance.CurrentTimestamp);
 
             var callbackLogs = new List<string>();
@@ -178,9 +178,9 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         {
             Assert.ThrowsAny<Exception>(() =>
             {
-                new TestSessionTaskExecutor(-1);
+                new TestSessionTaskExecutor(null, -1);
             });
-            var instance = new TestSessionTaskExecutor(1);
+            var instance = new TestSessionTaskExecutor(null, 1);
             Assert.ThrowsAny<Exception>(() =>
             {
                 instance.AdvanceTimeBy(-1);
@@ -194,14 +194,14 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [Fact]
         public Task TestPromiseCallbackSuccess()
         {
-            var instance = new TestSessionTaskExecutor(0);
+            var instance = new TestSessionTaskExecutor(null, 0);
             return DefaultSessionTaskExecutorTest.GenericTestPromiseCallbackSuccess(instance);
         }
 
         [Fact]
         public Task TestPromiseCallbackError()
         {
-            var instance = new TestSessionTaskExecutor(0);
+            var instance = new TestSessionTaskExecutor(null, 0);
             return DefaultSessionTaskExecutorTest.GenericTestPromiseCallbackError(instance);
         }
     }

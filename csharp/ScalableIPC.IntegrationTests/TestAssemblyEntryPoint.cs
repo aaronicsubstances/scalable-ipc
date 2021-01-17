@@ -50,23 +50,23 @@ namespace ScalableIPC.IntegrationTests
             Logger logger4Evt = logEvent.TargetLogger != null ?
                 LogManager.GetLogger(logEvent.TargetLogger) :
                 LogManager.GetCurrentClassLogger();
-            var logBuilder = logger4Evt.Warn()
-                .Message(logEvent.Message ?? "")
-                .Exception(logEvent.Error);
-            var allProps = JObject.FromObject(logEvent.Data ?? new Dictionary<string, object>());
-            logBuilder.Property("logData", allProps.ToString(Formatting.None));
-            logBuilder.Write();
+            WriteLog(logger4Evt, logEvent, false);
         }
 
         public void TestLog(CustomLogEvent logEvent)
         {
             Logger logger4TestEvt = LogManager.GetLogger(Assembly.GetExecutingAssembly().GetName().Name);
-            var logBuilder = logger4TestEvt.Info()
-                .Message(logEvent.Message ?? "")
+            WriteLog(logger4TestEvt, logEvent, true);
+        }
+
+        private void WriteLog(Logger logger, CustomLogEvent logEvent, bool forTest)
+        {
+            var logBuilder = forTest ? logger.Debug() : logger.Warn();
+            logBuilder.Message(logEvent.Message ?? "")
                 .Exception(logEvent.Error);
             var allProps = JObject.FromObject(logEvent.Data ?? new Dictionary<string, object>());
             logBuilder.Property("logData", allProps.ToString(Formatting.None));
-            logBuilder.Property("targetLogger", logEvent.TargetLogger ?? logger4TestEvt.Name);
+            logBuilder.Property("targetLogger", logEvent.TargetLogger ?? logger.Name);
             logBuilder.Write();
         }
     }

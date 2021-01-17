@@ -15,6 +15,7 @@ using Xunit;
 
 namespace ScalableIPC.IntegrationTests.Core.Networks
 {
+    [Collection("SequentialTests")]
     public class MemoryNetworkApiTest
     {
         internal static readonly string LogDataKeyConfiguredForSend = "configuredForSend";
@@ -185,6 +186,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             // test that creation fails if shutdown has been started.
             var voidRetPromise = _accraEndpoint.ShutdownAsync(0);
             await ((DefaultPromise<VoidType>)voidRetPromise).WrappedTask;
+
+            Assert.True(_accraEndpoint.IsShuttingDown());
 
             await Assert.ThrowsAnyAsync<Exception>(() =>
             {

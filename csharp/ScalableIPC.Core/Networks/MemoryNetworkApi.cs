@@ -45,6 +45,7 @@ namespace ScalableIPC.Core.Networks
 
         public AbstractPromiseApi PromiseApi { get; set; }
         public ISessionHandlerFactory SessionHandlerFactory { get; set; }
+        public ISessionTaskExecutorGroup SessionTaskExecutorGroup { get; set; }
 
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
 
@@ -295,14 +296,14 @@ namespace ScalableIPC.Core.Networks
             return PromiseApi.CompletedPromise();
         }
 
-        public AbstractPromise<VoidType> ShutdownAsync(int waitPeriod)
+        public AbstractPromise<VoidType> ShutdownAsync(int gracefulWaitPeriodSecs)
         {
             // it is enough to prevent creation of new session handlers
             lock (_isShuttingDownLock)
             {
                 _isShuttingDown = true;
             }
-            return PromiseApi.CompletedPromise();
+            return PromiseApi.Delay(gracefulWaitPeriodSecs * 1000);
         }
 
         public bool IsShuttingDown()
@@ -337,11 +338,9 @@ namespace ScalableIPC.Core.Networks
         private AbstractPromise<VoidType> RecordLogicalThreadException(string logPosition,
             string message, Exception ex)
         {
-            var logEvent = new CustomLogEvent(GetType(), message, ex)
+            CustomLoggerFacade.Log(() => new CustomLogEvent(GetType(), message, ex)
                    .AddProperty(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId)
-                   .AddProperty(LogDataKeyLogPositionId, logPosition);
-            CustomLoggerFacade.Log(() => logEvent);
-            CustomLoggerFacade.TestLog(() => logEvent);
+                   .AddProperty(LogDataKeyLogPositionId, logPosition));
             return PromiseApi.CompletedPromise();
         }
 

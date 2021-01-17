@@ -46,8 +46,8 @@ namespace ScalableIPC.Core.Concurrency
 
         private readonly List<TaskDescriptor> _taskQueue = new List<TaskDescriptor>();
 
-        public TestSessionTaskExecutor(long initialTimestamp):
-            base(0, false)
+        public TestSessionTaskExecutor(string sessionId, long initialTimestamp):
+            base(sessionId, null, 0, false)
         {
             if (initialTimestamp < 0)
             {

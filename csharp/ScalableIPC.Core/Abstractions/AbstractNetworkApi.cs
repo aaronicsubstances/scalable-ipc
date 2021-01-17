@@ -21,6 +21,7 @@ namespace ScalableIPC.Core.Abstractions
         GenericNetworkIdentifier LocalEndpoint { get; set; }
         AbstractPromiseApi PromiseApi { get; set; }
         ISessionHandlerFactory SessionHandlerFactory { get; set; }
+        ISessionTaskExecutorGroup SessionTaskExecutorGroup { get; set; }
         AbstractPromise<VoidType> StartAsync();
         AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             ISessionHandler sessionHandler);
@@ -38,7 +39,7 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> _DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             SessionDisposedException cause);
 
-        AbstractPromise<VoidType> ShutdownAsync(int waitPeriod);
+        AbstractPromise<VoidType> ShutdownAsync(int gracefulWaitPeriodSecs);
         bool IsShuttingDown();
     }
 }

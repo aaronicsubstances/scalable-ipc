@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ScalableIPC.Core.Abstractions;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -6,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Concurrency
 {
-    // Taken from https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler?view=netcore-3.1
+    // Taken and adapted from https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler?view=netcore-3.1
     // on 2020-10-28
 
     // Provides a task scheduler that ensures a maximum concurrency level while
@@ -22,15 +23,21 @@ namespace ScalableIPC.Core.Concurrency
 
         // The maximum concurrency level allowed by this scheduler.
         private readonly int _maxDegreeOfParallelism;
+        
+        // Controls maximum concurrency level allowed across all schedulers
+        // linked to this common instance.
+        private readonly ISessionTaskExecutorGroup _schedulerGroup;
 
         // Indicates whether the scheduler is currently processing work items.
         private int _delegatesQueuedOrRunning = 0;
 
         // Creates a new instance with the specified degree of parallelism.
-        public LimitedConcurrencyLevelTaskScheduler(int maxDegreeOfParallelism)
+        public LimitedConcurrencyLevelTaskScheduler(int maxDegreeOfParallelism,
+            ISessionTaskExecutorGroup schedulerGroup)
         {
             if (maxDegreeOfParallelism < 1) throw new ArgumentOutOfRangeException("maxDegreeOfParallelism");
             _maxDegreeOfParallelism = maxDegreeOfParallelism;
+            _schedulerGroup = schedulerGroup;
         }
 
         // Queues a task to the scheduler.
@@ -43,8 +50,11 @@ namespace ScalableIPC.Core.Concurrency
                 _tasks.AddLast(task);
                 if (_delegatesQueuedOrRunning < _maxDegreeOfParallelism)
                 {
-                    ++_delegatesQueuedOrRunning;
-                    NotifyThreadPoolOfPendingWork();
+                    if (_schedulerGroup == null || _schedulerGroup.ConfirmAddWorker())
+                    {
+                        ++_delegatesQueuedOrRunning;
+                        NotifyThreadPoolOfPendingWork();
+                    }
                 }
             }
         }
@@ -70,6 +80,7 @@ namespace ScalableIPC.Core.Concurrency
                             if (_tasks.Count == 0)
                             {
                                 --_delegatesQueuedOrRunning;
+                                _schedulerGroup?.OnWorkerFinished();
                                 break;
                             }
 

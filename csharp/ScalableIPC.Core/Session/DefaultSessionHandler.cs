@@ -47,7 +47,7 @@ namespace ScalableIPC.Core.Session
             RemoteEndpoint = remoteEndpoint;
             SessionId = sessionId;
 
-            TaskExecutor = new DefaultSessionTaskExecutor();
+            TaskExecutor = new DefaultSessionTaskExecutor(sessionId, networkApi.SessionTaskExecutorGroup);
 
             _stateHandlers = new List<ISessionStateHandler>();
             _stateHandlers.Add(new ReceiveDataHandler(this));
@@ -330,6 +330,10 @@ namespace ScalableIPC.Core.Session
                 {
                     CancelIdleTimeout();
                     CancelAckTimeout();
+
+                    // just in case this method was called abruptly, e.g. in the
+                    // case of a shutdown, record dispose cause again.
+                    _disposalCause = cause;
 
                     foreach (ISessionStateHandler stateHandler in _stateHandlers)
                     {

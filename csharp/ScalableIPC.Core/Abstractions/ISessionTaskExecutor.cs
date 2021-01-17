@@ -18,9 +18,17 @@ namespace ScalableIPC.Core.Abstractions
     /// </summary>
     public interface ISessionTaskExecutor
     {
+        string SessionId { get;  }
+
         // these are the event loop operations.
         void PostCallback(Action cb);
         object ScheduleTimeout(int millis, Action cb);
         void CancelTimeout(object id);
+    }
+
+    public interface ISessionTaskExecutorGroup
+    {
+        bool ConfirmAddWorker();
+        void OnWorkerFinished();
     }
 }
