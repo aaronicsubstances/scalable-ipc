@@ -40,12 +40,10 @@ namespace ScalableIPC.Core.Networks
         {
             _sessionHandlerStore = new SessionHandlerStore();
             PromiseApi = DefaultPromiseApi.Instance;
-            SessionTaskExecutor = new DefaultSessionTaskExecutor();
             ConnectedNetworks = new Dictionary<GenericNetworkIdentifier, MemoryNetworkApi>();
         }
 
         public AbstractPromiseApi PromiseApi { get; set; }
-        public ISessionTaskExecutor SessionTaskExecutor { get; set; }
         public ISessionHandlerFactory SessionHandlerFactory { get; set; }
 
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
@@ -55,14 +53,6 @@ namespace ScalableIPC.Core.Networks
         public ISendBehaviour SendBehaviour { get; set; }
 
         public ITransmissionBehaviour TransmissionBehaviour { get; set; }
-        public int IdleTimeout { get; set; }
-        public int MinRemoteIdleTimeout { get; set; }
-        public int MaxRemoteIdleTimeout { get; set; }
-        public int AckTimeout { get; set; }
-        public int MaxSendWindowSize { get; set; }
-        public int MaxReceiveWindowSize { get; set; }
-        public int MaxRetryCount { get; set; }
-        public int MaximumTransferUnitSize { get; set; }
 
         public AbstractPromise<VoidType> StartAsync()
         {

@@ -1,6 +1,5 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Concurrency;
-using ScalableIPC.Core.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -150,7 +149,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
 
                     // test that even sleeping past schedule timeout delay AND cancelling
                     // will still achieve cancellation.
-                    Thread.Sleep(TimeSpan.FromSeconds(Math.Max(0, delaySecs + (cancel ? 1 : -1))));
+                    Thread.Sleep(TimeSpan.FromSeconds(Math.Max(0, delaySecs + (delaySecs % 2 == 0 ? 1 : -1))));
                     if (cancel)
                     {
                         eventLoop.CancelTimeout(timeoutId);
@@ -180,8 +179,9 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             {
                 Assert.NotNull(stopTime);
                 var expectedStopTime = startTime.AddSeconds(delaySecs);
-                // allow 1 sec precision in comparison.
-                Assert.InRange(stopTime.Value, expectedStopTime.AddSeconds(-1), expectedStopTime.AddSeconds(1));
+                // allow some secs tolerance in comparison.
+                Assert.InRange(stopTime.Value, expectedStopTime, 
+                    expectedStopTime.AddSeconds(delaySecs % 2 == 0 ? 1.5 : 0.5));
             }
         }
 

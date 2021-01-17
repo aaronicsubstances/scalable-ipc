@@ -20,15 +20,6 @@ namespace ScalableIPC.Core.Abstractions
     {
         GenericNetworkIdentifier LocalEndpoint { get; set; }
         AbstractPromiseApi PromiseApi { get; set; }
-        ISessionTaskExecutor SessionTaskExecutor { get; set; }
-        int IdleTimeout { get; set; } // non-positive means disable idle timer 
-        int MinRemoteIdleTimeout { get; set; }
-        int MaxRemoteIdleTimeout { get; set; }
-        int AckTimeout { get; set; } // non-positive means disable ack timer
-        int MaxSendWindowSize { get; set; } // non-positive means use 1.
-        int MaxReceiveWindowSize { get; set; } // non-positive means use 1.
-        int MaxRetryCount { get; set; } // non-positive means disable retries.
-        int MaximumTransferUnitSize { get; set; } // bounded between 512 and datagram max size.
         ISessionHandlerFactory SessionHandlerFactory { get; set; }
         AbstractPromise<VoidType> StartAsync();
         AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,

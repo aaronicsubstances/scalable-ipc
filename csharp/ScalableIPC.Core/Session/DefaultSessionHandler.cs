@@ -33,7 +33,6 @@ namespace ScalableIPC.Core.Session
         private List<ISessionStateHandler> _stateHandlers;
         private CloseHandler _closeHandler;
 
-        private AbstractPromiseApi _promiseApi;
         private object _lastIdleTimeoutId;
         private object _lastAckTimeoutId;
         private SessionDisposedException _disposalCause;
@@ -45,27 +44,16 @@ namespace ScalableIPC.Core.Session
             AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint)
         {
             NetworkApi = networkApi;
-            TaskExecutor = networkApi.SessionTaskExecutor;
             RemoteEndpoint = remoteEndpoint;
             SessionId = sessionId;
 
-            _promiseApi = networkApi.PromiseApi;
+            TaskExecutor = new DefaultSessionTaskExecutor();
 
             _stateHandlers = new List<ISessionStateHandler>();
             _stateHandlers.Add(new ReceiveDataHandler(this));
             _stateHandlers.Add(new SendDataHandler(this));
             _closeHandler = new CloseHandler(this);
             _stateHandlers.Add(_closeHandler);
-
-            // initialize session management parameters from network interface config.
-            IdleTimeout = networkApi.IdleTimeout;
-            MinRemoteIdleTimeout = networkApi.MinRemoteIdleTimeout;
-            MaxRemoteIdleTimeout = networkApi.MaxRemoteIdleTimeout;
-            AckTimeout = networkApi.AckTimeout;
-            MaxRetryCount = networkApi.MaxRetryCount;
-            MaximumTransferUnitSize = networkApi.MaximumTransferUnitSize;
-            MaxSendWindowSize = networkApi.MaxSendWindowSize;
-            MaxReceiveWindowSize = networkApi.MaxReceiveWindowSize;
         }
 
         public ISendHandlerAssistant CreateSendHandlerAssistant()
@@ -147,12 +135,12 @@ namespace ScalableIPC.Core.Session
                     OnDatagramDiscarded(datagram);
                 }
             });
-            return _promiseApi.CompletedPromise();
+            return NetworkApi.PromiseApi.CompletedPromise();
         }
 
         public AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message)
         {
-            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(TaskExecutor);
+            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(TaskExecutor);
             TaskExecutor.PostCallback(() =>
             {
                 if (SessionState >= StateDisposeAwaiting)
@@ -191,7 +179,7 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> CloseAsync(bool closeGracefully)
         {
-            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(TaskExecutor);
+            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(TaskExecutor);
             TaskExecutor.PostCallback(() =>
             {
                 if (SessionState == StateDisposed)
@@ -331,7 +319,7 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause)
         {
-            PromiseCompletionSource<VoidType> promiseCb = _promiseApi.CreateCallback<VoidType>(TaskExecutor);
+            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(TaskExecutor);
             TaskExecutor.PostCallback(() =>
             {
                 if (SessionState == StateDisposed)

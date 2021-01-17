@@ -17,8 +17,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 {
     public class MemoryNetworkApiTest
     {
-        internal static readonly string LogDataKeySessionId = "sessionId";
-        internal static readonly string LogDataKeyRemoteEndpoint = "remoteEndpoint";
         internal static readonly string LogDataKeyConfiguredForSend = "configuredForSend";
 
         private readonly MemoryNetworkApi _accraEndpoint, _kumasiEndpoint;
@@ -31,8 +29,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             {
                 LocalEndpoint = _accraAddr,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
-                IdleTimeout = 5000,
-                AckTimeout = 3000
             };
 
             _kumasiAddr = new GenericNetworkIdentifier { HostName = "kumasi" };
@@ -40,8 +36,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             {
                 LocalEndpoint = _kumasiAddr,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
-                IdleTimeout = 5000,
-                AckTimeout = 3000
             };
             _accraEndpoint.ConnectedNetworks.Add(_kumasiAddr, _kumasiEndpoint);
             _kumasiEndpoint.ConnectedNetworks.Add(_accraAddr, _accraEndpoint);
@@ -115,6 +109,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
             Assert.Equal(handlerArg, sessionHandler);
             Assert.Equal(_accraEndpoint, sessionHandler.NetworkApi);
+            Assert.Equal(sessionId, sessionHandler.SessionId);
+            Assert.Equal(_kumasiAddr, sessionHandler.RemoteEndpoint);
 
             var testLogs = GetValidatedTestLogs();
             var logNavigator = new LogNavigator<TestLogRecord>(testLogs);
@@ -124,8 +120,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.Null(record);
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
-            Assert.Equal(sessionId, record.ParsedProperties[LogDataKeySessionId]);
-            Assert.Equal(_kumasiAddr.ToString(), record.ParsedProperties[LogDataKeyRemoteEndpoint]);
             Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSend]);
 
             // test that session id can't be reused. 
@@ -144,6 +138,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
             Assert.Equal(typeof(TestSessionHandler), sessionHandler2.GetType());
             Assert.Equal(_accraEndpoint, sessionHandler2.NetworkApi);
+            Assert.Equal(_kumasiAddr, sessionHandler2.RemoteEndpoint);
 
             testLogs = GetValidatedTestLogs();
             logNavigator = new LogNavigator<TestLogRecord>(testLogs);
@@ -153,9 +148,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.NotNull(record);
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
-            var sessionId2 = (string)record.ParsedProperties[LogDataKeySessionId];
+            var sessionId2 = sessionHandler2.SessionId;
             Assert.NotNull(sessionId2);
-            Assert.Equal(_kumasiAddr.ToString(), record.ParsedProperties[LogDataKeyRemoteEndpoint]);
             Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSend]);
 
             // test that session id can't be reused. 
@@ -288,7 +282,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
         class TestSessionHandler : ISessionHandler
         {
-            public TestSessionHandler():
+            public TestSessionHandler() :
                 this(true)
             { }
 
@@ -307,19 +301,19 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "CompleteInit() called")
                     .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
                         "3f4f66e2-dafc-4c79-aa42-6f988a337d78")
-                    .AddProperty(LogDataKeySessionId, sessionId)
-                    .AddProperty(LogDataKeyRemoteEndpoint, remoteEndpoint.ToString())
                     .AddProperty(LogDataKeyConfiguredForSend, configureForInitialSend));
                 NetworkApi = networkApi;
+                RemoteEndpoint = remoteEndpoint;
+                SessionId = sessionId;
             }
 
             public AbstractNetworkApi NetworkApi { get; private set; }
 
-            public GenericNetworkIdentifier RemoteEndpoint => throw new NotImplementedException();
+            public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
+
+            public string SessionId { get; private set; }
 
             public ISessionTaskExecutor TaskExecutor => throw new NotImplementedException();
-
-            public string SessionId => throw new NotImplementedException();
 
             public int MaxReceiveWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxSendWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }

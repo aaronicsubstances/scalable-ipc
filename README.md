@@ -28,6 +28,7 @@ The following tests in DefaultSessionTaskExecutorTest are currently non-determin
 
    * TestSerialLikeCallbackExecution - for (2, false)
    * TestGuaranteedFairnessOfCallbackProcessing - for (2,)
+   * TestTimeout - for cancel = false
 
 ## Roadmap
 

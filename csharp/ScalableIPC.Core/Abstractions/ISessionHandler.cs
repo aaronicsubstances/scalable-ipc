@@ -17,13 +17,14 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> CloseAsync();
         AbstractPromise<VoidType> CloseAsync(bool closeGracefully);
         AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause);
-        int MaxReceiveWindowSize { get; set; }
-        int MaxSendWindowSize { get; set; }
-        int MaximumTransferUnitSize { get; set; }
-        int MaxRetryCount { get; set; }
-        int AckTimeout { get; set; }
-        int IdleTimeout { get; set; }
+
+        int IdleTimeout { get; set; } // non-positive means disable idle timer 
         int MinRemoteIdleTimeout { get; set; }
         int MaxRemoteIdleTimeout { get; set; }
+        int AckTimeout { get; set; } // non-positive means disable ack timer
+        int MaxSendWindowSize { get; set; } // non-positive means use 1.
+        int MaxReceiveWindowSize { get; set; } // non-positive means use 1.
+        int MaxRetryCount { get; set; } // non-positive means disable retries.
+        int MaximumTransferUnitSize { get; set; } // bounded between 512 and datagram max size.
     }
 }
