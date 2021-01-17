@@ -1,4 +1,5 @@
 ﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -31,6 +32,9 @@ namespace ScalableIPC.Core.Concurrency
         // Indicates whether the scheduler is currently processing work items.
         private int _delegatesQueuedOrRunning = 0;
 
+        private readonly Action _notificationListener;
+        private bool _notificationPending = false;
+
         // Creates a new instance with the specified degree of parallelism.
         public LimitedConcurrencyLevelTaskScheduler(int maxDegreeOfParallelism,
             ISessionTaskExecutorGroup schedulerGroup)
@@ -38,6 +42,24 @@ namespace ScalableIPC.Core.Concurrency
             if (maxDegreeOfParallelism < 1) throw new ArgumentOutOfRangeException("maxDegreeOfParallelism");
             _maxDegreeOfParallelism = maxDegreeOfParallelism;
             _schedulerGroup = schedulerGroup;
+            _notificationListener = () =>
+            {
+                lock (_tasks)
+                {
+                    ++_delegatesQueuedOrRunning;
+                    RecordConcurrencyLevel();
+                    NotifyThreadPoolOfPendingWork();
+                    _notificationPending = false;
+                }
+            };
+        }
+
+        private void RecordConcurrencyLevel()
+        {
+            CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(),
+                $"Instance#{GetHashCode()}: {_delegatesQueuedOrRunning}")
+                .AddProperty(CustomLogEvent.ThrottledTaskSchedulerId, "" + GetHashCode())
+                .AddProperty(CustomLogEvent.ThrottledTaskSchedulerConcurrencyLevel, _delegatesQueuedOrRunning));
         }
 
         // Queues a task to the scheduler.
@@ -50,10 +72,25 @@ namespace ScalableIPC.Core.Concurrency
                 _tasks.AddLast(task);
                 if (_delegatesQueuedOrRunning < _maxDegreeOfParallelism)
                 {
-                    if (_schedulerGroup == null || _schedulerGroup.ConfirmAddWorker())
+                    // only request notification if there is no ongoing work
+                    // in thread pool for this instance.
+                    bool requestNotification = _delegatesQueuedOrRunning == 0;
+                    if (!_notificationPending)
                     {
-                        ++_delegatesQueuedOrRunning;
-                        NotifyThreadPoolOfPendingWork();
+                        if (_schedulerGroup == null || _schedulerGroup.ConfirmAddWorker(
+                            requestNotification ? _notificationListener : null))
+                        {
+                            ++_delegatesQueuedOrRunning;
+                            RecordConcurrencyLevel();
+                            NotifyThreadPoolOfPendingWork();
+                        }
+                        else
+                        {
+                            if (requestNotification)
+                            {
+                                _notificationPending = true;
+                            }
+                        }
                     }
                 }
             }
@@ -80,6 +117,7 @@ namespace ScalableIPC.Core.Concurrency
                             if (_tasks.Count == 0)
                             {
                                 --_delegatesQueuedOrRunning;
+                                RecordConcurrencyLevel();
                                 _schedulerGroup?.OnWorkerFinished();
                                 break;
                             }

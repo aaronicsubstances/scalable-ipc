@@ -16,6 +16,8 @@ namespace ScalableIPC.Core.Helpers
         public static readonly string LogDataKeySessionTaskExecutionId = "sessionTaskExecutionId";
         public static readonly string LogDataKeyEndingSessionTaskExecutionId = "endingSessionTaskExecutionId";
         public static readonly string LogDataKeyNewSessionTaskId = "newSessionTaskExecutionId";
+        public static readonly string ThrottledTaskSchedulerId = "throttledTaskSchedulerId";
+        public static readonly string ThrottledTaskSchedulerConcurrencyLevel = "throttledTaskSchedulerConcurrencyLevel";
 
         public delegate string CustomLogEventMessageGenerator(
             Func<string, string> jsonSerializerFunc, Func<string, string> stringifyFunc);

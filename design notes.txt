@@ -7,11 +7,10 @@ C#.NET Core implementation
 
 Event Loop Libraries
 ---------------------
-Java - Use ScheduledThreadPoolExecutor with 1 thread.
-C# - Custom task scheduler with no parallelism and synchronization lock, to effectively resemble Java's case, and CancellationToken for cancelTimeout
+C# - Custom task scheduler with no parallelism and synchronization lock, and CancellationToken for cancelTimeout
+Java - Port C# solution.
 NodeJS - setImmediate().
 *Consider Python since it has event loop, future, async sleep
-*Consider PHP too since it has event loop? ReactPHP has event loop, promises and setTimeout, so its implementation can proceed like NodeJS
 Ruby?
 
 Web Server Interfaces for use with HTTP frameworks over non-TCP
@@ -23,8 +22,5 @@ Java - Servlet Container. Undertow.io looks like what will fit our purpose, by w
 
 NodeJS - Effectively http.createServer(app). where app is the framework (e.g. ExpressJs).
  - Basically mimick http module. And then when http.createServer(app) is called, our internal logic kicks in. Example: https://www.npmjs.com/package/node-fastcgi
-
-PHP - ReactPHP + Symphony target?
- - Probably $sfRes = kernel->process($sfReq) is the interface to attach our work to.
 
 *For client calls, libraries will have to be built for each platform

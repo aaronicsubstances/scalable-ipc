@@ -162,23 +162,32 @@ namespace ScalableIPC.Core.Concurrency
     {
         private int _delegatesQueuedOrRunning = 0;
         private readonly int _maxDegreeOfParallelism;
+        private readonly LinkedList<Action> _notificationListeners;
 
         public DefaultSessionTaskExecutorGroup(int maxDegreeOfParallelism)
         {
             if (maxDegreeOfParallelism < 1) throw new ArgumentOutOfRangeException("maxDegreeOfParallelism");
             _maxDegreeOfParallelism = maxDegreeOfParallelism;
+            _notificationListeners = new LinkedList<Action>();
         }
         
-        public bool ConfirmAddWorker()
+        public bool ConfirmAddWorker(Action notificationListener)
         {
             lock (this)
             {
                 if (_delegatesQueuedOrRunning < _maxDegreeOfParallelism)
                 {
-                    _delegatesQueuedOrRunning++;
+                    ++_delegatesQueuedOrRunning;
                     return true;
                 }
-                return false;
+                else
+                {
+                    if (notificationListener != null)
+                    {
+                        _notificationListeners.AddLast(notificationListener);
+                    }
+                    return false;
+                }
             }
         }
 
@@ -186,7 +195,19 @@ namespace ScalableIPC.Core.Concurrency
         {
             lock (this)
             {
-                _delegatesQueuedOrRunning--;
+                // see if someone is interested in being notified to start
+                // working on his tasks. in that case leave concurrency level
+                // unchanged.
+                if (_notificationListeners.Count > 0)
+                {
+                    var first = _notificationListeners.First.Value;
+                    _notificationListeners.RemoveFirst();
+                    first.Invoke();
+                }
+                else
+                {
+                    --_delegatesQueuedOrRunning;
+                }
             }
         }
     }

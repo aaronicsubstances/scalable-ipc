@@ -22,12 +22,12 @@ namespace ScalableIPC.IntegrationTests.Helpers
             await ((DefaultPromise<VoidType>)promise).WrappedTask;
         }
 
-        internal static async Task WaitAsync(TimeSpan duration, Func<bool> conditionAwaiting)
+        internal static async Task WaitAsync(TimeSpan duration, Func<bool, bool> conditionAwaiting)
         {
             var instance = DefaultPromiseApi.Instance;
             var promise = instance.Poll<VoidType>(arg =>
             {
-                if (conditionAwaiting.Invoke())
+                if (conditionAwaiting.Invoke(arg.LastCall))
                 {
                     return new PollCallbackRet<VoidType>
                     {
@@ -56,12 +56,12 @@ namespace ScalableIPC.IntegrationTests.Helpers
         public async Task TestWaitAsync()
         {
             var startTime = DateTime.UtcNow;
-            await WaitAsync(TimeSpan.FromSeconds(3), () =>
+            await WaitAsync(TimeSpan.FromSeconds(3), _ =>
             {
                 return (DateTime.UtcNow - startTime).TotalSeconds > 2;
             });
             startTime = DateTime.UtcNow;
-            await Assert.ThrowsAnyAsync<Exception>(() => WaitAsync(TimeSpan.FromSeconds(3), () =>
+            await Assert.ThrowsAnyAsync<Exception>(() => WaitAsync(TimeSpan.FromSeconds(3), _ =>
             {
                 return (DateTime.UtcNow - startTime).TotalSeconds > 5;
             }));

@@ -80,7 +80,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     .Select(x => (string)x.ParsedProperties[CustomLogEvent.LogDataKeyNewLogicalThreadId])
                     .ToList();
             }
-            await Awaitility.WaitAsync(TimeSpan.FromSeconds(waitTimeSecs), () =>
+            await Awaitility.WaitAsync(TimeSpan.FromSeconds(waitTimeSecs), _ =>
             {
                 var testLogs = GetValidatedTestLogs().Where(x => x.Id > lastId);
                 foreach (var testLog in testLogs)

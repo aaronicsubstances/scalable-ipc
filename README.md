@@ -22,14 +22,6 @@ The initial motivation for this protocol came from deliberations on IPC efficien
   * Optimized for networking within single host machine by using Unix domain sockets and Windows named pipes. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale from single host networking to interhost networking.
   * Extensible for use as a standalone transport layer protocol, by using UDP and allowing for congestion control, security (e.g. DTLS), forward error correction, and whatever is possible with custom PDU types, options and session state handlers. In any case protocol is already designed to make maximum utilisation of "long fat networks", ie internal networks with large bandwidth-delay products.
 
-## Testing
-
-The following tests in DefaultSessionTaskExecutorTest are currently non-deterministic and do not count towards the success of tests in this project. In the future they may be removed entirely.
-
-   * TestSerialLikeCallbackExecution - for (2, false)
-   * TestGuaranteedFairnessOfCallbackProcessing - for (2,)
-   * TestTimeout - for cancel = false
-
 ## Roadmap
 
  * C#.NET Core implementation is currently underway as the initial implementation.

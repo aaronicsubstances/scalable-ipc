@@ -14,6 +14,9 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
     [Collection("SequentialTests")]
     public class DefaultSessionTaskExecutorTest
     {
+        private static readonly string LogDataKeyWorkIndex = "workIndex";
+        private static readonly string LogDataKeyWorkLogIndex = "workLogIndex";
+        
         [InlineData(0, true)]
         [InlineData(1, false)]
         [InlineData(1, true)]
@@ -66,16 +69,22 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             }
             else
             {
-                // According to http://www.albahari.com/threading/part4.aspx,
+                // Although in practice maxDegreeOfParallelism = 1 has not failed before
+                // even without lock,
+                // according to http://www.albahari.com/threading/part4.aspx,
                 // don't rely on memory consistency without the use of ordinary locks even
                 // if there's no thread interference due to single degree of parallelism.
-                if (maxDegreeOfParallelism > 1)
+
+                // could still pass, especially on CPUs with low core count.
+                try
                 {
-                    // currently flaky, especially on CPUs with low core count.
-                    if (Environment.ProcessorCount > 4)
-                    {
-                        Assert.NotEqual(eventualExpected, actualCbCount);
-                    }
+                    Assert.NotEqual(eventualExpected, actualCbCount);
+                }
+                catch (Exception)
+                {
+                    CustomLoggerFacade.WriteToStdOut(
+                        $"TestSerialLikeCallbackExecution({maxDegreeOfParallelism}, " +
+                        $"{runCallbacksUnderMutex}) passed.", null);
                 }
             }
         }
@@ -84,7 +93,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [InlineData(1)]
         [InlineData(2)]
         [Theory]
-        public async Task TestGuaranteedFairnessOfCallbackProcessing(int maxDegreeOfParallelism)
+        public async Task TestExpectedOrderOfCallbackProcessing(int maxDegreeOfParallelism)
         {
             DefaultSessionTaskExecutor eventLoop;
             if (maxDegreeOfParallelism < 1)
@@ -104,7 +113,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 int captured = i;
                 eventLoop.PostCallback(() =>
                 {
-                    if (captured == 0)
+                    if (captured < 5)
                     {
                         // by forcing current thread to sleep, another thread will definitely
                         // add to collection before the first item, breaking guarantee.
@@ -124,10 +133,15 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             }
             else
             {
-                // currently flaky, especially on CPUs with low core count.
-                if (Environment.ProcessorCount > 4)
+                // could still pass, especially on CPUs with low core count.
+                try
                 {
                     Assert.NotEqual(expectedCollection, actualCollection);
+                }
+                catch (Exception)
+                {
+                    CustomLoggerFacade.WriteToStdOut(
+                        $"TestExpectedOrderOfCallbackProcessing({maxDegreeOfParallelism}) passed.", null);
                 }
             }
         }
@@ -294,7 +308,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             {
                 throw new NotImplementedException("testing cb");
             });
-            var cbExecutionIds = await WaitForSessionTaskExecution(2);
+            var cbExecutionIds = await WaitForSessionTaskExecutions(2);
             Assert.Single(cbExecutionIds);
             var logNavigator = new LogNavigator<TestLogRecord>(GetValidatedTestLogs());
             var record = logNavigator.Next(
@@ -311,7 +325,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             {
                 throw new NotImplementedException("testing ex");
             });
-            cbExecutionIds = await WaitForSessionTaskExecution(4);
+            cbExecutionIds = await WaitForSessionTaskExecutions(4);
             Assert.Single(cbExecutionIds);
             logNavigator = new LogNavigator<TestLogRecord>(GetValidatedTestLogs());
             record = logNavigator.Next(
@@ -328,18 +342,113 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             {
                 throw new NotImplementedException("testing cancelled");
             }));            
-            await Assert.ThrowsAnyAsync<Exception>(() => WaitForSessionTaskExecution(4));
+            await Assert.ThrowsAnyAsync<Exception>(() => WaitForSessionTaskExecutions(4));
             logNavigator = new LogNavigator<TestLogRecord>(GetValidatedTestLogs());
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("5394ab18-fb91-4ea3-b07a-e9a1aa150dd6"));
             Assert.Null(record);
         }
 
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(5)]
+        [Theory]
+        public async Task TestLimitedGroupConcurrencyLevel(int taskExecutorCount)
+        {
+            TestDatabase.ResetDb();
+
+            var expectedGroupConcurrencyLevel = Math.Max(1, taskExecutorCount / 2);
+            var group = new DefaultSessionTaskExecutorGroup(expectedGroupConcurrencyLevel);
+            var taskExecutors = new List<DefaultSessionTaskExecutor>();
+            for (int i = 0; i < taskExecutorCount; i++)
+            {
+                taskExecutors.Add(new DefaultSessionTaskExecutor($"session-{i}", group));
+            }
+            int workCount = 1000, sleepTime = 10;
+            var randSelector = new Random();
+            for (int i = 0; i < workCount; i++)
+            {
+                var captured = i;
+                var randExecutorIdx = randSelector.Next(taskExecutorCount);
+                taskExecutors[randExecutorIdx].PostCallback(() =>
+                {
+                    CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType())
+                        .AddProperty(LogDataKeyWorkIndex, captured)
+                        .AddProperty(LogDataKeyWorkLogIndex, 0));
+                    Thread.Sleep(sleepTime);
+                    CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType())
+                        .AddProperty(LogDataKeyWorkIndex, captured)
+                        .AddProperty(LogDataKeyWorkLogIndex, 1));
+                });
+            }
+            var cbExecutionIds = await WaitForSessionTaskExecutions(workCount * sleepTime / 1000 + 10);
+            Assert.Equal(workCount, cbExecutionIds.Count);
+            AssertExpectedEventLoopBehaviour(taskExecutorCount, expectedGroupConcurrencyLevel);
+        }
+
+        private void AssertExpectedEventLoopBehaviour(int taskExecutorCount, int expectedGroupConcurrencyLevel)
+        {
+            var concurrencyLevelMap = new Dictionary<string, int>();
+
+            // ordering of work logs is required only if there is only 1 task executor around.
+            bool assertOrder = taskExecutorCount == 1;
+
+            int expectedWorkIndex = 0;
+            bool startWorkLogSeen = false;
+
+            var testLogs = GetValidatedTestLogs();
+            foreach (var testLog in testLogs)
+            {
+                if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.ThrottledTaskSchedulerId))
+                {
+                    // NB: newtonsoft.json deserializes integers into objects as longs
+                    var schedulerId = (string)testLog.ParsedProperties[CustomLogEvent.ThrottledTaskSchedulerId];
+                    var concurrencyLevel = (long)testLog.ParsedProperties[
+                        CustomLogEvent.ThrottledTaskSchedulerConcurrencyLevel];
+                    if (concurrencyLevelMap.ContainsKey(schedulerId))
+                    {
+                        concurrencyLevelMap[schedulerId] = (int)concurrencyLevel;
+                    }
+                    else
+                    {
+                        concurrencyLevelMap.Add(schedulerId, (int)concurrencyLevel);
+                    }
+                    int actualConcurrencyLevel = concurrencyLevelMap.Values.Sum();
+                    Assert.True(actualConcurrencyLevel <= expectedGroupConcurrencyLevel,
+                        $"Group concurrency level of {expectedGroupConcurrencyLevel} is not being respected. " +
+                        $"Observed {actualConcurrencyLevel}");
+                }
+                else if (assertOrder && testLog.ParsedProperties.ContainsKey(LogDataKeyWorkIndex))
+                {
+                    // NB: newtonsoft.json deserializes integers into objects as longs
+                    var actualWorkIndex = (long)testLog.ParsedProperties[LogDataKeyWorkIndex];
+                    var actualWorkLogIndex = (long)testLog.ParsedProperties[LogDataKeyWorkLogIndex];
+
+                    Assert.Equal(expectedWorkIndex, (int)actualWorkIndex);
+
+                    // also ensure there is no interleaving.
+                    if (startWorkLogSeen)
+                    {
+                        Assert.Equal(1, actualWorkLogIndex);
+                        expectedWorkIndex++;
+                        startWorkLogSeen = false;
+                    }
+                    else
+                    {
+                        Assert.Equal(0, actualWorkLogIndex);
+                        startWorkLogSeen = true;
+                    }
+                }
+            }
+        }
+
         private List<TestLogRecord> GetValidatedTestLogs()
         {
             return TestDatabase.GetTestLogs(record =>
             {
-                if (record.Logger.Contains(typeof(DefaultSessionTaskExecutor).FullName))
+                if (record.Logger.Contains(typeof(DefaultSessionTaskExecutor).FullName) ||
+                    record.Logger.Contains(typeof(DefaultSessionTaskExecutorTest).FullName) ||
+                    record.Logger.Contains(typeof(LimitedConcurrencyLevelTaskScheduler).FullName))
                 {
                     return true;
                 }
@@ -347,7 +456,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             });
         }
 
-        private async Task<List<string>> WaitForSessionTaskExecution(int waitSecs)
+        private async Task<List<string>> WaitForSessionTaskExecutions(int waitSecs)
         {
             var testLogs = GetValidatedTestLogs();
             var newCallbackExecutionIds = new List<string>();
@@ -363,9 +472,12 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             }
             if (newCallbackExecutionIds.Count > 0)
             {
-                await Awaitility.WaitAsync(TimeSpan.FromSeconds(waitSecs), () =>
+                await Awaitility.WaitAsync(TimeSpan.FromSeconds(waitSecs), lastCall =>
                 {
+                    var startRemCount = newCallbackExecutionIds.Count;
+                    CustomLoggerFacade.WriteToStdOut($"Start rem count = {startRemCount}", null);
                     var testLogs = GetValidatedTestLogs();
+                    CustomLoggerFacade.WriteToStdOut($"Fetch count = {testLogs.Count}", null);
                     foreach (var testLog in testLogs)
                     {
                         if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyEndingSessionTaskExecutionId))
@@ -373,6 +485,11 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                             newCallbackExecutionIds.Remove((string)testLog.ParsedProperties[
                                 CustomLogEvent.LogDataKeyEndingSessionTaskExecutionId]);
                         }
+                    }
+                    CustomLoggerFacade.WriteToStdOut($"End rem count = {newCallbackExecutionIds.Count}", null);
+                    if (lastCall && startRemCount == newCallbackExecutionIds.Count)
+                    {
+                        Assert.Empty(newCallbackExecutionIds);
                     }
                     return newCallbackExecutionIds.Count == 0;
                 });

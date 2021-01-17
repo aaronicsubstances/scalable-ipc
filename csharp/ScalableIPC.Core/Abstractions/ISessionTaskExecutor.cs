@@ -28,7 +28,7 @@ namespace ScalableIPC.Core.Abstractions
 
     public interface ISessionTaskExecutorGroup
     {
-        bool ConfirmAddWorker();
+        bool ConfirmAddWorker(Action notificationListener);
         void OnWorkerFinished();
     }
 }

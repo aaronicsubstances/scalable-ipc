@@ -29,6 +29,7 @@ namespace ScalableIPC.IntegrationTests
                 NLog.Extensions.Logging.ConfigSettingLayoutRenderer.DefaultConfiguration = config;
                 Config = config.Get<TestConfiguration>();
                 CustomLoggerFacade.Logger = new TestLogger();
+                TestDatabase.ResetDb();
             }
             catch (Exception ex)
             {
@@ -42,8 +43,12 @@ namespace ScalableIPC.IntegrationTests
 
     class TestLogger : ICustomLogger
     {
+        private static readonly Logger _logger4TestEvts = LogManager.GetLogger(
+            Assembly.GetExecutingAssembly().GetName().Name);
+        private static readonly Logger _stdoutLogger = LogManager.GetLogger("StandardOutputEquivalent");
+
         public bool LogEnabled => true;
-        public bool TestLogEnabled => true;
+        public bool TestLogEnabled => _logger4TestEvts.IsDebugEnabled;
 
         public void Log(CustomLogEvent logEvent)
         {
@@ -55,8 +60,12 @@ namespace ScalableIPC.IntegrationTests
 
         public void TestLog(CustomLogEvent logEvent)
         {
-            Logger logger4TestEvt = LogManager.GetLogger(Assembly.GetExecutingAssembly().GetName().Name);
-            WriteLog(logger4TestEvt, logEvent, true);
+            WriteLog(_logger4TestEvts, logEvent, true);
+        }
+
+        public void WriteToStdOut(string message, Exception ex)
+        {
+            _stdoutLogger.Debug(ex, message);
         }
 
         private void WriteLog(Logger logger, CustomLogEvent logEvent, bool forTest)
