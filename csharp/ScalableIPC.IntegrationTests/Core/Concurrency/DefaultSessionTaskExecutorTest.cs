@@ -18,15 +18,17 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         private static readonly string LogDataKeyWorkLogIndex = "workLogIndex";
 
         [InlineData(0, true)]
-        //[InlineData(1, false)]
+        [InlineData(1, false)]
         [InlineData(1, true)]
         [InlineData(2, false)]
         [InlineData(2, true)]
         [Theory]
         public async Task TestSerialLikeCallbackExecution(int maxDegreeOfParallelism, bool runCallbacksUnderMutex)
         {
+            TestDatabase.ResetDb();
+
             DefaultSessionTaskExecutor eventLoop;
-            if (maxDegreeOfParallelism < 1)
+            if (maxDegreeOfParallelism == 0)
             {
                 // ensure testing of production usage constructor.
                 eventLoop = new DefaultSessionTaskExecutor(null, null);
@@ -60,8 +62,8 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                     }
                 });
             }
-            // wait for 1 sec for callbacks to be executed.
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            // wait for callbacks to be executed.
+            await WaitForSessionTaskExecutions(10);
 
             int eventualExpected = expectedCbCount * (expectedCbCount % 2 == 0 ? 1 : -1);
             if (runCallbacksUnderMutex)
@@ -83,7 +85,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 }
                 catch (Exception)
                 {
-                    CustomLoggerFacade.WriteToStdOut(
+                    CustomLoggerFacade.WriteToStdOut(true,
                         $"TestSerialLikeCallbackExecution({maxDegreeOfParallelism}, " +
                         $"{runCallbacksUnderMutex}) passed.", null);
                 }
@@ -93,11 +95,16 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [InlineData(0)]
         [InlineData(1)]
         [InlineData(2)]
+        [InlineData(3)]
+        [InlineData(4)]
+        [InlineData(5)]
         [Theory]
         public async Task TestExpectedOrderOfCallbackProcessing(int maxDegreeOfParallelism)
         {
+            TestDatabase.ResetDb();
+
             DefaultSessionTaskExecutor eventLoop;
-            if (maxDegreeOfParallelism < 1)
+            if (maxDegreeOfParallelism == 0)
             {
                 // ensure testing of production usage constructor.
                 eventLoop = new DefaultSessionTaskExecutor(null, null);
@@ -115,17 +122,22 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 int captured = i;
                 eventLoop.PostCallback(() =>
                 {
-                    if (captured < 5)
+                    if (captured % 2 > 0)
                     {
-                        // by forcing current thread to sleep, another thread will definitely
-                        // add to collection before the first item, breaking guarantee.
+                        // by forcing current thread to sleep in every other iteration,
+                        // we increase the likelihood that other threads would have
+                        // picked tasks from task queue, but will be blocked by
+                        // runUnderMutex lock, waiting for this current one to finish.
+                        // Hence when current one finishes, the OS thread scheduler
+                        // can pick any of the waiters to run, and thus once in a while
+                        // out of order addition to actualCollection will occur.
                         Thread.Sleep(10);
                     }
                     actualCollection.Add(captured);
                 });
             }
-            // wait for 1 sec for callbacks to be executed.
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            // wait for callbacks to be executed.
+            await WaitForSessionTaskExecutions(10);
 
             Assert.Equal(expectedCbCount, actualCollection.Count);
 
@@ -135,14 +147,15 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             }
             else
             {
-                // could still pass, especially on CPUs with low core count.
+                // could still pass, especially on CPUs with low core count and also for
+                // values of maxDegreeOfParallelism close to 1 (likely because only 1 waiter is usually around).
                 try
                 {
                     Assert.NotEqual(expectedCollection, actualCollection);
                 }
                 catch (Exception)
                 {
-                    CustomLoggerFacade.WriteToStdOut(
+                    CustomLoggerFacade.WriteToStdOut(true,
                         $"TestExpectedOrderOfCallbackProcessing({maxDegreeOfParallelism}) passed.", null);
                 }
             }
@@ -190,6 +203,8 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             await ((DefaultPromise<VoidType>)promiseCb.RelatedPromise).WrappedTask;
 
             // wait for any pending callback to execute.
+            // NB: can't use wait for session tasks because cancellation prevents
+            // ending execution id to be logged.
             await Task.Delay(2000);
 
             if (cancel)
@@ -200,8 +215,9 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             {
                 Assert.NotNull(stopTime);
                 var expectedStopTime = startTime.AddSeconds(delaySecs);
-                // allow some secs tolerance in comparison
-                Assert.InRange(stopTime.Value, expectedStopTime, 
+                // allow some secs tolerance in comparison using 
+                // time differences observed infailed/flaky test results.
+                Assert.InRange(stopTime.Value, expectedStopTime.AddSeconds(-1), 
                     expectedStopTime.AddSeconds(1.5));
             }
         }
@@ -374,7 +390,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             for (int i = 0; i < taskExecutorCount; i++)
             {
                 DefaultSessionTaskExecutor executor;
-                if (taskExecutorCount < 2)
+                if (individualDegreeOfParallelism == 0)
                 {
                     // ensure testing of production usage constructor.
                     executor = new DefaultSessionTaskExecutor($"session-{i}", putInGroup ? group : null);
@@ -386,7 +402,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 }
                 taskExecutors.Add(executor);
             }
-            int workCount = 1000, sleepTime = 10;
+            int workCount = 1000;
             var randSelector = new Random();
             for (int i = 0; i < workCount; i++)
             {
@@ -399,13 +415,13 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                         .AddProperty(LogDataKeyWorkLogIndex, 0));
                     // sleep for a short while to increase likelihood of detecting
                     // thread interleaving in incorrect implementations.
-                    Thread.Sleep(sleepTime);
+                    Thread.Sleep(10);
                     CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType())
                         .AddProperty(LogDataKeyWorkIndex, captured)
                         .AddProperty(LogDataKeyWorkLogIndex, 1));
                 });
             }
-            var cbExecutionIds = await WaitForSessionTaskExecutions(workCount * sleepTime / 1000 + 10);
+            var cbExecutionIds = await WaitForSessionTaskExecutions(30);
             Assert.Equal(workCount, cbExecutionIds.Count);
             // ordering of work logs is required only if combined degree of parallelism is 1.
             AssertExpectedEventLoopBehaviour(taskExecutorCount, taskExecutorCount * individualDegreeOfParallelism < 2,
@@ -514,9 +530,9 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 await Awaitility.WaitAsync(TimeSpan.FromSeconds(waitSecs), lastCall =>
                 {
                     var startRemCount = newCallbackExecutionIds.Count;
-                    CustomLoggerFacade.WriteToStdOut($"Start rem count = {startRemCount}", null);
+                    CustomLoggerFacade.WriteToStdOut(false, $"Start rem count = {startRemCount}", null);
                     var testLogs = GetValidatedTestLogs();
-                    CustomLoggerFacade.WriteToStdOut($"Fetch count = {testLogs.Count}", null);
+                    CustomLoggerFacade.WriteToStdOut(false, $"Fetch count = {testLogs.Count}", null);
                     foreach (var testLog in testLogs)
                     {
                         if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyEndingSessionTaskExecutionId))
@@ -525,7 +541,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                                 CustomLogEvent.LogDataKeyEndingSessionTaskExecutionId]);
                         }
                     }
-                    CustomLoggerFacade.WriteToStdOut($"End rem count = {newCallbackExecutionIds.Count}", null);
+                    CustomLoggerFacade.WriteToStdOut(false, $"End rem count = {newCallbackExecutionIds.Count}", null);
                     if (lastCall && startRemCount == newCallbackExecutionIds.Count)
                     {
                         Assert.Empty(newCallbackExecutionIds);

@@ -55,9 +55,9 @@ namespace ScalableIPC.Core.Helpers
             }
         }
 
-        public static void WriteToStdOut(string message, Exception ex)
+        public static void WriteToStdOut(bool important, string message, Exception ex)
         {
-            Logger?.WriteToStdOut(message, ex);
+            Logger?.WriteToStdOut(important, message, ex);
         }
     }
 }

@@ -63,9 +63,16 @@ namespace ScalableIPC.IntegrationTests
             WriteLog(_logger4TestEvts, logEvent, true);
         }
 
-        public void WriteToStdOut(string message, Exception ex)
+        public void WriteToStdOut(bool important, string message, Exception ex)
         {
-            _stdoutLogger.Debug(ex, message);
+            if (important)
+            {
+                _stdoutLogger.Info(ex, message);
+            }
+            else
+            {
+                _stdoutLogger.Debug(ex, message);
+            }
         }
 
         private void WriteLog(Logger logger, CustomLogEvent logEvent, bool forTest)

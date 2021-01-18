@@ -10,6 +10,6 @@ namespace ScalableIPC.Core.Helpers
         void Log(CustomLogEvent logEvent);
         bool TestLogEnabled { get; }
         void TestLog(CustomLogEvent logEvent);
-        void WriteToStdOut(string message, Exception ex);
+        void WriteToStdOut(bool important, string message, Exception ex);
     }
 }

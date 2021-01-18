@@ -24,7 +24,7 @@ namespace ScalableIPC.Core.Concurrency
         private readonly bool _runCallbacksUnderMutex;
 
         // limit parallelism to one to guarantee that callbacks posted from same thread
-        // are executed in order of submission.
+        // are executed within mutex lock in same order as that of original submission.
         public DefaultSessionTaskExecutor(string sessionId, ISessionTaskExecutorGroup executorGroup):
             this(sessionId, executorGroup, 1, true)
         { }
