@@ -16,9 +16,9 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
     {
         private static readonly string LogDataKeyWorkIndex = "workIndex";
         private static readonly string LogDataKeyWorkLogIndex = "workLogIndex";
-        
+
         [InlineData(0, true)]
-        [InlineData(1, false)]
+        //[InlineData(1, false)]
         [InlineData(1, true)]
         [InlineData(2, false)]
         [InlineData(2, true)]
@@ -28,6 +28,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             DefaultSessionTaskExecutor eventLoop;
             if (maxDegreeOfParallelism < 1)
             {
+                // ensure testing of production usage constructor.
                 eventLoop = new DefaultSessionTaskExecutor(null, null);
             }
             else
@@ -98,6 +99,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             DefaultSessionTaskExecutor eventLoop;
             if (maxDegreeOfParallelism < 1)
             {
+                // ensure testing of production usage constructor.
                 eventLoop = new DefaultSessionTaskExecutor(null, null);
             }
             else
@@ -349,20 +351,40 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             Assert.Null(record);
         }
 
-        [InlineData(1)]
-        [InlineData(2)]
-        [InlineData(5)]
+        [InlineData(1, true, 0)]
+        [InlineData(1, false, 0)]
+        [InlineData(2, false, 1)]
+        [InlineData(2, true, 2)]
+        [InlineData(3, true, 2)]
+        [InlineData(3, false, 6)]
+        [InlineData(4, false, 2)]
+        [InlineData(4, true, 4)]
+        [InlineData(5, true, 1)]
+        [InlineData(5, false, 2)]
         [Theory]
-        public async Task TestLimitedGroupConcurrencyLevel(int taskExecutorCount)
+        public async Task TestLimitedGroupConcurrencyLevel(int taskExecutorCount, bool putInGroup,
+            int individualDegreeOfParallelism)
         {
             TestDatabase.ResetDb();
 
-            var expectedGroupConcurrencyLevel = Math.Max(1, taskExecutorCount / 2);
+            var expectedGroupConcurrencyLevel = Math.Max(1,
+                taskExecutorCount * individualDegreeOfParallelism / 2);
             var group = new DefaultSessionTaskExecutorGroup(expectedGroupConcurrencyLevel);
             var taskExecutors = new List<DefaultSessionTaskExecutor>();
             for (int i = 0; i < taskExecutorCount; i++)
             {
-                taskExecutors.Add(new DefaultSessionTaskExecutor($"session-{i}", group));
+                DefaultSessionTaskExecutor executor;
+                if (taskExecutorCount < 2)
+                {
+                    // ensure testing of production usage constructor.
+                    executor = new DefaultSessionTaskExecutor($"session-{i}", putInGroup ? group : null);
+                }
+                else
+                {
+                    executor = new DefaultSessionTaskExecutor($"session-{i}", putInGroup ? group : null,
+                        individualDegreeOfParallelism, true);
+                }
+                taskExecutors.Add(executor);
             }
             int workCount = 1000, sleepTime = 10;
             var randSelector = new Random();
@@ -375,6 +397,8 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                     CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType())
                         .AddProperty(LogDataKeyWorkIndex, captured)
                         .AddProperty(LogDataKeyWorkLogIndex, 0));
+                    // sleep for a short while to increase likelihood of detecting
+                    // thread interleaving in incorrect implementations.
                     Thread.Sleep(sleepTime);
                     CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType())
                         .AddProperty(LogDataKeyWorkIndex, captured)
@@ -383,15 +407,16 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             }
             var cbExecutionIds = await WaitForSessionTaskExecutions(workCount * sleepTime / 1000 + 10);
             Assert.Equal(workCount, cbExecutionIds.Count);
-            AssertExpectedEventLoopBehaviour(taskExecutorCount, expectedGroupConcurrencyLevel);
+            // ordering of work logs is required only if combined degree of parallelism is 1.
+            AssertExpectedEventLoopBehaviour(taskExecutorCount, taskExecutorCount * individualDegreeOfParallelism < 2,
+                putInGroup ? expectedGroupConcurrencyLevel : (int?)null);
         }
 
-        private void AssertExpectedEventLoopBehaviour(int taskExecutorCount, int expectedGroupConcurrencyLevel)
+        private void AssertExpectedEventLoopBehaviour(int taskExecutorCount, bool assertOrder,
+            int? expectedGroupConcurrencyLevel)
         {
             var concurrencyLevelMap = new Dictionary<string, int>();
-
-            // ordering of work logs is required only if there is only 1 task executor around.
-            bool assertOrder = taskExecutorCount == 1;
+            int maxConcurrencyLevel = 0;
 
             int expectedWorkIndex = 0;
             bool startWorkLogSeen = false;
@@ -414,9 +439,13 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                         concurrencyLevelMap.Add(schedulerId, (int)concurrencyLevel);
                     }
                     int actualConcurrencyLevel = concurrencyLevelMap.Values.Sum();
-                    Assert.True(actualConcurrencyLevel <= expectedGroupConcurrencyLevel,
-                        $"Group concurrency level of {expectedGroupConcurrencyLevel} is not being respected. " +
-                        $"Observed {actualConcurrencyLevel}");
+                    if (expectedGroupConcurrencyLevel != null)
+                    {
+                        Assert.False(actualConcurrencyLevel > expectedGroupConcurrencyLevel.Value,
+                            $"Group concurrency level of {expectedGroupConcurrencyLevel} is not being respected. " +
+                            $"Observed {actualConcurrencyLevel}");
+                    }
+                    maxConcurrencyLevel = Math.Max(maxConcurrencyLevel, actualConcurrencyLevel);
                 }
                 else if (assertOrder && testLog.ParsedProperties.ContainsKey(LogDataKeyWorkIndex))
                 {
@@ -439,6 +468,16 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                         startWorkLogSeen = true;
                     }
                 }
+            }
+            if (expectedGroupConcurrencyLevel != null)
+            {
+                Assert.Equal(expectedGroupConcurrencyLevel.Value, maxConcurrencyLevel);
+            }
+            else
+            {
+                Assert.False(taskExecutorCount > maxConcurrencyLevel,
+                    $"Concurrency level without group is not being maxed out to at least {taskExecutorCount}. " +
+                    $"Observed {maxConcurrencyLevel}");
             }
         }
 
