@@ -35,16 +35,13 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<int> WhenAny<T>(params AbstractPromise<T>[] promises);
         AbstractPromise<int> WhenAnySucceed<T>(params AbstractPromise<T>[] promises);
 
-        // The following properties/methods and _ILogicalThreadMember properties/methods 
+        // The following properties/methods as well related ones in 
+        // _ILogicalThreadMember and AbstractPromise 
         // are for identifying logical threads of control with
         // unique ids. This is meant to enable parallel testing of the core classes of
         // this project during the protocol's operation.
         Guid? CurrentLogicalThreadId { get; }
         Guid? _CurrentLogicalThreadId { set; }
-        AbstractPromise<VoidType> StartLogicalThread(Guid newLogicalThreadId);
-        void EndLogicalThread(Guid logicalThreadId);
-        void EndCurrentLogicalThread();
-        Guid? _GetUpToDateLogicalThreadId(Guid? logicalThreadMemberId);
     }
 
     public class PollCallbackArg<T>
@@ -101,7 +98,6 @@ namespace ScalableIPC.Core.Abstractions
     {
         AbstractPromiseApi _PromiseApi { get; }
         Guid? LogicalThreadId { get; }
-        void EndLogicalThread();
     }
 
     public interface AbstractPromise<T>: _ILogicalThreadMember
@@ -120,6 +116,9 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<T> CatchCompose(Func<AggregateException, AbstractPromise<T>> onRejected);
         AbstractPromise<U> ThenOrCatchCompose<U>(Func<T, AbstractPromise<U>> onFulfilled,
             Func<AggregateException, AbstractPromise<U>> onRejected);
+        AbstractPromise<T> StartLogicalThread(Guid newLogicalThreadId);
+        AbstractPromise<T> EndLogicalThread();
+        AbstractPromise<T> EndLogicalThread(Action onFinally);
     }
 
     public interface PromiseCompletionSource<T>

@@ -112,7 +112,8 @@ namespace ScalableIPC.Core.Networks
             var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
             Task.Run(() =>
             {
-                var promise = PromiseApi.StartLogicalThread(newLogicalThreadId)
+                var promise = PromiseApi.CompletedPromise()
+                    .StartLogicalThread(newLogicalThreadId)
                     .ThenCompose(_ => _HandleSendAsync(remoteEndpoint, message))
                     .Then(_ =>
                     {
@@ -124,7 +125,7 @@ namespace ScalableIPC.Core.Networks
                         cb(ex);
                         return PromiseApi.CompletedPromise();
                     })
-                    .Finally(() => RecordAndEndLogicalThread());
+                    .EndLogicalThread(() => RecordEndOfLogicalThread());
                 return ((DefaultPromise<VoidType>)promise).WrappedTask;
             });
         }
@@ -194,7 +195,8 @@ namespace ScalableIPC.Core.Networks
                 int transmissionDelay = transmissionConfig.Delays[i];
                 var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
                 Task.Run(() => {
-                    var transmissionResult = PromiseApi.StartLogicalThread(newLogicalThreadId)
+                    var transmissionResult = PromiseApi.CompletedPromise()
+                        .StartLogicalThread(newLogicalThreadId)
                         .ThenCompose(_ =>
                         {
                             if (transmissionDelay > 0)
@@ -221,7 +223,7 @@ namespace ScalableIPC.Core.Networks
                             "bb741504-3a4b-4ea3-a749-21fc8aec347f",
                             $"Error occured during message receipt handling from {remoteEndpoint}",
                             ex))
-                        .Finally(() => RecordAndEndLogicalThread());
+                        .EndLogicalThread(() => RecordEndOfLogicalThread());
 
                     return ((DefaultPromise<VoidType>)transmissionResult).WrappedTask;
                 });
@@ -270,12 +272,13 @@ namespace ScalableIPC.Core.Networks
             // Fire outside of event loop thread if possible.
             var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
             Task.Run(() => {
-                var promise = PromiseApi.StartLogicalThread(newLogicalThreadId)
+                var promise = PromiseApi.CompletedPromise()
+                    .StartLogicalThread(newLogicalThreadId)
                     .ThenCompose(_ => _DisposeSessionAsync(remoteEndpoint, sessionId, cause))
                     .CatchCompose(ex => RecordLogicalThreadException(
                         "86a662a4-c098-4053-ac26-32b984079419",
                         "Error encountered while disposing session handler", ex))
-                    .Finally(() => RecordAndEndLogicalThread());
+                    .EndLogicalThread(() => RecordEndOfLogicalThread());
                 return ((DefaultPromise<VoidType>)promise).WrappedTask;
             });
         }
@@ -324,7 +327,7 @@ namespace ScalableIPC.Core.Networks
             return logicalThreadId;
         }
 
-        private void RecordAndEndLogicalThread()
+        private void RecordEndOfLogicalThread()
         {
             CustomLoggerFacade.TestLog(() =>
             {
@@ -332,7 +335,6 @@ namespace ScalableIPC.Core.Networks
                     .AddProperty(LogDataKeyEndingLogicalThreadId, PromiseApi.CurrentLogicalThreadId);
                 return logEvent;
             });
-            PromiseApi.EndCurrentLogicalThread();
         }
 
         private AbstractPromise<VoidType> RecordLogicalThreadException(string logPosition,

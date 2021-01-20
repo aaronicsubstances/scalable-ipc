@@ -14,8 +14,6 @@ namespace ScalableIPC.Core.Concurrency
 
         public static DefaultPromiseApi Instance { get; }  = new DefaultPromiseApi();
 
-        private readonly List<Guid> _logicalThreadIds = new List<Guid>();
-
         private DefaultPromiseApi()
         { }
 
@@ -264,49 +262,6 @@ namespace ScalableIPC.Core.Concurrency
                 _currentLogicalThreadId = value;
             }
         }
-
-        public AbstractPromise<VoidType> StartLogicalThread(Guid newLogicalThreadId)
-        {
-            lock (this)
-            {
-                _logicalThreadIds.Add(newLogicalThreadId);
-            }
-            var firstLogicalThreadMember = new DefaultPromise<VoidType>(this,
-                Task.FromResult(VoidType.Instance), newLogicalThreadId);
-            return firstLogicalThreadMember;
-        }
-
-        public void EndCurrentLogicalThread()
-        {
-            var currentLogicalThread = _currentLogicalThreadId;
-            if (currentLogicalThread != null)
-            {
-                EndLogicalThread(currentLogicalThread.Value);
-            }
-        }
-
-        public void EndLogicalThread(Guid logicalThreadId)
-        {
-            lock (this)
-            {
-                _logicalThreadIds.Remove(logicalThreadId);
-            }
-        }
-
-        public Guid? _GetUpToDateLogicalThreadId(Guid? logicalThreadMemberId)
-        {
-            if (logicalThreadMemberId != null)
-            {
-                lock (this)
-                {
-                    if (_logicalThreadIds.Contains(logicalThreadMemberId.Value))
-                    {
-                        return logicalThreadMemberId;
-                    }
-                }
-            }
-            return null;
-        }
     }
 
     public class DefaultPromise<T>: AbstractPromise<T>
@@ -315,13 +270,11 @@ namespace ScalableIPC.Core.Concurrency
             : this(promiseApi, task, promiseApi.CurrentLogicalThreadId)
         { }
 
-        internal DefaultPromise(AbstractPromiseApi promiseApi, Task<T> task, 
+        private DefaultPromise(AbstractPromiseApi promiseApi, Task<T> task, 
             Guid? logicalThreadId)
         {
             _PromiseApi = promiseApi;
             WrappedTask = task;
-            // deal with invalid logical thread ids at moment of assigning to thread local variable,
-            // rather than here.
             LogicalThreadId = logicalThreadId;
         }
 
@@ -337,7 +290,7 @@ namespace ScalableIPC.Core.Concurrency
 
         private void InsertCurrentLogicalThreadId()
         {
-            _PromiseApi._CurrentLogicalThreadId = _PromiseApi._GetUpToDateLogicalThreadId(LogicalThreadId);
+            _PromiseApi._CurrentLogicalThreadId = LogicalThreadId;
         }
 
         private void ClearCurrentLogicalThreadId()
@@ -501,12 +454,33 @@ namespace ScalableIPC.Core.Concurrency
             return new DefaultPromise<U>(this, continuationTask.Unwrap());
         }
 
-        public void EndLogicalThread()
+        public AbstractPromise<T> StartLogicalThread(Guid newLogicalThreadId)
         {
-            if (LogicalThreadId != null)
+            return new DefaultPromise<T>(_PromiseApi, WrappedTask, newLogicalThreadId);
+        }
+
+        public AbstractPromise<T> EndLogicalThread()
+        {
+            return new DefaultPromise<T>(_PromiseApi, WrappedTask, null);
+        }
+
+        public AbstractPromise<T> EndLogicalThread(Action onFinally)
+        {
+            var continuationTask = WrappedTask.ContinueWith(task =>
             {
-                _PromiseApi.EndLogicalThread(LogicalThreadId.Value);
-            }
+                InsertCurrentLogicalThreadId();
+                try
+                {
+                    onFinally();
+                    // return original task in its completed or faulted state.
+                    return task;
+                }
+                finally
+                {
+                    ClearCurrentLogicalThreadId();
+                }
+            });
+            return new DefaultPromise<T>(_PromiseApi, continuationTask.Unwrap(), null);
         }
 
         /// <summary>

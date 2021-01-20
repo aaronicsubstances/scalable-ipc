@@ -465,9 +465,9 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 {
                     NextValue = a.Value + 1
                 };
-            }, 1000, 5000, 1);
+            }, 2000, 5000, 1);
             int retVal = await ((DefaultPromise<int>)promise).WrappedTask;
-            Assert.Equal(6, retVal);
+            Assert.Equal(4, retVal);
             
             // test use of stop.
             promise = instance.Poll(a =>
@@ -506,22 +506,24 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         {
             var instance = DefaultPromiseApi.Instance;
             var errors = new List<string>();
-            var logicalThreads = new AbstractPromise<int>[3];
+            var finallyRuns = new List<string>();
+            var logicalThreads = new Task<int>[3];
             for (int i = 0; i < logicalThreads.Length; i++)
             {
-                logicalThreads[i] = CreateLogicalThread(instance, Guid.NewGuid(), errors);
+                logicalThreads[i] = CreateLogicalThread(instance, Guid.NewGuid(), errors, finallyRuns);
             }
-            var promise = instance.WhenAllSucceed(logicalThreads);
-            var allResults = await ((DefaultPromise<List<int>>)promise).WrappedTask;
+            var allResults = await Task.WhenAll(logicalThreads);
             Assert.Empty(errors);
+            Assert.Equal(Enumerable.Repeat("onEnd", logicalThreads.Length).ToList(), finallyRuns);
             Assert.Equal(Enumerable.Repeat(12, logicalThreads.Length).ToList(), allResults);
         }
 
-        private AbstractPromise<int> CreateLogicalThread(AbstractPromiseApi instance, Guid expectedId,
-            List<string> errors)
+        private Task<int> CreateLogicalThread(AbstractPromiseApi instance, Guid expectedId,
+            List<string> errors, List<string> finallyRuns)
         {
             Assert.Null(instance.CurrentLogicalThreadId);
-            var promise = instance.StartLogicalThread(expectedId)
+            var promise = instance.CompletedPromise()
+                .StartLogicalThread(expectedId)
                 .Then(_ =>
                 {
                     Assert.Equal(expectedId, instance.CurrentLogicalThreadId);
@@ -567,13 +569,34 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                     Assert.Equal(expectedId, instance.CurrentLogicalThreadId);
                     return instance.Resolve(11);
                 })
-                .Finally(() => instance.EndCurrentLogicalThread())
+                .EndLogicalThread(() =>
+                {
+                    finallyRuns.Add("onEnd");
+                })
                 .Then(_ =>
                 {
                     Assert.Null(instance.CurrentLogicalThreadId);
                     return 12;
                 });
-            return promise;
+
+            //  add test for EndLogicalThread without onFinally callback
+            var otherId = Guid.NewGuid();
+            var promise2 = instance.CompletedPromise()
+                .StartLogicalThread(otherId)
+                .Then(_ =>
+                {
+                    Assert.Equal(otherId, instance.CurrentLogicalThreadId);
+                    return 0;
+                })
+                .EndLogicalThread()
+                .Then(_ =>
+                {
+                    Assert.Null(instance.CurrentLogicalThreadId);
+                    return 1;
+                });
+
+            // return first one
+            return ((DefaultPromise<int>)promise).WrappedTask;
         }
     }
 }
