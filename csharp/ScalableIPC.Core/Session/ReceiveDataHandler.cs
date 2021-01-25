@@ -26,13 +26,13 @@ namespace ScalableIPC.Core.Session
 
         public void PrepareForDispose(SessionDisposedException cause)
         {
-            _currentWindowHandler?.Cancel();
-            _currentWindowHandler = null;
+            Dispose(cause);
         }
 
         public void Dispose(SessionDisposedException cause)
         {
-            // nothing to do
+            _currentWindowHandler?.Cancel();
+            _currentWindowHandler = null;
         }
 
         public bool ProcessReceive(ProtocolDatagram datagram)

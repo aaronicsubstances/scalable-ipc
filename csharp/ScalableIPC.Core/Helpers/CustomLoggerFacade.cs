@@ -14,6 +14,20 @@ namespace ScalableIPC.Core.Helpers
         public static ICustomLogger Logger { get; set; }
         public static bool IgnoreLogFailures { get; set; }
         public static bool IgnoreTestLogFailures { get; set; }
+        public static bool LogEnabled
+        {
+            get
+            {
+                return Logger?.LogEnabled ?? false;
+            }
+        }
+        public static bool TestLogEnabled
+        {
+            get
+            {
+                return Logger?.TestLogEnabled ?? false;
+            }
+        }
 
         public static void Log(Func<CustomLogEvent> logEventSupplier)
         {

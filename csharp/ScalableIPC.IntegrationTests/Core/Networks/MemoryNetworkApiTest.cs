@@ -19,6 +19,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
     public class MemoryNetworkApiTest
     {
         internal static readonly string LogDataKeyConfiguredForSend = "configuredForSend";
+        internal static readonly string LogDataKeySendException = "sendException";
 
         private readonly MemoryNetworkApi _accraEndpoint, _kumasiEndpoint;
         private readonly GenericNetworkIdentifier _accraAddr, _kumasiAddr;
@@ -195,16 +196,130 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     null);
                 return ((DefaultPromise<ISessionHandler>)promise).WrappedTask;
             });
+        }
 
-            /*var dataToSend = ProtocolDatagram.ConvertStringToBytes("Hello");
+        [Fact]
+        public async Task TestSendReceive()
+        {
+            Action<Exception> testCb = ex =>
+            {
+                CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "RequestSend callback called")
+                    .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
+                        "e870904c-f035-4c5d-99e7-2c4534f4c152")
+                    .AddProperty(CustomLogEvent.LogDataKeyCurrentLogicalThreadId,
+                        _accraEndpoint.PromiseApi.CurrentLogicalThreadId)
+                    .AddProperty(LogDataKeySendException, ex != null ? ex.ToString() : null));
+            };
+            var dataToSend = ProtocolDatagram.ConvertStringToBytes("Hello");
+            var sessionId = ProtocolDatagram.GenerateSessionId();
             var message = new ProtocolDatagram
             {
                 DataBytes = dataToSend,
-                DataLength = dataToSend.Length
+                DataLength = dataToSend.Length,
+                SessionId = sessionId
             };
-            _accraEndpoint.RequestSend(_kumasiAddr, message, null);
+            TestDatabase.ResetDb();
+            _accraEndpoint.RequestSend(_kumasiAddr, message, testCb);
+            var logicalThreadIds = await WaitForAllLogicalThreads(2);
+            Assert.Equal(2, logicalThreadIds.Count);
+            AssertSendReceive(logicalThreadIds, null, true);
 
-            */
+            TestDatabase.ResetDb();
+            _accraEndpoint.RequestSend(_kumasiAddr, message, testCb);
+            logicalThreadIds = await WaitForAllLogicalThreads(2);
+            Assert.Equal(2, logicalThreadIds.Count);
+            AssertSendReceive(logicalThreadIds, null, false);
+
+            _accraEndpoint.SendBehaviour = new MemoryNetworkApi.DefaultSendBehaviour
+            {
+                Config = new MemoryNetworkApi.SendConfig
+                {
+                    Delay = 1500,
+                    Error = new ArgumentOutOfRangeException()
+                }
+            };
+            TestDatabase.ResetDb();
+            _accraEndpoint.RequestSend(_kumasiAddr, message, testCb);
+            logicalThreadIds = await WaitForAllLogicalThreads(5);
+            Assert.Single(logicalThreadIds);
+            AssertSendReceive(logicalThreadIds, typeof(ArgumentOutOfRangeException).Name, false);
+        }
+
+        private void AssertSendReceive(List<string> logicalThreadIds, string expectedEx,
+            bool expectCompleteInitCall)
+        {
+            var testLogs = GetValidatedTestLogs();
+            var logNavigator = new LogNavigator<TestLogRecord>(testLogs);
+
+            var sendThreadId = logicalThreadIds[0];
+
+            // test send callback invocation
+            var result = logNavigator.Next(x => GetLogPositionId(x) == "e870904c-f035-4c5d-99e7-2c4534f4c152" &&
+                GetCurrentLogicalThreadId(x) == sendThreadId);
+            Assert.NotNull(result);
+            var actualEx = GetLogStrProp(result, LogDataKeySendException);
+            if (expectedEx == null)
+            {
+                Assert.Null(actualEx);
+            }
+            else
+            {
+                Assert.Contains(expectedEx, actualEx);
+            }
+            result = logNavigator.Next(x => GetLogPositionId(x) == "e870904c-f035-4c5d-99e7-2c4534f4c152" &&
+                GetCurrentLogicalThreadId(x) == sendThreadId);
+            Assert.Null(result);
+
+            var receiveThreadIds = logicalThreadIds.Skip(1).ToList();
+            
+            // test session handler factory usage.
+            if (expectCompleteInitCall)
+            {
+                result = logNavigator.Next(x => GetLogPositionId(x) == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
+                    receiveThreadIds.Contains(GetCurrentLogicalThreadId(x)));
+                Assert.NotNull(result);
+                var actualConfiguredForSend = (bool)result.ParsedProperties[LogDataKeyConfiguredForSend];
+                Assert.False(actualConfiguredForSend);
+            }
+            result = logNavigator.Next(x => GetLogPositionId(x) == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
+                receiveThreadIds.Contains(GetCurrentLogicalThreadId(x)));
+            Assert.Null(result);
+
+            // test calls to session handler receive method.
+            var seenReceivedThreadIds = new List<string>();
+            while (seenReceivedThreadIds.Count < receiveThreadIds.Count)
+            {
+                result = logNavigator.Next(x => GetLogPositionId(x) == "30d12d3a-11b1-4761-b4b7-8a4261b1dd9c" &&
+                    receiveThreadIds.Contains(GetCurrentLogicalThreadId(x)));
+                Assert.NotNull(result);
+                var newReceivedThreadId = GetCurrentLogicalThreadId(result);
+                Assert.DoesNotContain(newReceivedThreadId, seenReceivedThreadIds);
+                seenReceivedThreadIds.Add(newReceivedThreadId);
+            }
+
+            result = logNavigator.Next(x => GetLogPositionId(x) == "30d12d3a-11b1-4761-b4b7-8a4261b1dd9c" &&
+                receiveThreadIds.Contains(GetCurrentLogicalThreadId(x)));
+            Assert.Null(result);
+
+        }
+
+        private static string GetLogStrProp(TestLogRecord logRecord, string propNme)
+        {
+            if (logRecord.ParsedProperties.ContainsKey(propNme))
+            {
+                return (string)logRecord.ParsedProperties[propNme];
+            }
+            return null;
+        }
+
+        private static string GetLogPositionId(TestLogRecord logRecord)
+        {
+            return GetLogStrProp(logRecord, CustomLogEvent.LogDataKeyLogPositionId);
+        }
+
+        private static string GetCurrentLogicalThreadId(TestLogRecord logRecord)
+        {
+            return GetLogStrProp(logRecord, CustomLogEvent.LogDataKeyCurrentLogicalThreadId);
         }
 
         [Fact]
@@ -304,6 +419,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "CompleteInit() called")
                     .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
                         "3f4f66e2-dafc-4c79-aa42-6f988a337d78")
+                    .AddProperty(CustomLogEvent.LogDataKeyCurrentLogicalThreadId,
+                        networkApi.PromiseApi.CurrentLogicalThreadId)
                     .AddProperty(LogDataKeyConfiguredForSend, configureForInitialSend));
                 NetworkApi = networkApi;
                 RemoteEndpoint = remoteEndpoint;
@@ -351,7 +468,12 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
             public AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram)
             {
-                throw new NotImplementedException();
+                CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "ProcessReceiveAsync() called")
+                        .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
+                           "30d12d3a-11b1-4761-b4b7-8a4261b1dd9c")
+                        .AddProperty(CustomLogEvent.LogDataKeyCurrentLogicalThreadId,
+                            NetworkApi.PromiseApi.CurrentLogicalThreadId));
+                return NetworkApi.PromiseApi.CompletedPromise();
             }
 
             public AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message)

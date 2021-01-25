@@ -24,6 +24,11 @@ namespace ScalableIPC.Core.Session
 
         public void PrepareForDispose(SessionDisposedException cause)
         {
+            Dispose(cause);
+        }
+
+        public void Dispose(SessionDisposedException cause)
+        {
             _sendWindowHandler?.Cancel();
             _sendWindowHandler = null;
             SendInProgress = false;
@@ -32,11 +37,6 @@ namespace ScalableIPC.Core.Session
                 _pendingPromiseCallback.CompleteExceptionally(cause);
                 _pendingPromiseCallback = null;
             }
-        }
-
-        public void Dispose(SessionDisposedException cause)
-        {
-            // nothing to do
         }
 
         public bool ProcessReceive(ProtocolDatagram datagram)

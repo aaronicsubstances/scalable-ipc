@@ -17,6 +17,14 @@ namespace ScalableIPC.Core.Networks
         {
             SendConfig Create(GenericNetworkIdentifier remoteIdentifier, ProtocolDatagram datagram);
         }
+        public class DefaultSendBehaviour: ISendBehaviour
+        {
+            public SendConfig Config { get; set; }
+            public SendConfig Create(GenericNetworkIdentifier remoteIdentifier, ProtocolDatagram datagram)
+            {
+                return Config;
+            }
+        }
         public class SendConfig
         {
             public bool SerializeDatagram { get; set; }
@@ -27,10 +35,20 @@ namespace ScalableIPC.Core.Networks
         {
             TransmissionConfig Create(GenericNetworkIdentifier remoteIdentifier, ProtocolDatagram datagram);
         }
+        public class DefaultTransmissionBehaviour: ITransmissionBehaviour
+        {
+            public TransmissionConfig Config { get; set; }
+            public TransmissionConfig Create(GenericNetworkIdentifier remoteIdentifier, ProtocolDatagram datagram)
+            {
+                return Config;
+            }
+        }
         public class TransmissionConfig
         {
             public int[] Delays { get; set; }
         }
+
+        internal static readonly string LogDataKeyIsReceiverThread = "isReceiverThread";
 
         private readonly SessionHandlerStore _sessionHandlerStore;
         private bool _isShuttingDown;
@@ -109,7 +127,10 @@ namespace ScalableIPC.Core.Networks
         public void RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, Action<Exception> cb)
         {
             // Fire outside of event loop thread if possible.
-            var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
+            var newLogicalThreadId = GenerateAndRecordLogicalThreadId(logEvent =>
+            {
+                logEvent.AddProperty(LogDataKeyIsReceiverThread, false);
+            });
             Task.Run(() =>
             {
                 var promise = PromiseApi.CompletedPromise()
@@ -125,6 +146,10 @@ namespace ScalableIPC.Core.Networks
                         cb(ex);
                         return PromiseApi.CompletedPromise();
                     })
+                    .CatchCompose(ex => RecordLogicalThreadException(
+                        "1b554af7-6b87-448a-af9c-103d9c676030",
+                        $"Error occured in callback processing during message send to {remoteEndpoint}",
+                        ex))
                     .EndLogicalThread(() => RecordEndOfLogicalThread());
                 return ((DefaultPromise<VoidType>)promise).WrappedTask;
             });
@@ -193,7 +218,10 @@ namespace ScalableIPC.Core.Networks
             {
                 // capture usage of index i before entering closure
                 int transmissionDelay = transmissionConfig.Delays[i];
-                var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
+                var newLogicalThreadId = GenerateAndRecordLogicalThreadId(logEvent =>
+                {
+                    logEvent.AddProperty(LogDataKeyIsReceiverThread, true);
+                });
                 Task.Run(() => {
                     var transmissionResult = PromiseApi.CompletedPromise()
                         .StartLogicalThread(newLogicalThreadId)
@@ -247,7 +275,11 @@ namespace ScalableIPC.Core.Networks
                 {
                     if (IsShuttingDown())
                     {
-                        // silently ignore new session if shutting down.
+                        // ignore new session if shutting down.
+                        RecordTestLog("823df166-6430-4bcf-ae8f-2cb4c5e77cb1", logEvent =>
+                        {
+                            logEvent.Message = "Ignoring creation of new session as instance is shutting down";
+                        });
                         return PromiseApi.CompletedPromise();
                     }
                         
@@ -258,9 +290,9 @@ namespace ScalableIPC.Core.Networks
                     }
 
                     sessionHandler = SessionHandlerFactory.Create();
-                    sessionHandler.CompleteInit(datagram.SessionId, false, this, remoteEndpoint);
                     _sessionHandlerStore.Add(remoteEndpoint, datagram.SessionId,
                         new SessionHandlerWrapper(sessionHandler));
+                    sessionHandler.CompleteInit(datagram.SessionId, false, this, remoteEndpoint);
                 }
             }
             return sessionHandler.ProcessReceiveAsync(datagram);
@@ -270,7 +302,7 @@ namespace ScalableIPC.Core.Networks
             string sessionId, SessionDisposedException cause)
         {
             // Fire outside of event loop thread if possible.
-            var newLogicalThreadId = GenerateAndRecordLogicalThreadId();
+            var newLogicalThreadId = GenerateAndRecordLogicalThreadId(null);
             Task.Run(() => {
                 var promise = PromiseApi.CompletedPromise()
                     .StartLogicalThread(newLogicalThreadId)
@@ -314,7 +346,7 @@ namespace ScalableIPC.Core.Networks
             return _isShuttingDown;
         }
 
-        private Guid GenerateAndRecordLogicalThreadId()
+        private Guid GenerateAndRecordLogicalThreadId(Action<CustomLogEvent> customizer)
         {
             var logicalThreadId = Guid.NewGuid();
             CustomLoggerFacade.TestLog(() =>
@@ -322,6 +354,10 @@ namespace ScalableIPC.Core.Networks
                 var logEvent = new CustomLogEvent(GetType(), "Starting new logical thread")
                     .AddProperty(LogDataKeyNewLogicalThreadId, logicalThreadId)
                     .AddProperty(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId);
+                if (customizer != null)
+                {
+                    customizer.Invoke(logEvent);
+                }
                 return logEvent;
             });
             return logicalThreadId;
@@ -346,13 +382,19 @@ namespace ScalableIPC.Core.Networks
             return PromiseApi.CompletedPromise();
         }
 
-        private void Record(string logPosition, Action<CustomLogEvent> logEventReceiver)
+        private void RecordTestLog(string logPosition, Action<CustomLogEvent> customizer)
         {
-            var logEvent = new CustomLogEvent(GetType())
-                .AddProperty(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId)
-                .AddProperty(LogDataKeyLogPositionId, logPosition);
-            logEventReceiver.Invoke(logEvent);
-            CustomLoggerFacade.TestLog(() => logEvent);
+            CustomLoggerFacade.TestLog(() =>
+            {
+                var logEvent = new CustomLogEvent(GetType())
+                    .AddProperty(LogDataKeyCurrentLogicalThreadId, PromiseApi.CurrentLogicalThreadId)
+                    .AddProperty(LogDataKeyLogPositionId, logPosition);
+                if (customizer != null)
+                {
+                    customizer.Invoke(logEvent);
+                }
+                return logEvent;
+            });
         }
     }
 }
