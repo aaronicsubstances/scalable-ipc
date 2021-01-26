@@ -1,4 +1,5 @@
-﻿using ScalableIPC.Core;
+﻿using Newtonsoft.Json;
+using ScalableIPC.Core;
 using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Concurrency;
 using ScalableIPC.Core.Helpers;
@@ -23,6 +24,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
         internal static readonly string LogDataKeySerializedDatagram = "serializedDatagram";
         internal static readonly string LogDataKeyDatagramHashCode = "datagramHashCode";
         internal static readonly string LogDataKeyTimestamp = "timestamp";
+
+        internal static readonly string ErrorTraceValue = "f3157968-128f-4520-8448-ab0a0cef2eee"; 
 
         private readonly MemoryNetworkApi _accraEndpoint, _kumasiEndpoint;
         private readonly GenericNetworkIdentifier _accraAddr, _kumasiAddr;
@@ -68,13 +71,14 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
         {
             var testLogs = GetValidatedTestLogs().Where(x => x.Id > lastId);
             var newLogicalThreadIds = new List<string>();
+            int nextLastId = lastId;
             foreach (var testLog in testLogs)
             {
                 if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyNewLogicalThreadId))
                 {
                     newLogicalThreadIds.Add((string)testLog.ParsedProperties[
                         CustomLogEvent.LogDataKeyNewLogicalThreadId]);
-                    lastId = testLog.Id;
+                    nextLastId = testLog.Id;
                 }
             }
             if (newLogicalThreadIds.Count == 0)
@@ -84,9 +88,12 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     .Select(x => (string)x.ParsedProperties[CustomLogEvent.LogDataKeyNewLogicalThreadId])
                     .ToList();
             }
-            await Awaitility.WaitAsync(TimeSpan.FromSeconds(waitTimeSecs), _ =>
+            await Awaitility.WaitAsync(TimeSpan.FromSeconds(waitTimeSecs), lastCall =>
             {
-                var testLogs = GetValidatedTestLogs().Where(x => x.Id > lastId);
+                var startRemCount = newLogicalThreadIds.Count;
+                CustomLoggerFacade.WriteToStdOut(false, $"Start rem count = {startRemCount}", null);
+                var testLogs = GetValidatedTestLogs().Where(x => x.Id > lastId).ToList();
+                CustomLoggerFacade.WriteToStdOut(false, $"Fetch count = {testLogs.Count}", null);
                 foreach (var testLog in testLogs)
                 {
                     if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyEndingLogicalThreadId))
@@ -95,9 +102,32 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                             CustomLogEvent.LogDataKeyEndingLogicalThreadId]);
                     }
                 }
+                CustomLoggerFacade.WriteToStdOut(false, $"End rem count = {newLogicalThreadIds.Count}", null);
+                if (lastCall && startRemCount == newLogicalThreadIds.Count)
+                {
+                    Assert.Empty(newLogicalThreadIds);
+                }
                 return newLogicalThreadIds.Count == 0;
             });
-            return await WaitForNextRoundOfLogicalThreads(waitTimeSecs, lastId);
+            return await WaitForNextRoundOfLogicalThreads(waitTimeSecs, nextLastId);
+        }
+
+        private List<string> GetRelatedLogicalThreadIds(List<TestLogRecord> testLogs, Guid initId)
+        {
+            var relatedIds = new List<string> { initId.ToString() };
+            foreach (var testLog in testLogs)
+            {
+                var newLogicalThreadId = testLog.GetStrProp(CustomLogEvent.LogDataKeyNewLogicalThreadId);
+                if (newLogicalThreadId != null)
+                {
+                    var parentLogicalThreadId = testLog.GetCurrentLogicalThreadId();
+                    if (relatedIds.Contains(parentLogicalThreadId))
+                    {
+                        relatedIds.Add(newLogicalThreadId);
+                    }
+                }
+            }
+            return relatedIds;
         }
 
         private void AssertAbsenceOfSendReceiveErrors(List<TestLogRecord> testLogs,
@@ -258,20 +288,25 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             }
 
             var startTime = DateTime.UtcNow;
-            _accraEndpoint.RequestSend(_kumasiAddr, datagram, expectCallback ? CreateSendCallback() : null);
+            var initId = _accraEndpoint.RequestSend(_kumasiAddr, datagram, expectCallback ? CreateSendCallback() : null);
             var logicalThreadIds = await WaitForAllLogicalThreads(20);
 
             // Now run assertions on logs
             var testLogs = GetValidatedTestLogs();
+
+            // test that getting related logical threads will give same result as Wait did.
+            var actualLogicalThreadIds = GetRelatedLogicalThreadIds(testLogs, initId);
+            Assert.Equal(logicalThreadIds, actualLogicalThreadIds);
+
             AssertSendReceiveLogs(sendConfig, transmissionConfig,
-                datagram, sessionId, expectCallback, expectedCallbackEx,
+                datagram, expectCallback, expectedCallbackEx,
                 expectReceives, expectCompleteInitCall, skipReceiveCallExpectation,
                 expectedErrorLogPositions, testLogs, logicalThreadIds, startTime);
         }
 
         private void AssertSendReceiveLogs(MemoryNetworkApi.SendConfig sendConfig,
             MemoryNetworkApi.TransmissionConfig transmissionConfig,
-            ProtocolDatagram datagram, string sessionId, bool expectCallback,
+            ProtocolDatagram datagram, bool expectCallback,
             string expectedCallbackEx, bool expectReceives,
             bool expectCompleteInitCall, bool skipReceiveCallExpectation,
             string[] expectedErrorLogPositions, List<TestLogRecord> testLogs,
@@ -340,7 +375,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             }
 
             // test session handler factory usage.
-            if (expectCompleteInitCall)
+            if (expectReceives && expectCompleteInitCall)
             {
                 result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
                     receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
@@ -353,9 +388,9 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.Null(result);
 
             // test calls to session handler receive method.
-            var seenReceivedThreadIds = new List<string>();
-            if (!skipReceiveCallExpectation)
+            if (expectReceives && !skipReceiveCallExpectation)
             {
+                var seenReceivedThreadIds = new List<string>();
                 while (seenReceivedThreadIds.Count < receiveThreadIds.Count)
                 {
                     result = logNavigator.Next(x => x.GetLogPositionId() == "30d12d3a-11b1-4761-b4b7-8a4261b1dd9c" &&
@@ -377,7 +412,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     }
                     Assert.Equal(expectedDatagramRepr, actualDatagramRepr);
                     var actualSessionHandlerId = result.GetStrProp(CustomLogEvent.LogDataKeySessionId);
-                    Assert.Equal(sessionId, actualSessionHandlerId);
+                    Assert.Equal(datagram.SessionId, actualSessionHandlerId);
 
                     // test that delay is as expected.
                     var stopTimeEpoch = result.GetIntProp(LogDataKeyTimestamp).Value;
@@ -561,6 +596,325 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
         }
 
         [Fact]
+        public async Task TestSendReceiveInParallel()
+        {
+            var addrA = new GenericNetworkIdentifier { HostName = "DestA" };
+            var endpointA = new MemoryNetworkApi
+            {
+                LocalEndpoint = addrA,
+                SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
+            };
+            endpointA.TransmissionBehaviour = new MemoryNetworkApi.DefaultTransmissionBehaviour
+            {
+                Config = new MemoryNetworkApi.TransmissionConfig
+                {
+                    Delays = new int[] { 700 }
+                }
+            };
+
+            var addrB = new GenericNetworkIdentifier { HostName = "DestB" };
+            var endpointB = new MemoryNetworkApi
+            {
+                LocalEndpoint = addrB,
+                SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
+            };
+            endpointB.SendBehaviour = new MemoryNetworkApi.DefaultSendBehaviour
+            {
+                Config = new MemoryNetworkApi.SendConfig
+                {
+                    Delay = 1600
+                }
+            };
+
+            var addrC = new GenericNetworkIdentifier { HostName = "DestC" };
+            var endpointC = new MemoryNetworkApi
+            {
+                LocalEndpoint = addrC,
+                SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
+            };
+            endpointC.SendBehaviour = new MemoryNetworkApi.DefaultSendBehaviour
+            {
+                Config = new MemoryNetworkApi.SendConfig
+                {
+                    SerializeDatagram = true,
+                    Delay = 1000
+                }
+            };
+            endpointC.TransmissionBehaviour = new MemoryNetworkApi.DefaultTransmissionBehaviour
+            {
+                Config = new MemoryNetworkApi.TransmissionConfig
+                {
+                    Delays = new int[] { 1500, 3500 }
+                }
+            };
+
+            // now connect all to the other, except that A is not connected to C.
+            endpointA.ConnectedNetworks.Add(addrB, endpointB);
+            endpointB.ConnectedNetworks.Add(addrA, endpointA);
+            endpointB.ConnectedNetworks.Add(addrC, endpointC);
+            endpointC.ConnectedNetworks.Add(addrB, endpointB);
+
+            TestDatabase.ResetDb();
+
+            var randGen = new Random();
+
+            // perform only success cases right now, to get at least 1 session id for each connection.
+            var sendRequests = new List<SendRequestContext>();
+            var existingSessionIds = new List<Tuple<MemoryNetworkApi, GenericNetworkIdentifier, string>>();
+            int initialSuccessCount = 10;
+            for (int i = 0; i < initialSuccessCount; i++)
+            {
+                var randMessage = randGen.Next().ToString();
+                var dataToSend = ProtocolDatagram.ConvertStringToBytes(randMessage);
+                var sessionId = ProtocolDatagram.GenerateSessionId();
+                var datagram = new ProtocolDatagram
+                {
+                    OpCode = ProtocolDatagram.OpCodeData,
+                    DataBytes = dataToSend,
+                    DataLength = dataToSend.Length,
+                    SessionId = sessionId
+                };
+
+                MemoryNetworkApi srcEndpoint;
+                GenericNetworkIdentifier destAddr;
+                switch (i % 4)
+                {
+                    case 0:
+                        srcEndpoint = endpointA;
+                        destAddr = addrB;
+                        break;
+                    case 1:
+                        srcEndpoint = endpointB;
+                        destAddr = addrA;
+                        break;
+                    case 2:
+                        srcEndpoint = endpointB;
+                        destAddr = addrC;
+                        break;
+                    default:
+                        srcEndpoint = endpointC;
+                        destAddr = addrB;
+                        break;
+                }
+
+                existingSessionIds.Add(Tuple.Create(srcEndpoint, destAddr, datagram.SessionId));
+
+                var sendConfig = (MemoryNetworkApi.DefaultSendBehaviour)srcEndpoint.SendBehaviour;
+                var transmissionConfig = (MemoryNetworkApi.DefaultTransmissionBehaviour)srcEndpoint.TransmissionBehaviour;
+                string expectedCallbackEx = null;
+                var expectReceives = true;
+                var expectCompleteInitCall = true;
+                var skipReceiveCallExpectation = false;
+                string[] expectedErrorLogPositions = null;
+
+                var startTime = DateTime.UtcNow;
+                var initId = srcEndpoint.RequestSend(destAddr, datagram, CreateSendCallback());
+                var requestContext = new SendRequestContext
+                {
+                    InitId = initId,
+                    SendConfig = sendConfig?.Config,
+                    TransmissionConfig = transmissionConfig?.Config,
+                    Datagram = datagram,
+                    ExpectedCallbackEx = expectedCallbackEx,
+                    ExpectReceives = expectReceives,
+                    ExpectCompleteInitCall = expectCompleteInitCall,
+                    SkipReceiveCallExpectation = skipReceiveCallExpectation,
+                    ExpectedErrorLogPositions = expectedErrorLogPositions,
+                    StartTime = startTime
+                };
+                sendRequests.Add(requestContext);
+            }
+
+            await WaitForAllLogicalThreads(10 * initialSuccessCount);
+            var testLogs = GetValidatedTestLogs();
+
+            foreach (var sendRequest in sendRequests)
+            {
+                var specificLogicalThreadIds = GetRelatedLogicalThreadIds(testLogs, sendRequest.InitId);
+                var specificLogs = testLogs.Where(x => 
+                    specificLogicalThreadIds.Contains(x.GetCurrentLogicalThreadId())).ToList();
+
+                try
+                {
+                    AssertSendReceiveLogs(sendRequest.SendConfig, sendRequest.TransmissionConfig,
+                        sendRequest.Datagram, true, sendRequest.ExpectedCallbackEx,
+                        sendRequest.ExpectReceives, sendRequest.ExpectCompleteInitCall,
+                        sendRequest.SkipReceiveCallExpectation,
+                        sendRequest.ExpectedErrorLogPositions, specificLogs,
+                        specificLogicalThreadIds, sendRequest.StartTime);
+                }
+                catch (Exception ex)
+                {
+                    CustomLoggerFacade.WriteToStdOut(true,
+                        $"Initial parallel send/receive testing in MemoryNetworkApiTest failed for: " +
+                        $"{JsonConvert.SerializeObject(sendRequest)}", ex);
+                    throw;
+                }
+            }
+
+            // now perform parallel tests of more variety.
+
+            // test mainly success scenarios.
+            // test reuse session id case.
+            // test invalid op code case
+            // test send exception case - with A not connected to C.
+            // test receive exception case - with known value for trace id option.
+
+            TestDatabase.ResetDb();
+
+            var parallelTestCount = 40;
+            sendRequests.Clear();
+            for (int i = 0; i < parallelTestCount; i++)
+            {
+                var randMessage = randGen.Next().ToString();
+                var dataToSend = ProtocolDatagram.ConvertStringToBytes(randMessage);
+                var sessionId = ProtocolDatagram.GenerateSessionId();
+                var datagram = new ProtocolDatagram
+                {
+                    DataBytes = dataToSend,
+                    DataLength = dataToSend.Length,
+                    SessionId = sessionId
+                };
+
+                MemoryNetworkApi srcEndpoint;
+                switch (randGen.Next(3))
+                {
+                    case 0:
+                        srcEndpoint = endpointA;
+                        break;
+                    case 1:
+                        srcEndpoint = endpointB;
+                        break;
+                    default:
+                        srcEndpoint = endpointC;
+                        break;
+                }
+                GenericNetworkIdentifier destAddr;
+                if (srcEndpoint == endpointA)
+                {
+                    destAddr = randGen.NextDouble() < 0.5 ? addrB : addrC;
+                }
+                else if (srcEndpoint == endpointB)
+                {
+                    destAddr = randGen.NextDouble() < 0.5 ? addrA : addrC;
+                }
+                else
+                {
+                    destAddr = randGen.NextDouble() < 0.5 ? addrA : addrB;
+                }
+                
+                bool isSendExceptionCase = false, isReceiveExceptionCase = false;
+                bool isInvalidOpcodeCase = false;
+                if (srcEndpoint == endpointA && destAddr == addrC ||
+                    srcEndpoint == endpointC && destAddr == addrA)
+                {
+                    isSendExceptionCase = true;
+                }
+                else
+                {
+                    switch (randGen.Next(5))
+                    {
+                        case 0:
+                            isReceiveExceptionCase = true;
+                            break;
+                        case 1:
+                            isInvalidOpcodeCase = true;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
+                bool reuseSessionId = randGen.NextDouble() < 0.5;
+
+                var sendConfig = (MemoryNetworkApi.DefaultSendBehaviour)srcEndpoint.SendBehaviour;
+                var transmissionConfig = (MemoryNetworkApi.DefaultTransmissionBehaviour)srcEndpoint.TransmissionBehaviour;
+                string expectedCallbackEx = null;
+                var expectReceives = true;
+                var expectCompleteInitCall = true;
+                var skipReceiveCallExpectation = false;
+                string[] expectedErrorLogPositions = null;
+
+                if (reuseSessionId)
+                {
+                    foreach (var existingSessionId in existingSessionIds)
+                    {
+                        if (existingSessionId.Item1 == srcEndpoint && existingSessionId.Item2 == destAddr)
+                        {
+                            datagram.SessionId = existingSessionId.Item3;
+                            expectCompleteInitCall = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (isInvalidOpcodeCase)
+                {
+                    datagram.OpCode = randGen.NextDouble() < 0.5 ? ProtocolDatagram.OpCodeRestart :
+                        ProtocolDatagram.OpCodeShutdown;
+                    expectedErrorLogPositions = new string[] { "74566405-9d14-489f-9dbd-0c9b3e0e3e67" };
+                    expectCompleteInitCall = false;
+                    skipReceiveCallExpectation = true;
+                }
+                else if (isSendExceptionCase)
+                {
+                    expectedCallbackEx = typeof(Exception).Name;
+                    expectReceives = false;
+                }
+                else if (isReceiveExceptionCase)
+                {
+                    datagram.Options = new ProtocolDatagramOptions();
+                    datagram.Options.TraceId = ErrorTraceValue;
+                    expectedErrorLogPositions = new string[] { "bb741504-3a4b-4ea3-a749-21fc8aec347f" };
+                }
+
+                var startTime = DateTime.UtcNow;
+                var initId = srcEndpoint.RequestSend(destAddr, datagram, CreateSendCallback());
+                var requestContext = new SendRequestContext
+                {
+                    InitId = initId,
+                    SendConfig = sendConfig?.Config,
+                    TransmissionConfig = transmissionConfig?.Config,
+                    Datagram = datagram,
+                    ExpectedCallbackEx = expectedCallbackEx,
+                    ExpectReceives = expectReceives,
+                    ExpectCompleteInitCall = expectCompleteInitCall,
+                    SkipReceiveCallExpectation = skipReceiveCallExpectation,
+                    ExpectedErrorLogPositions = expectedErrorLogPositions,
+                    StartTime = startTime
+                };
+                sendRequests.Add(requestContext);
+            }
+
+            await WaitForAllLogicalThreads(10 * parallelTestCount);
+            testLogs = GetValidatedTestLogs();
+
+            foreach (var sendRequest in sendRequests)
+            {
+                var specificLogicalThreadIds = GetRelatedLogicalThreadIds(testLogs, sendRequest.InitId);
+                var specificLogs = testLogs.Where(x =>
+                    specificLogicalThreadIds.Contains(x.GetCurrentLogicalThreadId())).ToList();
+
+                try
+                {
+                    AssertSendReceiveLogs(sendRequest.SendConfig, sendRequest.TransmissionConfig,
+                        sendRequest.Datagram, true, sendRequest.ExpectedCallbackEx,
+                        sendRequest.ExpectReceives, sendRequest.ExpectCompleteInitCall,
+                        sendRequest.SkipReceiveCallExpectation,
+                        sendRequest.ExpectedErrorLogPositions, specificLogs,
+                        specificLogicalThreadIds, sendRequest.StartTime);
+                }
+                catch (Exception ex)
+                {
+                    CustomLoggerFacade.WriteToStdOut(true,
+                        $"Extended parallel send/receive testing in MemoryNetworkApiTest failed for: " +
+                        $"{JsonConvert.SerializeObject(sendRequest)}", ex);
+                    throw;
+                }
+            }
+        }
+
+        [Fact]
         public async Task TestSessionDispose()
         {
             // Test normal dispose call in which endpoint and session id exist.
@@ -719,6 +1073,10 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                         .AddProperty(LogDataKeyDatagramHashCode, "" + datagram.GetHashCode())
                         .AddProperty(LogDataKeyTimestamp, ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds())
                         .AddProperty(CustomLogEvent.LogDataKeySessionId, SessionId));
+                if (datagram.Options?.TraceId == ErrorTraceValue)
+                {
+                    throw new Exception(ErrorTraceValue);
+                }
                 return NetworkApi.PromiseApi.CompletedPromise();
             }
 
@@ -741,6 +1099,20 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     .AddProperty(LogDataKeyTimestamp, ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds()));
             };
             return testCb;
+        }
+
+        private class SendRequestContext
+        {
+            public Guid InitId { get; set; }
+            public MemoryNetworkApi.SendConfig SendConfig { get; set; }
+            public MemoryNetworkApi.TransmissionConfig TransmissionConfig { get; set; }
+            public ProtocolDatagram Datagram { get; set; }
+            public string ExpectedCallbackEx { get; set; }
+            public bool ExpectReceives { get; set; }
+            public bool ExpectCompleteInitCall { get; set; }
+            public bool SkipReceiveCallExpectation { get; set; }
+            public string[] ExpectedErrorLogPositions { get; set; }
+            public DateTime StartTime { get; set; }
         }
     }
 }

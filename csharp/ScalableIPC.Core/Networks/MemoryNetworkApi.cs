@@ -125,7 +125,7 @@ namespace ScalableIPC.Core.Networks
             }
         }
 
-        public void RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, Action<Exception> cb)
+        public Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, Action<Exception> cb)
         {
             // Start sending in separate thread of control.
             var newLogicalThreadId = GenerateAndRecordLogicalThreadId(logEvent =>
@@ -153,11 +153,15 @@ namespace ScalableIPC.Core.Networks
                         ex))
                     .EndLogicalThread(() => RecordEndOfLogicalThread());
             });
+            return newLogicalThreadId;
         }
 
         public AbstractPromise<VoidType> _HandleSendAsync(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram datagram)
         {
+            // ensure connected network for target endpoint.
+            var connectedNetwork = ConnectedNetworks[remoteEndpoint];
+
             // simulate sending.
 
             SendConfig sendConfig = null;
@@ -213,7 +217,6 @@ namespace ScalableIPC.Core.Networks
                 return sendResult;
             }
 
-            var connectedNetwork = ConnectedNetworks[remoteEndpoint];
             for (int i = 0; i < transmissionConfig.Delays.Length; i++)
             {
                 // capture usage of index i before entering closure
@@ -325,7 +328,7 @@ namespace ScalableIPC.Core.Networks
             }
         }
 
-        public void RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint,
+        public Guid RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint,
             string sessionId, SessionDisposedException cause)
         {
             // Start completion of disposal in separate thread of control.
@@ -339,6 +342,7 @@ namespace ScalableIPC.Core.Networks
                         "Error encountered while disposing session handler", ex))
                     .EndLogicalThread(() => RecordEndOfLogicalThread());
             });
+            return newLogicalThreadId;
         }
 
         public AbstractPromise<VoidType> _DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
