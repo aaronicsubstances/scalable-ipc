@@ -114,8 +114,8 @@ namespace ScalableIPC.Core.Networks
                 {
                     _sessionHandlerStore.Add(remoteEndpoint, sessionId,
                         new SessionHandlerWrapper(sessionHandler));
+                    sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
                 }
-                sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
                 return PromiseApi.Resolve(sessionHandler);
             }
             catch (Exception ex)
@@ -126,14 +126,14 @@ namespace ScalableIPC.Core.Networks
 
         public void RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, Action<Exception> cb)
         {
-            // Fire outside of event loop thread if possible.
+            // Start sending in separate thread of control.
             var newLogicalThreadId = GenerateAndRecordLogicalThreadId(logEvent =>
             {
                 logEvent.AddProperty(LogDataKeyIsReceiverThread, false);
             });
-            Task.Run(() =>
+            _StartNewThreadOfControl(() =>
             {
-                var promise = PromiseApi.CompletedPromise()
+                return PromiseApi.CompletedPromise()
                     .StartLogicalThread(newLogicalThreadId)
                     .ThenCompose(_ => _HandleSendAsync(remoteEndpoint, message))
                     .Then(_ =>
@@ -151,7 +151,6 @@ namespace ScalableIPC.Core.Networks
                         $"Error occured in callback processing during message send to {remoteEndpoint}",
                         ex))
                     .EndLogicalThread(() => RecordEndOfLogicalThread());
-                return ((DefaultPromise<VoidType>)promise).WrappedTask;
             });
         }
 
@@ -222,8 +221,8 @@ namespace ScalableIPC.Core.Networks
                 {
                     logEvent.AddProperty(LogDataKeyIsReceiverThread, true);
                 });
-                Task.Run(() => {
-                    var transmissionResult = PromiseApi.CompletedPromise()
+                _StartNewThreadOfControl(() => {
+                    return PromiseApi.CompletedPromise()
                         .StartLogicalThread(newLogicalThreadId)
                         .ThenCompose(_ =>
                         {
@@ -252,8 +251,6 @@ namespace ScalableIPC.Core.Networks
                             $"Error occured during message receipt handling from {remoteEndpoint}",
                             ex))
                         .EndLogicalThread(() => RecordEndOfLogicalThread());
-
-                    return ((DefaultPromise<VoidType>)transmissionResult).WrappedTask;
                 });
             }
 
@@ -263,6 +260,14 @@ namespace ScalableIPC.Core.Networks
         private AbstractPromise<VoidType> HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram datagram)
         {
+            if (!IsDatagramValid(datagram))
+            {
+                RecordTestLog("74566405-9d14-489f-9dbd-0c9b3e0e3e67", logEvent =>
+                {
+                    logEvent.Message = "Received datagram is invalid for processing";
+                });
+                return PromiseApi.CompletedPromise();
+            }
             ISessionHandler sessionHandler;
             lock (_sessionHandlerStore)
             {
@@ -278,7 +283,7 @@ namespace ScalableIPC.Core.Networks
                         // ignore new session if shutting down.
                         RecordTestLog("823df166-6430-4bcf-ae8f-2cb4c5e77cb1", logEvent =>
                         {
-                            logEvent.Message = "Ignoring creation of new session as instance is shutting down";
+                            logEvent.Message = "Skipping creation of new session as instance is shutting down";
                         });
                         return PromiseApi.CompletedPromise();
                     }
@@ -298,20 +303,34 @@ namespace ScalableIPC.Core.Networks
             return sessionHandler.ProcessReceiveAsync(datagram);
         }
 
+        protected internal virtual bool IsDatagramValid(ProtocolDatagram datagram)
+        {
+            switch (datagram.OpCode)
+            {
+                case ProtocolDatagram.OpCodeData:
+                case ProtocolDatagram.OpCodeDataAck:
+                case ProtocolDatagram.OpCodeClose:
+                case ProtocolDatagram.OpCodeCloseAck:
+                    return true;
+                default:
+                    // ignore shutdowns and restarts
+                    return false;
+            }
+        }
+
         public void RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint,
             string sessionId, SessionDisposedException cause)
         {
-            // Fire outside of event loop thread if possible.
+            // Start completion of disposal in separate thread of control.
             var newLogicalThreadId = GenerateAndRecordLogicalThreadId(null);
-            Task.Run(() => {
-                var promise = PromiseApi.CompletedPromise()
+            _StartNewThreadOfControl(() => {
+                return PromiseApi.CompletedPromise()
                     .StartLogicalThread(newLogicalThreadId)
                     .ThenCompose(_ => _DisposeSessionAsync(remoteEndpoint, sessionId, cause))
                     .CatchCompose(ex => RecordLogicalThreadException(
                         "86a662a4-c098-4053-ac26-32b984079419",
                         "Error encountered while disposing session handler", ex))
                     .EndLogicalThread(() => RecordEndOfLogicalThread());
-                return ((DefaultPromise<VoidType>)promise).WrappedTask;
             });
         }
 
@@ -333,7 +352,11 @@ namespace ScalableIPC.Core.Networks
 
         public AbstractPromise<VoidType> ShutdownAsync(int gracefulWaitPeriodSecs)
         {
-            // it is enough to prevent creation of new session handlers
+            // it is enough to prevent creation of new session handlers.
+            // do not bother trying to send shutdown datagrams to connected networks,
+            // or forcefully dispose remaining session handlers.
+            // Because we don't want to clutter logs with exception stack traces resulting
+            // from shutdowns during sending operation of session handlers.
             lock (_isShuttingDownLock)
             {
                 _isShuttingDown = true;
@@ -344,6 +367,15 @@ namespace ScalableIPC.Core.Networks
         public bool IsShuttingDown()
         {
             return _isShuttingDown;
+        }
+
+        public void _StartNewThreadOfControl(Func<AbstractPromise<VoidType>> cb)
+        {
+            Task.Run(() =>
+            {
+                var promise = cb();
+                return ((DefaultPromise<VoidType>)promise).WrappedTask;
+            });
         }
 
         private Guid GenerateAndRecordLogicalThreadId(Action<CustomLogEvent> customizer)

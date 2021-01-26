@@ -41,5 +41,6 @@ namespace ScalableIPC.Core.Abstractions
 
         AbstractPromise<VoidType> ShutdownAsync(int gracefulWaitPeriodSecs);
         bool IsShuttingDown();
+        void _StartNewThreadOfControl(Func<AbstractPromise<VoidType>> cb);
     }
 }
