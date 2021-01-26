@@ -136,6 +136,8 @@ namespace ScalableIPC.Core.Concurrency
         private Task<T[]> WhenAllSucceedImpl<T>(List<Task<T>> nativePromises,
             List<Task<T>> uncompleted, T[] tempResults)
         {
+            // WhenAllSucceed is interpreted as NOT WhenAnyFail. 
+            // And so implementation is similar to WhenAnySucceed
             return Task.WhenAny(uncompleted)
                 .ContinueWith(t =>
                 {

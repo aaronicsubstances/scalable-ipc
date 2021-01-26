@@ -591,6 +591,44 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 expectCallback, expectedCallbackEx, expectReceives, expectCompleteInitCall,
                 skipReceiveCallExpectation, errorLogPositionsToSkip });
 
+            // test empty transmission config delays
+            customizer = null;
+            sendConfig = null;
+            transmissionConfig = new MemoryNetworkApi.TransmissionConfig
+            {
+                Delays = null
+            };
+            message = "...";
+            sessionId = ProtocolDatagram.GenerateSessionId();
+            expectCallback = true;
+            expectedCallbackEx = null;
+            expectReceives = false;
+            expectCompleteInitCall = false;
+            skipReceiveCallExpectation = true;
+            errorLogPositionsToSkip = null;
+            testData.Add(new object[] { customizer, sendConfig, transmissionConfig, message, sessionId,
+                expectCallback, expectedCallbackEx, expectReceives, expectCompleteInitCall,
+                skipReceiveCallExpectation, errorLogPositionsToSkip });
+
+            // test empty transmission config delays again
+            customizer = null;
+            sendConfig = null;
+            transmissionConfig = new MemoryNetworkApi.TransmissionConfig
+            {
+                Delays = new int[0]
+            };
+            message = "...";
+            sessionId = ProtocolDatagram.GenerateSessionId();
+            expectCallback = true;
+            expectedCallbackEx = null;
+            expectReceives = false;
+            expectCompleteInitCall = false;
+            skipReceiveCallExpectation = true;
+            errorLogPositionsToSkip = null;
+            testData.Add(new object[] { customizer, sendConfig, transmissionConfig, message, sessionId,
+                expectCallback, expectedCallbackEx, expectReceives, expectCompleteInitCall,
+                skipReceiveCallExpectation, errorLogPositionsToSkip });
+
             return testData;
         }
 
