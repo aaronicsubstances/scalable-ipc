@@ -18,9 +18,11 @@ namespace ScalableIPC.Core.Concurrency
         // So use lock to guarantee memory consistency (and also to definitely eliminate thread interference errors
         // in the case where degree of parallelism is more than 1).
 
-        // locking also has another useful side-effect in combination with throttled task scheduler's task queue:
+        // locking also has another interesting side-effect in combination with throttled task scheduler's task queue:
         // it guarantees that callbacks posted during processing of a given callback will only get executed after 
         // the current processing is finished, even when degree of parallelism is more than 1.
+        // Unfortunately it is still not useful in production, as posted callbacks aren't guaranteed to execute in order
+        // after current processing finishes. 
         private readonly bool _runCallbacksUnderMutex;
 
         // limit parallelism to one to guarantee that callbacks posted from same thread

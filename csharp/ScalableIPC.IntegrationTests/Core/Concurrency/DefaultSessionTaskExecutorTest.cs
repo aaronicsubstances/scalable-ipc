@@ -216,9 +216,8 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 Assert.NotNull(stopTime);
                 var expectedStopTime = startTime.AddSeconds(delaySecs);
                 // allow some secs tolerance in comparison using 
-                // time differences observed infailed/flaky test results.
-                Assert.InRange(stopTime.Value, expectedStopTime.AddSeconds(-1), 
-                    expectedStopTime.AddSeconds(1.5));
+                // time differences observed in failed/flaky test results.
+                Assert.Equal(expectedStopTime, stopTime.Value, TimeSpan.FromSeconds(1.5));
             }
         }
 

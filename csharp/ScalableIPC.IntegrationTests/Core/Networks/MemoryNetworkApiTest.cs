@@ -323,6 +323,13 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.True(logicalThreadIds.Count > 0);
             var sendThreadId = logicalThreadIds[0];
 
+            long sendDelayMillis = 0;
+            if (sendConfig != null)
+            {
+                sendDelayMillis = sendConfig.Delay;
+            }
+            if (sendDelayMillis < 0) sendDelayMillis = 0;
+
             // test send callback invocation
             TestLogRecord result;
             if (expectCallback)
@@ -342,18 +349,11 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
                 // check time taken for callback to be called
                 var stopTimeEpoch = result.GetIntProp(LogDataKeyTimestamp).Value;
-                var stopTime = DateTimeOffset.FromUnixTimeMilliseconds(stopTimeEpoch);
-                long delayMillis = 0;
-                if (sendConfig != null)
-                {
-                    delayMillis = sendConfig.Delay;
-                }
-                if (delayMillis < 0) delayMillis = 0;
-                var expectedStopTime = startTime.AddMilliseconds(delayMillis);
+                var actualStopTime = DateTimeOffset.FromUnixTimeMilliseconds(stopTimeEpoch);
+                var expectedStopTime = startTime.AddMilliseconds(sendDelayMillis);
                 // allow some secs tolerance in comparison using 
-                // time differences observed infailed/flaky test results.
-                Assert.InRange(stopTime, expectedStopTime.AddSeconds(-1),
-                    expectedStopTime.AddSeconds(1.5));
+                // time differences observed in failed/flaky test results.
+                Assert.Equal(expectedStopTime, actualStopTime.UtcDateTime, TimeSpan.FromSeconds(2));
             }
             result = logNavigator.Next(x => x.GetLogPositionId() == "e870904c-f035-4c5d-99e7-2c4534f4c152" &&
                 x.GetCurrentLogicalThreadId() == sendThreadId);
@@ -416,16 +416,15 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
                     // test that delay is as expected.
                     var stopTimeEpoch = result.GetIntProp(LogDataKeyTimestamp).Value;
-                    var stopTime = DateTimeOffset.FromUnixTimeMilliseconds(stopTimeEpoch);
+                    var actualStopTime = DateTimeOffset.FromUnixTimeMilliseconds(stopTimeEpoch);
                     var resultWithDelay = testLogs.Single(
                         x => x.GetStrProp(CustomLogEvent.LogDataKeyNewLogicalThreadId) == newReceivedThreadId);
                     long delay = resultWithDelay.GetIntProp(MemoryNetworkApi.LogDataKeyDelay).Value;
                     if (delay < 0) delay = 0;
-                    var expectedStopTime = startTime.AddMilliseconds(delay);
+                    var expectedStopTime = startTime.AddMilliseconds(sendDelayMillis + delay);
                     // allow some secs tolerance in comparison using 
-                    // time differences observed infailed/flaky test results.
-                    Assert.InRange(stopTime, expectedStopTime.AddSeconds(-1),
-                        expectedStopTime.AddSeconds(1.5));
+                    // time differences observed in failed/flaky test results.
+                    Assert.Equal(expectedStopTime, actualStopTime.UtcDateTime, TimeSpan.FromSeconds(2));
                 }
             }
 

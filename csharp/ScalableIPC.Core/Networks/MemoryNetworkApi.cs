@@ -48,7 +48,6 @@ namespace ScalableIPC.Core.Networks
             public int[] Delays { get; set; }
         }
 
-        internal static readonly string LogDataKeyIsReceiverThread = "isReceiverThread";
         internal static readonly string LogDataKeyDelay = "delay";
 
         private readonly SessionHandlerStore _sessionHandlerStore;
@@ -128,10 +127,7 @@ namespace ScalableIPC.Core.Networks
         public Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, Action<Exception> cb)
         {
             // Start sending in separate thread of control.
-            var newLogicalThreadId = GenerateAndRecordLogicalThreadId(logEvent =>
-            {
-                logEvent.AddProperty(LogDataKeyIsReceiverThread, false);
-            });
+            var newLogicalThreadId = GenerateAndRecordLogicalThreadId(null);
             _StartNewThreadOfControl(() =>
             {
                 return PromiseApi.CompletedPromise()
@@ -224,8 +220,7 @@ namespace ScalableIPC.Core.Networks
                 var newLogicalThreadId = GenerateAndRecordLogicalThreadId(logEvent =>
                 {
                     logEvent.Message = "Starting transmission...";
-                    logEvent.AddProperty(LogDataKeyIsReceiverThread, true)
-                        .AddProperty(LogDataKeyDelay, transmissionDelay);
+                    logEvent.AddProperty(LogDataKeyDelay, transmissionDelay);
                 });
                 _StartNewThreadOfControl(() => {
                     return PromiseApi.CompletedPromise()
