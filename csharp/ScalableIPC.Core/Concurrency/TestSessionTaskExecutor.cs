@@ -56,6 +56,8 @@ namespace ScalableIPC.Core.Concurrency
             CurrentTimestamp = initialTimestamp;
         }
 
+        public bool RunImmediateCallbacksWithoutAdvance { get; set; } = false;
+
         public void AdvanceTimeBy(long delay)
         {
             if (delay < 0)
@@ -86,8 +88,7 @@ namespace ScalableIPC.Core.Concurrency
 
         public override void PostCallback(Action cb)
         {
-            // run immediately
-            cb.Invoke();
+            ScheduleTimeout(0, cb);
         }
 
         protected internal static void StableSort(List<TaskDescriptor> list)
@@ -101,9 +102,9 @@ namespace ScalableIPC.Core.Concurrency
             {
                 throw new ArgumentException("cannot be negative", nameof(millis));
             }
-            if (millis == 0)
+            // run immediately if so configured.
+            if (millis == 0 && RunImmediateCallbacksWithoutAdvance)
             {
-                // run immediately
                 cb.Invoke();
                 return null;
             }

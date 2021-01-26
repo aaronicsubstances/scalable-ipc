@@ -96,6 +96,17 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             instance.PostCallback(() => callbackLogs.Add("cac4e224-15b6-45af-8df4-0a4d43b2ae05"));
             instance.PostCallback(() => callbackLogs.Add("757d903d-376f-4e5f-accf-371fd5f06c3d"));
             instance.PostCallback(() => callbackLogs.Add("245bd145-a538-49b8-b7c8-733f77e5d245"));
+            instance.AdvanceTimeBy(0);
+            Assert.Equal(10, instance.CurrentTimestamp);
+            Assert.Equal(new List<string> {
+                "cac4e224-15b6-45af-8df4-0a4d43b2ae05", "757d903d-376f-4e5f-accf-371fd5f06c3d",
+                "245bd145-a538-49b8-b7c8-733f77e5d245" }, callbackLogs);
+
+            callbackLogs.Clear();
+            instance.RunImmediateCallbacksWithoutAdvance = true;
+            instance.PostCallback(() => callbackLogs.Add("cac4e224-15b6-45af-8df4-0a4d43b2ae05"));
+            instance.PostCallback(() => callbackLogs.Add("757d903d-376f-4e5f-accf-371fd5f06c3d"));
+            instance.PostCallback(() => callbackLogs.Add("245bd145-a538-49b8-b7c8-733f77e5d245"));
             Assert.Equal(10, instance.CurrentTimestamp);
             Assert.Equal(new List<string> {
                 "cac4e224-15b6-45af-8df4-0a4d43b2ae05", "757d903d-376f-4e5f-accf-371fd5f06c3d",
@@ -135,6 +146,38 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             Assert.Equal(new List<string>(), callbackLogs);
 
             callbackLogs.Clear();
+            instance.RunImmediateCallbacksWithoutAdvance = false;
+            instance.CancelTimeout(testTimeoutId);
+            // test repeated cancellation of same id doesn't cause problems.
+            instance.CancelTimeout(testTimeoutId);
+            instance.PostCallback(() =>
+                callbackLogs.Add("6d3a5586-b81d-4ca5-880b-2b711881a14e"));
+            testTimeoutId = instance.ScheduleTimeout(3, () =>
+                callbackLogs.Add("8722d9a6-a7d4-47fe-a6d4-eee624fb0740"));
+            instance.ScheduleTimeout(4, () =>
+                callbackLogs.Add("2f7deeb1-f857-4f29-82de-b4168133f093"));
+            var testTimeoutId2 = instance.ScheduleTimeout(3, () =>
+                callbackLogs.Add("42989f22-a6d1-48ff-a554-86f79e87321e"));
+            instance.ScheduleTimeout(0, () =>
+                callbackLogs.Add("9b463fec-6a9c-44cc-8165-e106080b18fc"));
+            instance.PostCallback(() =>
+                callbackLogs.Add("56805433-1f02-4327-b190-50862c0ba93e"));
+            Assert.Equal(new List<string>(), callbackLogs);
+            instance.AdvanceTimeBy(2);
+            Assert.Equal(new List<string> {
+                "6d3a5586-b81d-4ca5-880b-2b711881a14e",
+                "9b463fec-6a9c-44cc-8165-e106080b18fc",
+                "56805433-1f02-4327-b190-50862c0ba93e" }, callbackLogs);
+            callbackLogs.Clear();
+            instance.CancelTimeout(testTimeoutId);
+            instance.AdvanceTimeBy(3);
+            Assert.Equal(25, instance.CurrentTimestamp);
+            Assert.Equal(new List<string> {
+                "42989f22-a6d1-48ff-a554-86f79e87321e",
+                "2f7deeb1-f857-4f29-82de-b4168133f093" }, callbackLogs);
+
+            callbackLogs.Clear();
+            instance.RunImmediateCallbacksWithoutAdvance = true;
             instance.CancelTimeout(testTimeoutId);
             // test repeated cancellation of same id doesn't cause problems.
             instance.CancelTimeout(testTimeoutId);
@@ -155,7 +198,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                 "9b463fec-6a9c-44cc-8165-e106080b18fc",
                 "56805433-1f02-4327-b190-50862c0ba93e" }, callbackLogs);
             instance.AdvanceTimeBy(5);
-            Assert.Equal(25, instance.CurrentTimestamp);
+            Assert.Equal(30, instance.CurrentTimestamp);
             Assert.Equal(new List<string> {
                 "6d3a5586-b81d-4ca5-880b-2b711881a14e",
                 "9b463fec-6a9c-44cc-8165-e106080b18fc",
@@ -166,10 +209,11 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
 
             callbackLogs.Clear();
             instance.CancelTimeout(testTimeoutId); // test already used timeout cancellation isn't a problem.
+            instance.CancelTimeout(testTimeoutId2); // test already used timeout isn't a problem.
             instance.CancelTimeout(null); // test unexpected doesn't cause problems.
             instance.CancelTimeout("jal"); // test unexpected doesn't cause problems.
             instance.AdvanceTimeBy(5);
-            Assert.Equal(30, instance.CurrentTimestamp);
+            Assert.Equal(35, instance.CurrentTimestamp);
             Assert.Equal(new List<string>(), callbackLogs);
         }
 
@@ -195,6 +239,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         public Task TestPromiseCallbackSuccess()
         {
             var instance = new TestSessionTaskExecutor(null, 0);
+            instance.RunImmediateCallbacksWithoutAdvance = true;
             return DefaultSessionTaskExecutorTest.GenericTestPromiseCallbackSuccess(instance);
         }
 
@@ -202,6 +247,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         public Task TestPromiseCallbackError()
         {
             var instance = new TestSessionTaskExecutor(null, 0);
+            instance.RunImmediateCallbacksWithoutAdvance = true;
             return DefaultSessionTaskExecutorTest.GenericTestPromiseCallbackError(instance);
         }
     }
