@@ -1,4 +1,5 @@
 ﻿using Dapper.Contrib.Extensions;
+using ScalableIPC.Core.Helpers;
 using System;
 using System.Collections.Generic;
 
@@ -17,5 +18,34 @@ namespace ScalableIPC.IntegrationTests.Helpers
 
         [Computed]
         public Dictionary<string, object> ParsedProperties { get; set; }
+
+
+        public string GetStrProp(string propNme)
+        {
+            if (ParsedProperties.ContainsKey(propNme))
+            {
+                return (string)ParsedProperties[propNme];
+            }
+            return null;
+        }
+
+        public long? GetIntProp(string propName)
+        {
+            if (ParsedProperties.ContainsKey(propName))
+            {
+                return (long)ParsedProperties[propName];
+            }
+            return null;
+        }
+
+        public string GetLogPositionId()
+        {
+            return GetStrProp(CustomLogEvent.LogDataKeyLogPositionId);
+        }
+
+        public string GetCurrentLogicalThreadId()
+        {
+            return GetStrProp(CustomLogEvent.LogDataKeyCurrentLogicalThreadId);
+        }
     }
 }

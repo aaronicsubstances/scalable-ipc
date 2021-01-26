@@ -49,6 +49,7 @@ namespace ScalableIPC.Core.Networks
         }
 
         internal static readonly string LogDataKeyIsReceiverThread = "isReceiverThread";
+        internal static readonly string LogDataKeyDelay = "delay";
 
         private readonly SessionHandlerStore _sessionHandlerStore;
         private bool _isShuttingDown;
@@ -219,7 +220,9 @@ namespace ScalableIPC.Core.Networks
                 int transmissionDelay = transmissionConfig.Delays[i];
                 var newLogicalThreadId = GenerateAndRecordLogicalThreadId(logEvent =>
                 {
-                    logEvent.AddProperty(LogDataKeyIsReceiverThread, true);
+                    logEvent.Message = "Starting transmission...";
+                    logEvent.AddProperty(LogDataKeyIsReceiverThread, true)
+                        .AddProperty(LogDataKeyDelay, transmissionDelay);
                 });
                 _StartNewThreadOfControl(() => {
                     return PromiseApi.CompletedPromise()
@@ -295,6 +298,10 @@ namespace ScalableIPC.Core.Networks
                     }
 
                     sessionHandler = SessionHandlerFactory.Create();
+                    if (sessionHandler == null)
+                    {
+                        throw new Exception("SessionHandlerFactory failed to create session handler");
+                    }
                     _sessionHandlerStore.Add(remoteEndpoint, datagram.SessionId,
                         new SessionHandlerWrapper(sessionHandler));
                     sessionHandler.CompleteInit(datagram.SessionId, false, this, remoteEndpoint);
