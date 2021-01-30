@@ -474,7 +474,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             expectReceives = false;
             expectCompleteInitCall = false;
             skipReceiveCallExpectation = false;
-            errorLogPositionsToSkip = null;
+            errorLogPositionsToSkip = new string[] { "1b554af7-6b87-448a-af9c-103d9c676030" };
             testData.Add(new object[] { customizer, sendConfig, transmissionConfig, message, sessionId,
                 expectCallback, expectedCallbackEx, expectReceives, expectCompleteInitCall,
                 skipReceiveCallExpectation, errorLogPositionsToSkip });
@@ -509,7 +509,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             expectReceives = false;
             expectCompleteInitCall = false;
             skipReceiveCallExpectation = false;
-            errorLogPositionsToSkip = null;
+            errorLogPositionsToSkip = new string[] { "1b554af7-6b87-448a-af9c-103d9c676030" };
             testData.Add(new object[] { customizer, sendConfig, transmissionConfig, message, sessionId,
                 expectCallback, expectedCallbackEx, expectReceives, expectCompleteInitCall,
                 skipReceiveCallExpectation, errorLogPositionsToSkip });
@@ -840,7 +840,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 };
 
                 MemoryNetworkApi srcEndpoint;
-                switch (randGen.Next(3))
+                switch (randGen.Next(4))
                 {
                     case 0:
                         srcEndpoint = endpointA;
@@ -936,6 +936,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 {
                     expectedCallbackEx = typeof(Exception).Name;
                     expectReceives = false;
+                    expectedErrorLogPositions = new string[] { "1b554af7-6b87-448a-af9c-103d9c676030" };
                 }
                 else if (isReceiveExceptionCase)
                 {
@@ -945,7 +946,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 }
                 else if (callbackExceptionCase)
                 {
-                    CustomLoggerFacade.WriteToStdOut(true, $"{i}. callbackExceptionCase encountered", null);
                     expectReceives = false;
                     expectedErrorLogPositions = new string[] { "1b554af7-6b87-448a-af9c-103d9c676030" };
                 }
@@ -1182,6 +1182,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     .AddProperty(LogDataKeySendException, ex?.ToString())
                     .AddProperty(LogDataKeySendAckTimeout, ackTimeout)
                     .AddProperty(LogDataKeyTimestamp, ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds()));
+
+                // used to test that exceptions raised inside callbacks are caught properly.
                 if (ackTimeout < 0) throw new ArgumentException($"Received negative value");
             };
             return testCb;

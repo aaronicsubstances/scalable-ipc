@@ -135,16 +135,16 @@ namespace ScalableIPC.Core.Networks
                 return PromiseApi.CompletedPromise()
                     .StartLogicalThread(newLogicalThreadId)
                     .ThenCompose(_ => _HandleSendAsync(remoteEndpoint, message))
+                    .Catch(ex =>
+                    {
+                        //NB: cb is optional
+                        cb?.Invoke(0, ex);
+                    })
                     .Then(ackTimeout =>
                     {
                         //NB: cb is optional
                         cb?.Invoke(ackTimeout, null);
                         return VoidType.Instance;
-                    })
-                    .CatchCompose(ex =>
-                    {
-                        cb?.Invoke(0, ex);
-                        return PromiseApi.CompletedPromise();
                     })
                     .CatchCompose(ex => RecordLogicalThreadException(
                         "1b554af7-6b87-448a-af9c-103d9c676030",
