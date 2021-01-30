@@ -13,7 +13,7 @@ namespace ScalableIPC.Core
         private static readonly List<string> DefaultOptionsToSkip = new List<string>
         {
             ProtocolDatagramOptions.OptionNameIsLastInWindow, ProtocolDatagramOptions.OptionNameIsWindowFull,
-            ProtocolDatagramOptions.OptionNameAbortCode, ProtocolDatagramOptions.OptionNameIsLastInWindowGroup,
+            ProtocolDatagramOptions.OptionNameErrorCode, ProtocolDatagramOptions.OptionNameIsLastInWindowGroup,
             EncodedOptionNamePrefix, ProtocolDatagramOptions.OptionNameMaxWindowSize
         };
 

@@ -17,7 +17,7 @@ namespace ScalableIPC.Core.Session
         public ProtocolDatagram MessageToSend { get; set; }
         public bool Sent { get; set; }
         public Action SuccessCallback { get; set; }
-        public Action<SessionDisposedException> ErrorCallback { get; set; }
+        public Action<ProtocolOperationException> ErrorCallback { get; set; }
         public bool IsComplete { get; set; } = false;
 
         public void Start()
@@ -76,7 +76,7 @@ namespace ScalableIPC.Core.Session
 
                 IsComplete = true;
                 _sessionHandler.IncrementNextWindowIdToSend();
-                ErrorCallback.Invoke(new SessionDisposedException(error));
+                ErrorCallback.Invoke(new ProtocolOperationException(error));
             });
         }
     }

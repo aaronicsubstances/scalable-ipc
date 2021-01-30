@@ -26,7 +26,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         bool StopAndWait { get; set; }
         int EffectiveAckTimeout { get; }
         Action SuccessCallback { get; set; }
-        Action<SessionDisposedException> ErrorCallback { get; set; }
+        Action<ProtocolOperationException> ErrorCallback { get; set; }
         Action<int> WindowFullCallback { get; set; }
         Action TimeoutCallback { get; set; }
         bool IsComplete { get; }

@@ -330,7 +330,7 @@ namespace ScalableIPC.Core.Networks
         }
 
         public Guid RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint,
-            string sessionId, SessionDisposedException cause)
+            string sessionId, ProtocolOperationException cause)
         {
             // Start completion of disposal in separate thread of control.
             var newLogicalThreadId = GenerateAndRecordLogicalThreadId(null);
@@ -347,7 +347,7 @@ namespace ScalableIPC.Core.Networks
         }
 
         public AbstractPromise<VoidType> _DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
-            SessionDisposedException cause)
+            ProtocolOperationException cause)
         {
             SessionHandlerWrapper sessionHandler;
             lock (_sessionHandlerStore)

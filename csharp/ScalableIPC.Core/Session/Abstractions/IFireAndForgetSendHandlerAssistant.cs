@@ -9,7 +9,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         ProtocolDatagram MessageToSend { get; set; }
         bool Sent { get; set; }
         Action SuccessCallback { get; set; }
-        Action<SessionDisposedException> ErrorCallback { get; set; }
+        Action<ProtocolOperationException> ErrorCallback { get; set; }
         bool IsComplete { get; set; }
         void Start();
         void Cancel();

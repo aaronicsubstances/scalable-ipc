@@ -34,22 +34,22 @@ namespace ScalableIPC.Core.Session.Abstractions
 
         void ResetAckTimeout(int timeout, Action cb);
         void CancelAckTimeout();
-        void InitiateDispose(SessionDisposedException cause);
-        void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> promiseCb);
-        void ContinueDispose(SessionDisposedException cause);
+        void InitiateDispose(ProtocolOperationException cause);
+        void InitiateDispose(ProtocolOperationException cause, PromiseCompletionSource<VoidType> promiseCb);
+        void ContinueDispose(ProtocolOperationException cause);
 
         // application layer interface. contract here is that these should be scheduled on event loop.
         Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
         Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
-        Action<ISessionHandler, SessionDisposedException> SessionDisposingHandler { get; set; }
-        Action<ISessionHandler, SessionDisposedException> SessionDisposedHandler { get; set; }
-        Action<ISessionHandler, SessionDisposedException> ReceiveErrorHandler { get; set; }
-        Action<ISessionHandler, SessionDisposedException> SendErrorHandler { get; set; }
+        Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
+        Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
+        Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
+        Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
         void OnDatagramDiscarded(ProtocolDatagram datagram);
         void OnMessageReceived(ProtocolMessage message);
-        void OnSessionDisposing(SessionDisposedException cause);
-        void OnSessionDisposed(SessionDisposedException cause);
-        void OnSendError(SessionDisposedException error);
-        void OnReceiveError(SessionDisposedException error);
+        void OnSessionDisposing(ProtocolOperationException cause);
+        void OnSessionDisposed(ProtocolOperationException cause);
+        void OnSendError(ProtocolOperationException error);
+        void OnReceiveError(ProtocolOperationException error);
     }
 }

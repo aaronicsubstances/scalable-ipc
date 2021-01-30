@@ -26,15 +26,6 @@ namespace ScalableIPC.Core
         public const byte OpCodeRestart = 0x7e;
         public const byte OpCodeShutdown = 0x7f;
 
-        public const int AbortCodeNormalClose = 0;
-        public const int AbortCodeTimeout = 1;
-        public const int AbortCodeForceClose = 2;
-        public const int AbortCodeError = 3;
-        public const int AbortCodeWindowGroupOverflow = 4;
-        public const int AbortCodeOptionDecodingError = 5;
-        public const int AbortCodeRestart = 98;
-        public const int AbortCodeShutdown = 99;
-
         public const byte NullTerminator = 0;
 
         public const int SessionIdLength = 32;
@@ -623,26 +614,6 @@ namespace ScalableIPC.Core
             windowAsMessage.DataBytes = data;
             windowAsMessage.DataLength = data.Length;
             return windowAsMessage;
-        }
-
-        public static string FormatAbortCode(int code)
-        {
-            if (code == AbortCodeNormalClose)
-                return "NORMAL CLOSE";
-            else if (code == AbortCodeTimeout)
-                return "TIMEOUT";
-            else if (code == AbortCodeForceClose)
-                return "FORCED CLOSE";
-            else if (code == AbortCodeError)
-                return "INTERNAL ERROR";
-            else if (code == AbortCodeWindowGroupOverflow)
-                return "WINDOW GROUP OVERLFOW";
-            else if (code == AbortCodeRestart)
-                return "RESTART";
-            else if (code == AbortCodeShutdown)
-                return "SHUTTING DOWN";
-            else
-                return $"UNKNOWN ({code})";
         }
     }
 }

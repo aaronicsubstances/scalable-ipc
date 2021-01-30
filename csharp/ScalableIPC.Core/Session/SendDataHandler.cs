@@ -22,12 +22,12 @@ namespace ScalableIPC.Core.Session
         internal int SentDatagramCountInCurrentWindowGroup { get; private set; }
         public bool SendInProgress { get; set; }
 
-        public void PrepareForDispose(SessionDisposedException cause)
+        public void PrepareForDispose(ProtocolOperationException cause)
         {
             Dispose(cause);
         }
 
-        public void Dispose(SessionDisposedException cause)
+        public void Dispose(ProtocolOperationException cause)
         {
             _sendWindowHandler?.Cancel();
             _sendWindowHandler = null;
@@ -163,7 +163,7 @@ namespace ScalableIPC.Core.Session
             CurrentWindowGroup = null;
         }
 
-        private void OnWindowSendError(SessionDisposedException error)
+        private void OnWindowSendError(ProtocolOperationException error)
         {
             SendInProgress = false;
 
@@ -176,7 +176,7 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.OnSendError(error);
         }
 
-        private void OnDisposalOutcome(SessionDisposedException cause)
+        private void OnDisposalOutcome(ProtocolOperationException cause)
         {
             _sessionHandler.InitiateDispose(cause);
         }

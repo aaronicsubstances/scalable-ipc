@@ -36,9 +36,9 @@ namespace ScalableIPC.Core.Abstractions
         // required so DisposeSessionAsync can be called in a separate thread of control, and then
         // RequestSessionDipose can return for session handlers to update their internal state prior to final
         // disposal.
-        Guid RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint, string sessionId, SessionDisposedException cause);
+        Guid RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint, string sessionId, ProtocolOperationException cause);
         AbstractPromise<VoidType> _DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
-            SessionDisposedException cause);
+            ProtocolOperationException cause);
 
         AbstractPromise<VoidType> ShutdownAsync(int gracefulWaitPeriodSecs);
         bool IsShuttingDown();

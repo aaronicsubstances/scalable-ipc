@@ -31,7 +31,7 @@ namespace ScalableIPC.UnitTests.Core
             var firstInstance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = ""
@@ -39,7 +39,7 @@ namespace ScalableIPC.UnitTests.Core
             var secondInstance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = ""
@@ -140,7 +140,7 @@ namespace ScalableIPC.UnitTests.Core
             // test that case of booleans doesn't matter
             var inputInstance = new ProtocolDatagramOptions();
             inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "3" });
-            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "-1", "4" });
+            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "-1", "4" });
             inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "TRUE" });
             inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "FALSE" });
             inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "a", "b", "" });
@@ -148,13 +148,13 @@ namespace ScalableIPC.UnitTests.Core
             var expectedInstance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = ""
             };
             expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "3" });
-            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "-1", "4" });
+            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "-1", "4" });
             expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "TRUE" });
             expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "FALSE" });
             expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "a", "b", "" });
@@ -165,7 +165,7 @@ namespace ScalableIPC.UnitTests.Core
             inputInstance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = "",
@@ -229,11 +229,15 @@ namespace ScalableIPC.UnitTests.Core
             testData.Add(new object[] { instance });
 
             instance = new ProtocolDatagramOptions();
-            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "q" });
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "q" });
             testData.Add(new object[] { instance });
 
             instance = new ProtocolDatagramOptions();
-            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "" });
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "" });
+            testData.Add(new object[] { instance });
+
+            instance = new ProtocolDatagramOptions();
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "-1" });
             testData.Add(new object[] { instance });
 
             instance = new ProtocolDatagramOptions();
@@ -264,7 +268,7 @@ namespace ScalableIPC.UnitTests.Core
             var instance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = "",
@@ -272,7 +276,7 @@ namespace ScalableIPC.UnitTests.Core
             };
             var expected = new List<string[]>
             {
-                { new string[]{ ProtocolDatagramOptions.OptionNameAbortCode, "4" } },
+                { new string[]{ ProtocolDatagramOptions.OptionNameErrorCode, "4" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIdleTimeout, "3" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindow, "True" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, "False" } },
@@ -296,7 +300,7 @@ namespace ScalableIPC.UnitTests.Core
             instance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = "3f61a6c3-4736-4b6d-bbc1-416ad9b30493",
@@ -309,7 +313,7 @@ namespace ScalableIPC.UnitTests.Core
                 { new string[]{ "k1", "v1" } },
                 { new string[]{ "k2", "v2a" } },
                 { new string[]{ "k2", "v2b" } },
-                { new string[]{ ProtocolDatagramOptions.OptionNameAbortCode, "4" } },
+                { new string[]{ ProtocolDatagramOptions.OptionNameErrorCode, "4" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIdleTimeout, "3" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindow, "True" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, "False" } },
@@ -322,7 +326,7 @@ namespace ScalableIPC.UnitTests.Core
             instance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = "test",
@@ -330,7 +334,7 @@ namespace ScalableIPC.UnitTests.Core
             };
             instance.AllOptions.Add("k1", new List<string> { "v1" });
             instance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
-            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "0", "4" });
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "0", "4" });
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "3" });
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "true" });
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "FALSE" });
@@ -341,8 +345,8 @@ namespace ScalableIPC.UnitTests.Core
                 { new string[]{ "k1", "v1" } },
                 { new string[]{ "k2", "v2a" } },
                 { new string[]{ "k2", "v2b" } },
-                { new string[]{ ProtocolDatagramOptions.OptionNameAbortCode, "0" } },
-                { new string[]{ ProtocolDatagramOptions.OptionNameAbortCode, "4" } },
+                { new string[]{ ProtocolDatagramOptions.OptionNameErrorCode, "0" } },
+                { new string[]{ ProtocolDatagramOptions.OptionNameErrorCode, "4" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIdleTimeout, "3" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindow, "true" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, "FALSE" } },
@@ -356,7 +360,7 @@ namespace ScalableIPC.UnitTests.Core
             instance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = "b1ea7f1b-9862-42b6-a0c5-c751f35b474f",
@@ -364,7 +368,7 @@ namespace ScalableIPC.UnitTests.Core
             };
             instance.AllOptions.Add("k1", new List<string> { "v1" });
             instance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
-            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "0" });
+            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "0" });
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "30" });
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "true", "1" });
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "0" });
@@ -375,8 +379,8 @@ namespace ScalableIPC.UnitTests.Core
                 { new string[]{ "k1", "v1" } },
                 { new string[]{ "k2", "v2a" } },
                 { new string[]{ "k2", "v2b" } },
-                { new string[]{ ProtocolDatagramOptions.OptionNameAbortCode, "0" } },
-                { new string[]{ ProtocolDatagramOptions.OptionNameAbortCode, "4" } },
+                { new string[]{ ProtocolDatagramOptions.OptionNameErrorCode, "0" } },
+                { new string[]{ ProtocolDatagramOptions.OptionNameErrorCode, "4" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIdleTimeout, "30" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIdleTimeout, "3" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindow, "true" } },
@@ -414,7 +418,7 @@ namespace ScalableIPC.UnitTests.Core
             var destInstance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = "",
@@ -424,7 +428,7 @@ namespace ScalableIPC.UnitTests.Core
             var expected = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = "",
@@ -437,7 +441,7 @@ namespace ScalableIPC.UnitTests.Core
             srcInstance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = true,
                 TraceId = "t",
@@ -447,7 +451,7 @@ namespace ScalableIPC.UnitTests.Core
             expected = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = true,
                 TraceId = "t",
@@ -459,7 +463,7 @@ namespace ScalableIPC.UnitTests.Core
             srcInstance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 0,
-                AbortCode = 0,
+                ErrorCode = 0,
                 IsLastInWindow = false,
                 IsLastInWindowGroup = false,
                 TraceId = "",
@@ -468,7 +472,7 @@ namespace ScalableIPC.UnitTests.Core
             destInstance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
-                AbortCode = 4,
+                ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = true,
                 TraceId = "t",
@@ -477,7 +481,7 @@ namespace ScalableIPC.UnitTests.Core
             expected = new ProtocolDatagramOptions
             {
                 IdleTimeout = 0,
-                AbortCode = 0,
+                ErrorCode = 0,
                 IsLastInWindow = false,
                 IsLastInWindowGroup = false,
                 TraceId = "",
@@ -494,7 +498,7 @@ namespace ScalableIPC.UnitTests.Core
             srcInstance.AllOptions.Add("k1", new List<string> { "v1" });
             srcInstance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
             srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "3" });
-            srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "-1", "4" });
+            srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "-1", "4" });
             srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "true" });
             srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "false" });
             srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "a", "b", "" });

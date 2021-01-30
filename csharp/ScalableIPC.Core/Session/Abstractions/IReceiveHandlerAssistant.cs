@@ -14,7 +14,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         List<ProtocolDatagram> CurrentWindowGroup { get; }
 
         Func<List<ProtocolDatagram>, int?> DataCallback { get; set; }
-        Action<SessionDisposedException> ErrorCallback { get; set; }
+        Action<ProtocolOperationException> ErrorCallback { get; set; }
         bool IsComplete { get; }
         void Cancel();
         void OnReceive(ProtocolDatagram datagram);

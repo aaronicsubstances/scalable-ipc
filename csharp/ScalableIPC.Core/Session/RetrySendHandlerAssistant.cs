@@ -17,8 +17,8 @@ namespace ScalableIPC.Core.Session
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
         public Action SuccessCallback { get; set; }
-        public Action<SessionDisposedException> ErrorCallback { get; set; }
-        public Action<SessionDisposedException> DisposeCallback { get; set; }
+        public Action<ProtocolOperationException> ErrorCallback { get; set; }
+        public Action<ProtocolOperationException> DisposeCallback { get; set; }
         public int RetryCount { get; set; }
         public DateTime RetryStartTime { get; set; }
         public int TotalSentCount { get; set; }
@@ -67,7 +67,7 @@ namespace ScalableIPC.Core.Session
             else
             {
                 // begin disposing
-                DisposeCallback.Invoke(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
+                DisposeCallback.Invoke(new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeTimeout));
             }
         }
 
@@ -77,7 +77,7 @@ namespace ScalableIPC.Core.Session
             _currentWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
             int effectivePendingWindowCount = CurrentWindow.Count - TotalSentCount;
             // use current remote window size to limit pending window count.
-            if (_sessionHandler.MaxRemoteWindowSize > 0) // will only be < 1 if window has never being received before
+            if (_sessionHandler.MaxRemoteWindowSize > 0)
             {
                 effectivePendingWindowCount = Math.Min(effectivePendingWindowCount,
                     _sessionHandler.MaxRemoteWindowSize);

@@ -20,12 +20,12 @@ namespace ScalableIPC.Core.Session
 
         public bool SendInProgress { get; set; }
 
-        public void PrepareForDispose(SessionDisposedException cause)
+        public void PrepareForDispose(ProtocolOperationException cause)
         {
             Dispose(cause);
         }
 
-        public void Dispose(SessionDisposedException cause)
+        public void Dispose(ProtocolOperationException cause)
         {
             _fireAndForgetHandler?.Cancel();
             _fireAndForgetHandler = null;
@@ -127,7 +127,7 @@ namespace ScalableIPC.Core.Session
             _fireAndForgetHandler = null;
         }
 
-        private void OnSendFailure(SessionDisposedException error)
+        private void OnSendFailure(ProtocolOperationException error)
         {
             SendInProgress = false;
 

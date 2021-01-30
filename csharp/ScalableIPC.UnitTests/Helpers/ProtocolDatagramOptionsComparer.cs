@@ -39,7 +39,7 @@ namespace ScalableIPC.UnitTests.Helpers
             {
                 return false;
             }
-            if (x.AbortCode != y.AbortCode)
+            if (x.ErrorCode != y.ErrorCode)
             {
                 return false;
             }

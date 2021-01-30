@@ -17,7 +17,7 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<bool> ProcessSendWithoutAckAsync(ProtocolMessage message);
         AbstractPromise<VoidType> CloseAsync();
         AbstractPromise<VoidType> CloseAsync(bool closeGracefully);
-        AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause);
+        AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause);
 
         int IdleTimeout { get; set; } // non-positive means disable idle timer 
         int MinRemoteIdleTimeout { get; set; }

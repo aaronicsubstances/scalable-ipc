@@ -445,7 +445,7 @@ namespace ScalableIPC.UnitTests.Core
                 SequenceNumber = 1_000,
                 Options = new ProtocolDatagramOptions
                 {
-                    AbortCode = 5,
+                    ErrorCode = 5,
                     IsLastInWindow = true,
                 },
                 DataBytes = new byte[] { (byte)'h', (byte)'e', (byte) 'y' },
@@ -594,7 +594,7 @@ namespace ScalableIPC.UnitTests.Core
                 SequenceNumber = 1_000,
                 Options = new ProtocolDatagramOptions
                 {
-                    AbortCode = 5,
+                    ErrorCode = 5,
                     IsLastInWindow = true,
                 },
                 DataLength = 65_413
@@ -823,7 +823,7 @@ namespace ScalableIPC.UnitTests.Core
                 SequenceNumber = 1_000,
                 Options = new ProtocolDatagramOptions
                 {
-                    AbortCode = 5,
+                    ErrorCode = 5,
                     IsLastInWindow = true,
                 },
                 DataBytes = input,
@@ -832,7 +832,7 @@ namespace ScalableIPC.UnitTests.Core
             };
             expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow,
                 new List<string> { "True" });
-            expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode,
+            expected.Options.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode,
                 new List<string> { "5" });
             testData.Add(new object[] { input, 1, input.Length - 1, expected });
 

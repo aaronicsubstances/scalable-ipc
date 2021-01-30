@@ -7,8 +7,8 @@ namespace ScalableIPC.Core.Session.Abstractions
     public interface ISessionStateHandler
     {
         bool SendInProgress { get; }
-        void PrepareForDispose(SessionDisposedException cause);
-        void Dispose(SessionDisposedException cause);
+        void PrepareForDispose(ProtocolOperationException cause);
+        void Dispose(ProtocolOperationException cause);
         bool ProcessReceive(ProtocolDatagram datagram);
         bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb);
         bool ProcessSendWithoutAck(ProtocolMessage message, PromiseCompletionSource<bool> promiseCb);

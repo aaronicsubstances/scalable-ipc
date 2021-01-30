@@ -1008,7 +1008,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
             TestDatabase.ResetDb();
             _accraEndpoint.RequestSessionDispose(_kumasiAddr, sessionId,
-                new SessionDisposedException(false,ProtocolDatagram.AbortCodeNormalClose));
+                new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeNormalClose));
             var logicalThreadIds = await WaitForAllLogicalThreads(2);
             Assert.Single(logicalThreadIds);
 
@@ -1026,7 +1026,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             // test disposing non-existent session id
             TestDatabase.ResetDb();
             _accraEndpoint.RequestSessionDispose(_kumasiAddr, sessionId,
-                new SessionDisposedException(false, ProtocolDatagram.AbortCodeNormalClose));
+                new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeNormalClose));
             logicalThreadIds = await WaitForAllLogicalThreads(2);
             Assert.Single(logicalThreadIds);
 
@@ -1044,7 +1044,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             // test that FinalizeDisposeAsync is not called in erroneous call.
             TestDatabase.ResetDb();
             _accraEndpoint.RequestSessionDispose(null, sessionId,
-                new SessionDisposedException(false, ProtocolDatagram.AbortCodeNormalClose));
+                new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeNormalClose));
             logicalThreadIds = await WaitForAllLogicalThreads(2);
             Assert.Single(logicalThreadIds);
 
@@ -1130,7 +1130,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 throw new NotImplementedException();
             }
 
-            public AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause)
+            public AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause)
             {
                 CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "FinaliseDisposeAsync() called")
                        .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,

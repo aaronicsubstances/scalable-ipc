@@ -20,7 +20,7 @@ namespace ScalableIPC.Core.Session
         public List<ProtocolDatagram> CurrentWindowGroup { get; } = new List<ProtocolDatagram>();
 
         public Func<List<ProtocolDatagram>, int?> DataCallback { get; set; }
-        public Action<SessionDisposedException> ErrorCallback { get; set; }
+        public Action<ProtocolOperationException> ErrorCallback { get; set; }
         public bool IsComplete { get; private set; } = false;
 
         public void Cancel()
@@ -108,8 +108,10 @@ namespace ScalableIPC.Core.Session
             int cumulativeLength = CurrentWindowGroup.Sum(t => t.ExpectedDatagramLength);
             if (cumulativeLength > ProtocolDatagram.MaxDatagramSize)
             {
-                processingErrorCode = ProtocolDatagram.AbortCodeWindowGroupOverflow;
                 IsComplete = true;
+                processingErrorCode = ProtocolOperationException.ErrorCodeWindowGroupOverflow;
+                ErrorCallback.Invoke(new ProtocolOperationException(false,
+                    processingErrorCode.Value));
             }
             else
             {
@@ -144,19 +146,12 @@ namespace ScalableIPC.Core.Session
                 {
                     IsWindowFull = true,
                     MaxWindowSize = _sessionHandler.MaxWindowSize,
-                    AbortCode = processingErrorCode
+                    ErrorCode = processingErrorCode
                 }
             };
 
             // ignore any send ack errors.
             _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null);
-
-            // notify of errors
-            if (processingErrorCode != null)
-            {
-                ErrorCallback.Invoke(new SessionDisposedException(false,
-                    processingErrorCode.Value));
-            }
         }
 
         internal static bool AddToCurrentWindow(List<ProtocolDatagram> currentWindow, int maxReceiveWindowSize,

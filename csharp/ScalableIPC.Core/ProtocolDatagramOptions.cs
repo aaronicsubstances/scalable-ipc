@@ -11,7 +11,7 @@ namespace ScalableIPC.Core
         public const string KnownOptionPrefix = "s_";
 
         public const string OptionNameIdleTimeout = KnownOptionPrefix + "idle_timeout";
-        public const string OptionNameAbortCode = KnownOptionPrefix + "abort_code";
+        public const string OptionNameErrorCode = KnownOptionPrefix + "abort_code";
         public const string OptionNameIsWindowFull = KnownOptionPrefix + "10";
         public const string OptionNameMaxWindowSize = KnownOptionPrefix + "20";
         public const string OptionNameIsLastInWindow = KnownOptionPrefix + "01";
@@ -29,7 +29,7 @@ namespace ScalableIPC.Core
 
         // Known options.
         public int? IdleTimeout { get; set; }
-        public int? AbortCode { get; set; }
+        public int? ErrorCode { get; set; }
         public bool? IsWindowFull { get; set; }
         public bool? IsLastInWindow { get; set; }
         public bool? IsLastInWindowGroup { get; set; }
@@ -42,7 +42,7 @@ namespace ScalableIPC.Core
             sb.Append(nameof(ProtocolDatagramOptions)).Append("{");
             sb.Append(nameof(IdleTimeout)).Append("=").Append(IdleTimeout);
             sb.Append(", ");
-            sb.Append(nameof(AbortCode)).Append("=").Append(AbortCode);
+            sb.Append(nameof(ErrorCode)).Append("=").Append(ErrorCode);
             sb.Append(", ");
             sb.Append(nameof(IsWindowFull)).Append("=").Append(IsWindowFull);
             sb.Append(", ");
@@ -79,7 +79,7 @@ namespace ScalableIPC.Core
             // Purpose of this method includes "syncing" properties for known options with AllOptions.
             // So reset before parsing.
             IdleTimeout = null;
-            AbortCode = null;
+            ErrorCode = null;
             IsLastInWindow = null;
             IsWindowFull = null;
             IsLastInWindowGroup = null;
@@ -103,8 +103,12 @@ namespace ScalableIPC.Core
                         case OptionNameIdleTimeout:
                             IdleTimeout = ParseOptionAsInt32(value);
                             break;
-                        case OptionNameAbortCode:
-                            AbortCode = ParseOptionAsInt32(value);
+                        case OptionNameErrorCode:
+                            ErrorCode = ParseOptionAsInt32(value);
+                            if (ErrorCode < 0)
+                            {
+                                throw new Exception("Received negative value: " + ErrorCode);
+                            }
                             break;
                         case OptionNameIsLastInWindow:
                             IsLastInWindow = ParseOptionAsBoolean(value);
@@ -217,9 +221,9 @@ namespace ScalableIPC.Core
         {
             // for predictability of test results, gather in lexicographical order.
             var knownOptions = new Dictionary<string, string>();
-            if (AbortCode != null)
+            if (ErrorCode != null)
             {
-                knownOptions.Add(OptionNameAbortCode, AbortCode.ToString());
+                knownOptions.Add(OptionNameErrorCode, ErrorCode.ToString());
             }
             if (IdleTimeout != null)
             {
@@ -255,9 +259,9 @@ namespace ScalableIPC.Core
             {
                 destOptions.IdleTimeout = IdleTimeout;
             }
-            if (AbortCode != null)
+            if (ErrorCode != null)
             {
-                destOptions.AbortCode = AbortCode;
+                destOptions.ErrorCode = ErrorCode;
             }
             if (IsLastInWindow != null)
             {

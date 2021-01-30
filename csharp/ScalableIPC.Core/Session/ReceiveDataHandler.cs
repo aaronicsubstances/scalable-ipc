@@ -24,12 +24,12 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void PrepareForDispose(SessionDisposedException cause)
+        public void PrepareForDispose(ProtocolOperationException cause)
         {
             Dispose(cause);
         }
 
-        public void Dispose(SessionDisposedException cause)
+        public void Dispose(ProtocolOperationException cause)
         {
             _currentWindowHandler?.Cancel();
             _currentWindowHandler = null;
@@ -111,11 +111,10 @@ namespace ScalableIPC.Core.Session
             }
             catch (Exception ex)
             {
-                CustomLoggerFacade.Log(() => new CustomLogEvent(GetType(),
-                        "Failed to finalize processing of received window group", ex)
-                    .AddProperty(CustomLogEvent.LogDataKeyLogPositionId, "be1b939b-6cb1-4961-8ac5-34639aa92b99"));
                 // Failed to pass window group to application layer, so notify window handler as such.
-                return ProtocolDatagram.AbortCodeOptionDecodingError;
+                int reason = ProtocolOperationException.ErrorCodeOptionDecodingError;
+                _sessionHandler.OnReceiveError(new ProtocolOperationException(false, reason, ex));
+                return reason;
             }
         }
 
@@ -128,7 +127,7 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        private void OnWindowReceiveError(SessionDisposedException error)
+        private void OnWindowReceiveError(ProtocolOperationException error)
         {
             // now window handler is not needed any more
             _currentWindowHandler = null;

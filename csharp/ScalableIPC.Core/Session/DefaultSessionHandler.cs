@@ -55,7 +55,7 @@ namespace ScalableIPC.Core.Session
 
         private object _lastIdleTimeoutId;
         private object _lastAckTimeoutId;
-        private SessionDisposedException _disposalCause;
+        private ProtocolOperationException _disposalCause;
 
         public DefaultSessionHandler()
         { }
@@ -257,9 +257,9 @@ namespace ScalableIPC.Core.Session
                 else
                 {
                     ResetIdleTimeout();
-                    var cause = new SessionDisposedException(false, closeGracefully ? 
-                        ProtocolDatagram.AbortCodeNormalClose :
-                        ProtocolDatagram.AbortCodeForceClose);
+                    var cause = new ProtocolOperationException(false, closeGracefully ? 
+                        ProtocolOperationException.ErrorCodeNormalClose :
+                        ProtocolOperationException.ErrorCodeForceClose);
                     if (closeGracefully)
                     {
                         InitiateDispose(cause, promiseCb);
@@ -327,7 +327,7 @@ namespace ScalableIPC.Core.Session
         private void ProcessIdleTimeout()
         {
             _lastIdleTimeoutId = null;
-            InitiateDispose(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
+            InitiateDispose(new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeTimeout));
         }
 
         private void ProcessAckTimeout(Action cb)
@@ -339,12 +339,12 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void InitiateDispose(SessionDisposedException cause)
+        public void InitiateDispose(ProtocolOperationException cause)
         {
             InitiateDispose(cause, null);
         }
 
-        public void InitiateDispose(SessionDisposedException cause, PromiseCompletionSource<VoidType> cb)
+        public void InitiateDispose(ProtocolOperationException cause, PromiseCompletionSource<VoidType> cb)
         {
             if (SessionState >= StateClosing)
             {
@@ -360,7 +360,7 @@ namespace ScalableIPC.Core.Session
             _closeHandler.ProcessSendClose(cause);
         }
 
-        public void ContinueDispose(SessionDisposedException cause)
+        public void ContinueDispose(ProtocolOperationException cause)
         {
             _disposalCause = cause;
 
@@ -377,7 +377,7 @@ namespace ScalableIPC.Core.Session
             NetworkApi.RequestSessionDispose(RemoteEndpoint, SessionId, cause);
         }
 
-        public AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause)
+        public AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause)
         {
             PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(TaskExecutor);
             TaskExecutor.PostCallback(() =>
@@ -417,10 +417,10 @@ namespace ScalableIPC.Core.Session
         // event in event loop has been processed.
         public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
         public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
-        public Action<ISessionHandler, SessionDisposedException> SessionDisposingHandler { get; set; }
-        public Action<ISessionHandler, SessionDisposedException> SessionDisposedHandler { get; set; }
-        public Action<ISessionHandler, SessionDisposedException> ReceiveErrorHandler { get; set; }
-        public Action<ISessionHandler, SessionDisposedException> SendErrorHandler { get; set; }
+        public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
+        public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
+        public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
+        public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
 
         public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {
@@ -432,22 +432,22 @@ namespace ScalableIPC.Core.Session
             TaskExecutor.PostCallback(() => MessageReceivedHandler?.Invoke(this, message));
         }
 
-        public void OnSessionDisposing(SessionDisposedException cause)
+        public void OnSessionDisposing(ProtocolOperationException cause)
         {
             TaskExecutor.PostCallback(() => SessionDisposingHandler?.Invoke(this, cause));
         }
 
-        public void OnSessionDisposed(SessionDisposedException cause)
+        public void OnSessionDisposed(ProtocolOperationException cause)
         {
             TaskExecutor.PostCallback(() => SessionDisposedHandler?.Invoke(this, cause));
         }
 
-        public void OnSendError(SessionDisposedException cause)
+        public void OnSendError(ProtocolOperationException cause)
         {
             TaskExecutor.PostCallback(() => SendErrorHandler?.Invoke(this, cause));
         }
 
-        public void OnReceiveError(SessionDisposedException cause)
+        public void OnReceiveError(ProtocolOperationException cause)
         {
             TaskExecutor.PostCallback(() => ReceiveErrorHandler?.Invoke(this, cause));
         }

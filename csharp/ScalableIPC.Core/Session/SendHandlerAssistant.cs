@@ -18,7 +18,7 @@ namespace ScalableIPC.Core.Session
         public bool StopAndWait { get; set; }
         public int EffectiveAckTimeout { get; set; }
         public Action SuccessCallback { get; set; }
-        public Action<SessionDisposedException> ErrorCallback { get; set; }
+        public Action<ProtocolOperationException> ErrorCallback { get; set; }
         public Action<int> WindowFullCallback { get; set; }
         public Action TimeoutCallback { get; set; }
         public bool IsComplete { get; set; } = false;
@@ -81,14 +81,14 @@ namespace ScalableIPC.Core.Session
             }
 
             // perhaps overflow detected? check.
-            if (ack.Options?.AbortCode != null)
+            if (ack.Options?.ErrorCode != null)
             {
                 _sessionHandler.CancelAckTimeout();
 
                 _sessionHandler.IncrementNextWindowIdToSend();
                 IsComplete = true;
-                ErrorCallback.Invoke(new SessionDisposedException(true,
-                    ack.Options.AbortCode.Value));
+                ErrorCallback.Invoke(new ProtocolOperationException(true,
+                    ack.Options.ErrorCode.Value));
                 return;
             }
 
@@ -186,7 +186,7 @@ namespace ScalableIPC.Core.Session
                 }
 
                 IsComplete = true;
-                ErrorCallback.Invoke(new SessionDisposedException(error));
+                ErrorCallback.Invoke(new ProtocolOperationException(error));
             });
         }
 

@@ -20,12 +20,12 @@ namespace ScalableIPC.Core.Session
 
         public bool SendInProgress { get; set; }
 
-        public void PrepareForDispose(SessionDisposedException cause)
+        public void PrepareForDispose(ProtocolOperationException cause)
         {
             // nothing to do
         }
 
-        public void Dispose(SessionDisposedException cause)
+        public void Dispose(ProtocolOperationException cause)
         {
             _sendWindowHandler?.Cancel();
             _sendWindowHandler = null;
@@ -75,17 +75,10 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessReceiveClose(ProtocolDatagram datagram)
         {
-            var recvdAbortCode = datagram.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose;
-            // reject abort code if not valid for a close opcode.
-            if (recvdAbortCode == ProtocolDatagram.AbortCodeRestart || 
-                recvdAbortCode == ProtocolDatagram.AbortCodeShutdown)
-            {
-                _sessionHandler.OnDatagramDiscarded(datagram);
-                return;
-            }
-
+            var recvdErrorCode = datagram.Options?.ErrorCode ?? ProtocolOperationException.ErrorCodeNormalClose;
+            
             // if graceful close, then try and validate before proceeding with close.
-            if (recvdAbortCode == ProtocolDatagram.AbortCodeNormalClose)
+            if (recvdErrorCode == ProtocolOperationException.ErrorCodeNormalClose)
             {
                 // Reject close datagram with invalid window id or sequence number.
                 if (!(datagram.SequenceNumber == 0 && ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId,
@@ -96,11 +89,11 @@ namespace ScalableIPC.Core.Session
                 }
             }
 
-            var cause = new SessionDisposedException(true, recvdAbortCode);
+            var cause = new ProtocolOperationException(true, recvdErrorCode);
 
             // send back acknowledgement if closing gracefully, but ignore errors.
             // also don't wait.
-            if (cause.AbortCode == ProtocolDatagram.AbortCodeNormalClose)
+            if (cause.ErrorCode == ProtocolOperationException.ErrorCodeNormalClose)
             {
                 var ack = new ProtocolDatagram
                 {
@@ -119,7 +112,7 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.ContinueDispose(cause);
         }
 
-        public void ProcessSendClose(SessionDisposedException cause)
+        public void ProcessSendClose(ProtocolOperationException cause)
         {
             // send but ignore errors.
             var closeDatagram = new ProtocolDatagram
@@ -128,11 +121,11 @@ namespace ScalableIPC.Core.Session
                 SessionId = _sessionHandler.SessionId,
                 WindowId = _sessionHandler.NextWindowIdToSend
             };
-            if (cause.AbortCode != ProtocolDatagram.AbortCodeNormalClose)
+            if (cause.ErrorCode != ProtocolOperationException.ErrorCodeNormalClose)
             {
                 closeDatagram.Options = new ProtocolDatagramOptions
                 {
-                    AbortCode = cause.AbortCode
+                    ErrorCode = cause.ErrorCode
                 };
             }
             _sendWindowHandler = _sessionHandler.CreateRetrySendHandlerAssistant();
@@ -145,7 +138,7 @@ namespace ScalableIPC.Core.Session
             SendInProgress = true;
         }
 
-        private void OnSendSuccessOrError(SessionDisposedException cause)
+        private void OnSendSuccessOrError(ProtocolOperationException cause)
         {
             SendInProgress = false;
             _sendWindowHandler = null;
