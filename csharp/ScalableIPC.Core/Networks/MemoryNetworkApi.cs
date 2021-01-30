@@ -75,6 +75,8 @@ namespace ScalableIPC.Core.Networks
 
         public int AckTimeout { get; set; }
 
+        public int MaximumTransferUnitSize { get; set; }
+
         public AbstractPromise<VoidType> StartAsync()
         {
             // nothing to do.

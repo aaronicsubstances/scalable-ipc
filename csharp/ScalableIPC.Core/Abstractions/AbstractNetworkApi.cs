@@ -43,6 +43,7 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> ShutdownAsync(int gracefulWaitPeriodSecs);
         bool IsShuttingDown();
         void _StartNewThreadOfControl(Func<AbstractPromise<VoidType>> cb);
-        int AckTimeout { get; set; }
+        int AckTimeout { get; set; } // non-positive means disable ack timeout.
+        int MaximumTransferUnitSize { get; set; } // bounded between 512 and datagram max size.
     }
 }

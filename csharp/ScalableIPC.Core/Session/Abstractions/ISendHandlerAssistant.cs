@@ -21,12 +21,12 @@ namespace ScalableIPC.Core.Session.Abstractions
         int SentCount { get; set; }
 
         /// <summary>
-        /// Used to alternate between stop and wait flow control, and go back N in between timeouts. 
+        /// Used to alternate between using send window size as it is, or reducing it to 1 if property is true.
         /// </summary>
         bool StopAndWait { get; set; }
         int EffectiveAckTimeout { get; }
         Action SuccessCallback { get; set; }
-        Action<SessionDisposedException> DisposeCallback { get; set; }
+        Action<SessionDisposedException> ErrorCallback { get; set; }
         Action<int> WindowFullCallback { get; set; }
         Action TimeoutCallback { get; set; }
         bool IsComplete { get; }

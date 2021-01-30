@@ -1111,14 +1111,14 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
             public ISessionTaskExecutor TaskExecutor => throw new NotImplementedException();
 
-            public int MaxReceiveWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public int MaxSendWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public int MaximumTransferUnitSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public int MaxWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public int MaxRemoteWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRetryCount { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRetryPeriod { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int IdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MinRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public double FireAndForgetSendProbability { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
             public AbstractPromise<VoidType> CloseAsync()
             {
@@ -1165,6 +1165,11 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             }
 
             public AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message)
+            {
+                throw new NotImplementedException();
+            }
+
+            public AbstractPromise<bool> ProcessSendWithoutAckAsync(ProtocolMessage message)
             {
                 throw new NotImplementedException();
             }

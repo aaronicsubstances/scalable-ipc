@@ -17,6 +17,7 @@ namespace ScalableIPC.Core.Session
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
         public Action SuccessCallback { get; set; }
+        public Action<SessionDisposedException> ErrorCallback { get; set; }
         public Action<SessionDisposedException> DisposeCallback { get; set; }
         public int RetryCount { get; set; }
         public DateTime RetryStartTime { get; set; }
@@ -40,28 +41,33 @@ namespace ScalableIPC.Core.Session
 
         private void OnWindowSendTimeout()
         {
+            bool tryAgain = true;
             if (RetryCount >= _sessionHandler.MaxRetryCount)
             {
-                // maximum retry count reached. begin disposing
-                DisposeCallback.Invoke(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
-            }
-            else
+                // maximum retry count reached.
+                tryAgain = false;
+            }            
+            if (_sessionHandler.MaxRetryPeriod > 0)
             {
-                if (_sessionHandler.MaxRetryPeriod > 0)
+                var retryPeriod = (DateTime.UtcNow - RetryStartTime).TotalMilliseconds;
+                if (retryPeriod >= _sessionHandler.MaxRetryPeriod)
                 {
-                    var retryPeriod = (DateTime.UtcNow - RetryStartTime).TotalMilliseconds;
-                    if (retryPeriod >= _sessionHandler.MaxRetryPeriod)
-                    {
-                        // maximum retry time period reached. begin disposing
-                        DisposeCallback.Invoke(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
-                        return;
-                    }
+                    // maximum retry time period reached
+                    tryAgain = false;
                 }
+            }
 
+            if (tryAgain)
+            {
                 RetryCount++;
                 // subsequent attempts after timeout within same window id
                 // should always use stop and wait flow control.
                 RetrySend(true);
+            }
+            else
+            {
+                // begin disposing
+                DisposeCallback.Invoke(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
             }
         }
 
@@ -69,12 +75,19 @@ namespace ScalableIPC.Core.Session
         {
             _currentWindowHandler?.Cancel();
             _currentWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
-            var pendingWindow = CurrentWindow.GetRange(TotalSentCount, CurrentWindow.Count - TotalSentCount);
+            int effectivePendingWindowCount = CurrentWindow.Count - TotalSentCount;
+            // use current remote window size to limit pending window count.
+            if (_sessionHandler.MaxRemoteWindowSize > 0) // will only be < 1 if window has never being received before
+            {
+                effectivePendingWindowCount = Math.Min(effectivePendingWindowCount,
+                    _sessionHandler.MaxRemoteWindowSize);
+            }
+            var pendingWindow = CurrentWindow.GetRange(TotalSentCount, effectivePendingWindowCount);
             _currentWindowHandler.CurrentWindow = pendingWindow;
             _currentWindowHandler.WindowFullCallback = OnWindowFull;
             _currentWindowHandler.TimeoutCallback = OnWindowSendTimeout;
             _currentWindowHandler.SuccessCallback = SuccessCallback;
-            _currentWindowHandler.DisposeCallback = DisposeCallback;
+            _currentWindowHandler.ErrorCallback = ErrorCallback;
             _currentWindowHandler.StopAndWait = stopAndWait;
             _currentWindowHandler.Start();
         }

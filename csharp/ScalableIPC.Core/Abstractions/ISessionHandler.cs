@@ -14,6 +14,7 @@ namespace ScalableIPC.Core.Abstractions
         string SessionId { get; }
         AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram);
         AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message);
+        AbstractPromise<bool> ProcessSendWithoutAckAsync(ProtocolMessage message);
         AbstractPromise<VoidType> CloseAsync();
         AbstractPromise<VoidType> CloseAsync(bool closeGracefully);
         AbstractPromise<VoidType> FinaliseDisposeAsync(SessionDisposedException cause);
@@ -22,9 +23,12 @@ namespace ScalableIPC.Core.Abstractions
         int MinRemoteIdleTimeout { get; set; }
         int MaxRemoteIdleTimeout { get; set; }
         int MaxRetryPeriod { get; set; } // non-positive means disable retries by total retry time.
-        int MaxSendWindowSize { get; set; } // non-positive means use 1.
-        int MaxReceiveWindowSize { get; set; } // non-positive means use 1.
+        int MaxWindowSize { get; set; } // non-positive means use 1.
+        int MaxRemoteWindowSize { get; set; } // non-positive means ignore it.
         int MaxRetryCount { get; set; } // negative means use 0.
-        int MaximumTransferUnitSize { get; set; } // bounded between 512 and datagram max size.
+                                        
+        // ranges from 0 to 1. non-positive means always ignore. 
+        // 1 or more means always send.
+        double FireAndForgetSendProbability { get; set; }
     }
 }

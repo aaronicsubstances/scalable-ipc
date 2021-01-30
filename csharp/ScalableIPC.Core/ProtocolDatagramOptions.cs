@@ -13,6 +13,7 @@ namespace ScalableIPC.Core
         public const string OptionNameIdleTimeout = KnownOptionPrefix + "idle_timeout";
         public const string OptionNameAbortCode = KnownOptionPrefix + "abort_code";
         public const string OptionNameIsWindowFull = KnownOptionPrefix + "10";
+        public const string OptionNameMaxWindowSize = KnownOptionPrefix + "20";
         public const string OptionNameIsLastInWindow = KnownOptionPrefix + "01";
         public const string OptionNameIsLastInWindowGroup = KnownOptionPrefix + "02";
         public const string OptionNameTraceId = KnownOptionPrefix + "traceId";
@@ -33,7 +34,8 @@ namespace ScalableIPC.Core
         public bool? IsLastInWindow { get; set; }
         public bool? IsLastInWindowGroup { get; set; }
         public string TraceId { get; set; }
-
+        public int? MaxWindowSize { get; set; }
+        
         public override string ToString()
         {
             var sb = new StringBuilder();
@@ -49,6 +51,8 @@ namespace ScalableIPC.Core
             sb.Append(nameof(IsLastInWindowGroup)).Append("=").Append(IsLastInWindowGroup);
             sb.Append(", ");
             sb.Append(nameof(TraceId)).Append("=").Append(TraceId);
+            sb.Append(", ");
+            sb.Append(nameof(MaxWindowSize)).Append("=").Append(MaxWindowSize);
             sb.Append(", ");
             sb.Append(nameof(AllOptions)).Append("=").Append(StringUtilities.StringifyOptions(AllOptions));
             sb.Append("}");
@@ -80,6 +84,7 @@ namespace ScalableIPC.Core
             IsWindowFull = null;
             IsLastInWindowGroup = null;
             TraceId = null;
+            MaxWindowSize = null;
 
             // Now identify and validate known options.
             // In case of repetition, last one wins.
@@ -112,6 +117,9 @@ namespace ScalableIPC.Core
                             break;
                         case OptionNameTraceId:
                             TraceId = value;
+                            break;
+                        case OptionNameMaxWindowSize:
+                            MaxWindowSize = ParseOptionAsInt32(value);
                             break;
                         default:
                             break;
@@ -234,6 +242,10 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameTraceId, TraceId);
             }
+            if (MaxWindowSize != null)
+            {
+                knownOptions.Add(OptionNameMaxWindowSize, MaxWindowSize.ToString());
+            }
             return knownOptions;
         }
 
@@ -262,6 +274,10 @@ namespace ScalableIPC.Core
             if (TraceId != null)
             {
                 destOptions.TraceId = TraceId;
+            }
+            if (MaxWindowSize != null)
+            {
+                destOptions.MaxWindowSize = MaxWindowSize;
             }
         }
     }

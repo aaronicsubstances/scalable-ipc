@@ -138,14 +138,14 @@ namespace ScalableIPC.UnitTests.Core
             var testData = new List<object[]>();
 
             // test that case of booleans doesn't matter
-            var firstInstance = new ProtocolDatagramOptions();
-            firstInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "3" });
-            firstInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "-1", "4" });
-            firstInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "TRUE" });
-            firstInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "FALSE" });
-            firstInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "a", "b", "" });
-            firstInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string>());
-            var secondInstance = new ProtocolDatagramOptions
+            var inputInstance = new ProtocolDatagramOptions();
+            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "3" });
+            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "-1", "4" });
+            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "TRUE" });
+            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "FALSE" });
+            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "a", "b", "" });
+            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string>());
+            var expectedInstance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
                 AbortCode = 4,
@@ -153,16 +153,16 @@ namespace ScalableIPC.UnitTests.Core
                 IsLastInWindowGroup = false,
                 TraceId = ""
             };
-            secondInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "3" });
-            secondInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "-1", "4" });
-            secondInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "TRUE" });
-            secondInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "FALSE" });
-            secondInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "a", "b", "" });
-            secondInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string>());
-            testData.Add(new object[] { firstInstance, secondInstance });
+            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "3" });
+            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameAbortCode, new List<string> { "-1", "4" });
+            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "TRUE" });
+            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "FALSE" });
+            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "a", "b", "" });
+            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string>());
+            testData.Add(new object[] { inputInstance, expectedInstance });
 
             // test that known options are reset before parsing
-            firstInstance = new ProtocolDatagramOptions
+            inputInstance = new ProtocolDatagramOptions
             {
                 IdleTimeout = 3,
                 AbortCode = 4,
@@ -171,30 +171,34 @@ namespace ScalableIPC.UnitTests.Core
                 TraceId = "",
                 IsWindowFull = true
             };
-            firstInstance.AllOptions.Add("k1", new List<string> { "v1" });
-            firstInstance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
-            secondInstance = new ProtocolDatagramOptions();
-            secondInstance.AllOptions.Add("k1", new List<string> { "v1" });
-            secondInstance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
-            testData.Add(new object[] { firstInstance, secondInstance });
+            inputInstance.AllOptions.Add("k1", new List<string> { "v1" });
+            inputInstance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
+            expectedInstance = new ProtocolDatagramOptions();
+            expectedInstance.AllOptions.Add("k1", new List<string> { "v1" });
+            expectedInstance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
+            testData.Add(new object[] { inputInstance, expectedInstance });
 
             // test that old value is overwritten by parse
-            firstInstance = new ProtocolDatagramOptions
+            inputInstance = new ProtocolDatagramOptions
             {
                 IsLastInWindowGroup = true,
-                IsWindowFull = false
+                IsWindowFull = false,
+                MaxWindowSize = 8
             };
-            firstInstance.AllOptions.Add("k1", new List<string> { "v1" });
-            firstInstance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
-            firstInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "true" });
-            secondInstance = new ProtocolDatagramOptions()
+            inputInstance.AllOptions.Add("k1", new List<string> { "v1" });
+            inputInstance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
+            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "true" });
+            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameMaxWindowSize, new List<string> { "9" });
+            expectedInstance = new ProtocolDatagramOptions()
             {
-                IsWindowFull = true
+                IsWindowFull = true,
+                MaxWindowSize = 9
             };
-            secondInstance.AllOptions.Add("k1", new List<string> { "v1" });
-            secondInstance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
-            secondInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "true" });
-            testData.Add(new object[] { firstInstance, secondInstance });
+            expectedInstance.AllOptions.Add("k1", new List<string> { "v1" });
+            expectedInstance.AllOptions.Add("k2", new List<string> { "v2a", "v2b" });
+            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "true" });
+            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameMaxWindowSize, new List<string> { "9" });
+            testData.Add(new object[] { inputInstance, expectedInstance });
 
             return testData;
         }
@@ -414,7 +418,8 @@ namespace ScalableIPC.UnitTests.Core
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = "",
-                IsWindowFull = false
+                IsWindowFull = false,
+                MaxWindowSize = 10
             };
             var expected = new ProtocolDatagramOptions
             {
@@ -423,7 +428,8 @@ namespace ScalableIPC.UnitTests.Core
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
                 TraceId = "",
-                IsWindowFull = false
+                IsWindowFull = false,
+                MaxWindowSize = 10
             };
             testData.Add(new object[] { srcInstance, destInstance, expected });
 

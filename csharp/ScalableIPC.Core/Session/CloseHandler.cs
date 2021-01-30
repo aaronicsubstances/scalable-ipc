@@ -68,6 +68,11 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
+        public bool ProcessSendWithoutAck(ProtocolMessage message, PromiseCompletionSource<bool> promiseCb)
+        {
+            return false;
+        }
+
         private void ProcessReceiveClose(ProtocolDatagram datagram)
         {
             var recvdAbortCode = datagram.Options?.AbortCode ?? ProtocolDatagram.AbortCodeNormalClose;
@@ -133,6 +138,7 @@ namespace ScalableIPC.Core.Session
             _sendWindowHandler = _sessionHandler.CreateRetrySendHandlerAssistant();
             _sendWindowHandler.CurrentWindow = new List<ProtocolDatagram> { closeDatagram };
             _sendWindowHandler.SuccessCallback = () => OnSendSuccessOrError(cause);
+            _sendWindowHandler.ErrorCallback = _ => OnSendSuccessOrError(cause);
             _sendWindowHandler.DisposeCallback = _ => OnSendSuccessOrError(cause);
             _sendWindowHandler.Start();
 

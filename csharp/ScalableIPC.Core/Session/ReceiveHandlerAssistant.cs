@@ -19,8 +19,8 @@ namespace ScalableIPC.Core.Session
         public List<ProtocolDatagram> CurrentWindow { get; } = new List<ProtocolDatagram>();
         public List<ProtocolDatagram> CurrentWindowGroup { get; } = new List<ProtocolDatagram>();
 
-        public Func<List<ProtocolDatagram>, bool> SuccessCallback { get; set; }
-        public Action<SessionDisposedException> DisposeCallback { get; set; }
+        public Func<List<ProtocolDatagram>, int?> DataCallback { get; set; }
+        public Action<SessionDisposedException> ErrorCallback { get; set; }
         public bool IsComplete { get; private set; } = false;
 
         public void Cancel()
@@ -42,17 +42,12 @@ namespace ScalableIPC.Core.Session
                     SequenceNumber = _sessionHandler.LastMaxSeqReceived,
                     Options = new ProtocolDatagramOptions
                     {
-                        IsWindowFull = true
+                        IsWindowFull = true,
+                        MaxWindowSize = _sessionHandler.MaxWindowSize
                     }
                 };
-                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, repeatAck, (_, e) =>
-                {
-                    // ignore success and care only about failure.
-                    if (e != null)
-                    {
-                        HandleAckSendFailure(datagram, e);
-                    }
-                });
+                /* fire and forget */
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, repeatAck, null);
                 return;
             }
 
@@ -64,7 +59,7 @@ namespace ScalableIPC.Core.Session
             }
 
             // save datagram into current window or reject unexpected sequence number.
-            if (!AddToCurrentWindow(CurrentWindow, _sessionHandler.MaxReceiveWindowSize, datagram))
+            if (!AddToCurrentWindow(CurrentWindow, _sessionHandler.MaxWindowSize, datagram))
             {
                 _sessionHandler.OnDatagramDiscarded(datagram);
                 return;
@@ -80,7 +75,7 @@ namespace ScalableIPC.Core.Session
                 return;
             }
 
-            if (IsCurrentWindowFull(CurrentWindow, _sessionHandler.MaxReceiveWindowSize,
+            if (IsCurrentWindowFull(CurrentWindow, _sessionHandler.MaxWindowSize,
                    lastEffectiveSeqNr))
             {
                 UpdateWindowGroup(datagram, lastEffectiveSeqNr);
@@ -95,69 +90,41 @@ namespace ScalableIPC.Core.Session
                 WindowId = datagram.WindowId,
                 SequenceNumber = lastEffectiveSeqNr
             };
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, (_, e) =>
-            {
-                // ignore success and care only about failure.
-                if (e != null)
-                {
-                    HandleAckSendFailure(datagram, e);
-                }
-            });
-        }
-
-        private void HandleAckSendFailure(ProtocolDatagram datagram, Exception error)
-        {
-            _sessionHandler.TaskExecutor.PostCallback(() =>
-            {
-                // check if ack send callback is coming in too late.
-                if (IsComplete || _groupedWindowIds.Contains(datagram.WindowId))
-                {
-                    // ignore
-                }
-                else
-                {
-                    IsComplete = true;
-                    DisposeCallback.Invoke(new SessionDisposedException(error));
-                }
-            });
+            /* fire and forget */
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null);
         }
 
         private void UpdateWindowGroup(ProtocolDatagram datagram, int lastEffectiveSeqNr)
         {
             // Window is full
 
-            // Update window group in a way we can rollback.
+            // Update window group.
             CurrentWindowGroup.AddRange(CurrentWindow.GetRange(0, lastEffectiveSeqNr + 1));
+
+            int? processingErrorCode = null;
 
             // Check if window group is becoming too large, and fail if it is too much
             // for max datagram size.
             int cumulativeLength = CurrentWindowGroup.Sum(t => t.ExpectedDatagramLength);
             if (cumulativeLength > ProtocolDatagram.MaxDatagramSize)
             {
-                IsComplete = true;
-                DisposeCallback.Invoke(new SessionDisposedException(false,
-                    ProtocolDatagram.AbortCodeWindowGroupOverflow));
-                return;
-            }
-
-            // Only pass up if last datagram in window group has been seen
-            if (CurrentWindow[lastEffectiveSeqNr].Options?.IsLastInWindowGroup == true)
-            {
-                bool processedSuccessfully = SuccessCallback.Invoke(CurrentWindowGroup);
-                if (!processedSuccessfully)
-                {
-                    // rollback
-                    var rejectItemCount = lastEffectiveSeqNr + 1;
-                    CurrentWindowGroup.RemoveRange(CurrentWindowGroup.Count - rejectItemCount, rejectItemCount);
-                    return;
-                }
-
-                // Window group is full
+                processingErrorCode = ProtocolDatagram.AbortCodeWindowGroupOverflow;
                 IsComplete = true;
             }
             else
             {
-                // Window group is not yet full, so wait for another window
+                // Only pass up if last datagram in window group has been seen
+                if (CurrentWindow[lastEffectiveSeqNr].Options?.IsLastInWindowGroup == true)
+                {
+                    processingErrorCode = DataCallback.Invoke(CurrentWindowGroup);
+
+                    // Window group is full
+                    IsComplete = true;
+                }
+                else
+                {
+                    // Window group is not yet full, so wait for another window
+                }
             }
 
             // Reset last window bounds and current window.
@@ -175,11 +142,21 @@ namespace ScalableIPC.Core.Session
                 SequenceNumber = lastEffectiveSeqNr,
                 Options = new ProtocolDatagramOptions
                 {
-                    IsWindowFull = true
+                    IsWindowFull = true,
+                    MaxWindowSize = _sessionHandler.MaxWindowSize,
+                    AbortCode = processingErrorCode
                 }
             };
+
             // ignore any send ack errors.
             _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null);
+
+            // notify of errors
+            if (processingErrorCode != null)
+            {
+                ErrorCallback.Invoke(new SessionDisposedException(false,
+                    processingErrorCode.Value));
+            }
         }
 
         internal static bool AddToCurrentWindow(List<ProtocolDatagram> currentWindow, int maxReceiveWindowSize,

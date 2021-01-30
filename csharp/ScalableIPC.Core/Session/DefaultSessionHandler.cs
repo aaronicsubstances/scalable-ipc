@@ -16,7 +16,7 @@ namespace ScalableIPC.Core.Session
     /// Specifically, these are the features:
     /// </para>
     /// <list type="number">
-    /// <item>end to end assumption</item>
+    /// <item>end to end assumption of communication endpoints</item>
     /// <item>end to end idle timeout specification</item>
     /// <item>packet integrity assumption</item>
     /// <item>guaranteed delivery via acknowlegements</item>
@@ -24,7 +24,7 @@ namespace ScalableIPC.Core.Session
     /// <item>deal with packet duplication - like in TCP</item>
     /// <item>retries upon timeouts via ARQ - go back N variant (designed for transport layer) 
     /// on sender side, selective repeat on receiver size.</item>
-    /// <item>all errors are fatal. ie DOES not deal with transient errors.</item>
+    /// <item>all send errors are transient by default. Fatal errors are the exception.</item>
     /// <item>flow control</item>
     /// <item>preservation of message boundaries</item>
     /// <item>no special startup or shutdown</item>
@@ -72,6 +72,7 @@ namespace ScalableIPC.Core.Session
             _stateHandlers = new List<ISessionStateHandler>();
             _stateHandlers.Add(new ReceiveDataHandler(this));
             _stateHandlers.Add(new SendDataHandler(this));
+            _stateHandlers.Add(new SendDataWithoutAckHandler(this));
             _closeHandler = new CloseHandler(this);
             _stateHandlers.Add(_closeHandler);
         }
@@ -91,6 +92,11 @@ namespace ScalableIPC.Core.Session
             return new ReceiveHandlerAssistant(this);
         }
 
+        public IFireAndForgetSendHandlerAssistant CreateFireAndForgetSendHandlerAssistant()
+        {
+            return new FireAndForgetSendHandlerAssistant(this);
+        }
+
         public AbstractNetworkApi NetworkApi { get; private set; }
         public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
         public string SessionId { get; private set; }
@@ -98,14 +104,14 @@ namespace ScalableIPC.Core.Session
 
         public int SessionState { get; set; } = StateOpen;
 
-        public int MaxReceiveWindowSize { get; set; }
-        public int MaxSendWindowSize { get; set; }
-        public int MaximumTransferUnitSize { get; set; }
+        public int MaxRemoteWindowSize { get; set; }
+        public int MaxWindowSize { get; set; }
         public int MaxRetryCount { get; set; }
         public int MaxRetryPeriod { get; set; }
         public int IdleTimeout { get; set; }
         public int MinRemoteIdleTimeout { get; set; }
         public int MaxRemoteIdleTimeout { get; set; }
+        public double FireAndForgetSendProbability { get; set; }
 
         // Protocol requires initial value for window id to be 0,
         // and hence last window id should be negative to trigger
@@ -186,6 +192,40 @@ namespace ScalableIPC.Core.Session
                     if (!handled)
                     {
                         promiseCb.CompleteExceptionally(new Exception("No state handler found to process send"));
+                    }
+                }
+            });
+            return promiseCb.RelatedPromise;
+        }
+
+        public AbstractPromise<bool> ProcessSendWithoutAckAsync(ProtocolMessage message)
+        {
+            PromiseCompletionSource<bool> promiseCb = NetworkApi.PromiseApi.CreateCallback<bool>(TaskExecutor);
+            TaskExecutor.PostCallback(() =>
+            {
+                if (SessionState >= StateDisposeAwaiting)
+                {
+                    promiseCb.CompleteExceptionally(_disposalCause);
+                }
+                else if (IsSendInProgress())
+                {
+                    promiseCb.CompleteExceptionally(new Exception("Send is in progress"));
+                }
+                else
+                {
+                    ResetIdleTimeout();
+                    bool handled = false;
+                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
+                    {
+                        handled = stateHandler.ProcessSendWithoutAck(message, promiseCb);
+                        if (handled)
+                        {
+                            break;
+                        }
+                    }
+                    if (!handled)
+                    {
+                        promiseCb.CompleteExceptionally(new Exception("No state handler found to process send without ack"));
                     }
                 }
             });
@@ -379,7 +419,9 @@ namespace ScalableIPC.Core.Session
         public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
         public Action<ISessionHandler, SessionDisposedException> SessionDisposingHandler { get; set; }
         public Action<ISessionHandler, SessionDisposedException> SessionDisposedHandler { get; set; }
-        
+        public Action<ISessionHandler, SessionDisposedException> ReceiveErrorHandler { get; set; }
+        public Action<ISessionHandler, SessionDisposedException> SendErrorHandler { get; set; }
+
         public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {
             TaskExecutor.PostCallback(() => DatagramDiscardedHandler?.Invoke(this, datagram));
@@ -398,6 +440,16 @@ namespace ScalableIPC.Core.Session
         public void OnSessionDisposed(SessionDisposedException cause)
         {
             TaskExecutor.PostCallback(() => SessionDisposedHandler?.Invoke(this, cause));
+        }
+
+        public void OnSendError(SessionDisposedException cause)
+        {
+            TaskExecutor.PostCallback(() => SendErrorHandler?.Invoke(this, cause));
+        }
+
+        public void OnReceiveError(SessionDisposedException cause)
+        {
+            TaskExecutor.PostCallback(() => ReceiveErrorHandler?.Invoke(this, cause));
         }
     }
 }

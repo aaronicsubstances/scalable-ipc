@@ -10,7 +10,8 @@ namespace ScalableIPC.Core.Session.Abstractions
         // Intended to enable testing. Maps to the same classes in production usage.
         ISendHandlerAssistant CreateSendHandlerAssistant();
         IRetrySendHandlerAssistant CreateRetrySendHandlerAssistant();
-        IReceiveHandlerAssistant CreateReceiveHandlerAssistant();
+        IReceiveHandlerAssistant CreateReceiveHandlerAssistant(); 
+        IFireAndForgetSendHandlerAssistant CreateFireAndForgetSendHandlerAssistant();
 
         int SessionState { get; set; }
 
@@ -42,9 +43,13 @@ namespace ScalableIPC.Core.Session.Abstractions
         Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
         Action<ISessionHandler, SessionDisposedException> SessionDisposingHandler { get; set; }
         Action<ISessionHandler, SessionDisposedException> SessionDisposedHandler { get; set; }
+        Action<ISessionHandler, SessionDisposedException> ReceiveErrorHandler { get; set; }
+        Action<ISessionHandler, SessionDisposedException> SendErrorHandler { get; set; }
         void OnDatagramDiscarded(ProtocolDatagram datagram);
         void OnMessageReceived(ProtocolMessage message);
         void OnSessionDisposing(SessionDisposedException cause);
         void OnSessionDisposed(SessionDisposedException cause);
+        void OnSendError(SessionDisposedException error);
+        void OnReceiveError(SessionDisposedException error);
     }
 }

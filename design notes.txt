@@ -24,3 +24,14 @@ NodeJS - Effectively http.createServer(app). where app is the framework (e.g. Ex
  - Basically mimick http module. And then when http.createServer(app) is called, our internal logic kicks in. Example: https://www.npmjs.com/package/node-fastcgi
 
 *For client calls, libraries will have to be built for each platform
+
+POSTULATE on network communication patterns and distributed systems
+=========================================================================
+Every network communication pattern or problem can be solved by a combination of
+- existing internet protocols of HTTP/TCP/IP
+- faster context specific existing protocols like in memory funcion calls, UDP, Windows named pipe, Unix domain socket
+- transport layer abstraction - precisely what scalable-ipc provides in reliable send, and unreliable send (fire and forget)
+- custom network topology. needed to handle all sorts of communication patterns.
+- distributed datastore. needed to handle distributed computing.
+- write once datastore, e.g. Write-Ahead Logging. needed to handle race conditions (in practice will delete but well after data is not needed). 
+- non-distributed datastore. needed to handle large traffic volumes

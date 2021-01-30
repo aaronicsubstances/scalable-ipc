@@ -11,5 +11,6 @@ namespace ScalableIPC.Core.Session.Abstractions
         void Dispose(SessionDisposedException cause);
         bool ProcessReceive(ProtocolDatagram datagram);
         bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb);
+        bool ProcessSendWithoutAck(ProtocolMessage message, PromiseCompletionSource<bool> promiseCb);
     }
 }

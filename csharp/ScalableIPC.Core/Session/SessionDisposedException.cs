@@ -32,9 +32,6 @@ namespace ScalableIPC.Core.Session
             AbortCode = reason;
         }
 
-        public SessionDisposedException(SerializationInfo serializationInfo, StreamingContext streamingContext) :
-            base(serializationInfo, streamingContext)
-        { }
         public bool FromRemote { get; }
 
         public int AbortCode { get; }

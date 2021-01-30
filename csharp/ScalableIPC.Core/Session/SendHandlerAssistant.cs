@@ -18,7 +18,7 @@ namespace ScalableIPC.Core.Session
         public bool StopAndWait { get; set; }
         public int EffectiveAckTimeout { get; set; }
         public Action SuccessCallback { get; set; }
-        public Action<SessionDisposedException> DisposeCallback { get; set; }
+        public Action<SessionDisposedException> ErrorCallback { get; set; }
         public Action<int> WindowFullCallback { get; set; }
         public Action TimeoutCallback { get; set; }
         public bool IsComplete { get; set; } = false;
@@ -80,6 +80,18 @@ namespace ScalableIPC.Core.Session
                 return;
             }
 
+            // perhaps overflow detected? check.
+            if (ack.Options?.AbortCode != null)
+            {
+                _sessionHandler.CancelAckTimeout();
+
+                _sessionHandler.IncrementNextWindowIdToSend();
+                IsComplete = true;
+                ErrorCallback.Invoke(new SessionDisposedException(true,
+                    ack.Options.AbortCode.Value));
+                return;
+            }
+
             if (receiveCount == CurrentWindow.Count)
             {
                 // All datagrams in window have been successfully sent and confirmed
@@ -96,6 +108,21 @@ namespace ScalableIPC.Core.Session
 
                 _sessionHandler.IncrementNextWindowIdToSend();
                 IsComplete = true;
+
+                // Look for window size at remote peer and use it for
+                // subsequent send operations.
+                // don't require it, since remote may have already processed the
+                // window group.
+                int? remoteWindowSize = ack.Options?.MaxWindowSize;
+                if (remoteWindowSize != null)
+                {
+                    _sessionHandler.MaxRemoteWindowSize = remoteWindowSize.Value;
+                }
+                else
+                {
+                    _sessionHandler.MaxRemoteWindowSize = 0;
+                }
+
                 WindowFullCallback.Invoke(receiveCount);
             }
             else if (StopAndWait)
@@ -159,7 +186,7 @@ namespace ScalableIPC.Core.Session
                 }
 
                 IsComplete = true;
-                DisposeCallback.Invoke(new SessionDisposedException(error));
+                ErrorCallback.Invoke(new SessionDisposedException(error));
             });
         }
 

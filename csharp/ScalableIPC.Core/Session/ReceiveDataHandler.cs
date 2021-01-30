@@ -52,18 +52,23 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
+        public bool ProcessSendWithoutAck(ProtocolMessage message, PromiseCompletionSource<bool> promiseCb)
+        {
+            return false;
+        }
+
         private void OnReceiveRequest(ProtocolDatagram datagram)
         {
             if (_currentWindowHandler == null)
             {
                 _currentWindowHandler = _sessionHandler.CreateReceiveHandlerAssistant();
-                _currentWindowHandler.SuccessCallback = OnWindowReceiveSuccess;
-                _currentWindowHandler.DisposeCallback = OnWindowReceiveError;
+                _currentWindowHandler.DataCallback = OnWindowReceived;
+                _currentWindowHandler.ErrorCallback = OnWindowReceiveError;
             }
             _currentWindowHandler.OnReceive(datagram);
         }
 
-        private bool OnWindowReceiveSuccess(List<ProtocolDatagram> currentWindow)
+        private int? OnWindowReceived(List<ProtocolDatagram> currentWindow)
         {
             try
             {
@@ -102,7 +107,7 @@ namespace ScalableIPC.Core.Session
                 // now window handler is not needed any more
                 _currentWindowHandler = null;
 
-                return true;
+                return null;
             }
             catch (Exception ex)
             {
@@ -110,7 +115,7 @@ namespace ScalableIPC.Core.Session
                         "Failed to finalize processing of received window group", ex)
                     .AddProperty(CustomLogEvent.LogDataKeyLogPositionId, "be1b939b-6cb1-4961-8ac5-34639aa92b99"));
                 // Failed to pass window group to application layer, so notify window handler as such.
-                return false;
+                return ProtocolDatagram.AbortCodeOptionDecodingError;
             }
         }
 
@@ -125,7 +130,11 @@ namespace ScalableIPC.Core.Session
 
         private void OnWindowReceiveError(SessionDisposedException error)
         {
-            _sessionHandler.InitiateDispose(error);
+            // now window handler is not needed any more
+            _currentWindowHandler = null;
+
+            // notify application layer.
+            _sessionHandler.OnReceiveError(error);
         }
     }
 }

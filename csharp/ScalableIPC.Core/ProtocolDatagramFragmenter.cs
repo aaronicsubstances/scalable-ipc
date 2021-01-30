@@ -14,7 +14,7 @@ namespace ScalableIPC.Core
         {
             ProtocolDatagramOptions.OptionNameIsLastInWindow, ProtocolDatagramOptions.OptionNameIsWindowFull,
             ProtocolDatagramOptions.OptionNameAbortCode, ProtocolDatagramOptions.OptionNameIsLastInWindowGroup,
-            EncodedOptionNamePrefix
+            EncodedOptionNamePrefix, ProtocolDatagramOptions.OptionNameMaxWindowSize
         };
 
         // reserve space to cover minimum datagram size, the last in window and last in window group options.

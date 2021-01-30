@@ -46,7 +46,8 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
-            // to prevent clashes with close handler, check that specific send in progress is on.
+            // to prevent clashes with other handlers performing sends, 
+            // check that specific send in progress is on.
             if (!SendInProgress)
             {
                 return false;
@@ -62,6 +63,11 @@ namespace ScalableIPC.Core.Session
             return true;
         }
 
+        public bool ProcessSendWithoutAck(ProtocolMessage message, PromiseCompletionSource<bool> promiseCb)
+        {
+            return false;
+        }
+
         private void ProcessSendRequest(ProtocolMessage message,
            PromiseCompletionSource<VoidType> promiseCb)
         {
@@ -69,7 +75,7 @@ namespace ScalableIPC.Core.Session
 
             // ensure minimum of 512 and maximum = datagram max length
             int mtu = Math.Min(Math.Max(ProtocolDatagram.MinimumTransferUnitSize, 
-                _sessionHandler.MaximumTransferUnitSize), ProtocolDatagram.MaxDatagramSize);
+                _sessionHandler.NetworkApi.MaximumTransferUnitSize), ProtocolDatagram.MaxDatagramSize);
             _datagramFragmenter = new ProtocolDatagramFragmenter(message, mtu, null);
 
             // reset fields used for continuation.
@@ -102,7 +108,7 @@ namespace ScalableIPC.Core.Session
 
             // try and fetch remainder in current window group, but respect constraint of max send window size.
             // ensure minimum of 1 for max send window size.
-            int maxSendWindowSize = Math.Max(1, _sessionHandler.MaxSendWindowSize);
+            int maxSendWindowSize = Math.Max(1, _sessionHandler.MaxWindowSize);
             var nextWindow = CurrentWindowGroup.GetRange(SentDatagramCountInCurrentWindowGroup, Math.Min(maxSendWindowSize,
                 CurrentWindowGroup.Count - SentDatagramCountInCurrentWindowGroup));
             SentDatagramCountInCurrentWindowGroup += nextWindow.Count;
@@ -122,14 +128,15 @@ namespace ScalableIPC.Core.Session
             {
                 datagram.OpCode = ProtocolDatagram.OpCodeData;
                 datagram.SessionId = _sessionHandler.SessionId;
-                // the rest wil be set by assistant handlers
+                // the rest will be set by assistant handlers
             }
 
             _sendWindowHandler = new RetrySendHandlerAssistant(_sessionHandler)
             {
                 CurrentWindow = nextWindow,
                 SuccessCallback = OnWindowSendSuccess,
-                DisposeCallback = OnWindowSendError
+                ErrorCallback = OnWindowSendError,
+                DisposeCallback = OnDisposalOutcome
             };
 
             // Found some datagrams to send in next window.
@@ -158,7 +165,20 @@ namespace ScalableIPC.Core.Session
 
         private void OnWindowSendError(SessionDisposedException error)
         {
-            _sessionHandler.InitiateDispose(error);
+            SendInProgress = false;
+
+            _pendingPromiseCallback.CompleteExceptionally(error);
+            _pendingPromiseCallback = null;
+            _datagramFragmenter = null;
+            CurrentWindowGroup = null;
+
+            // notify application layer.
+            _sessionHandler.OnSendError(error);
+        }
+
+        private void OnDisposalOutcome(SessionDisposedException cause)
+        {
+            _sessionHandler.InitiateDispose(cause);
         }
     }
 }

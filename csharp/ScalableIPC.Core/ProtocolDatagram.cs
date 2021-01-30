@@ -31,6 +31,7 @@ namespace ScalableIPC.Core
         public const int AbortCodeForceClose = 2;
         public const int AbortCodeError = 3;
         public const int AbortCodeWindowGroupOverflow = 4;
+        public const int AbortCodeOptionDecodingError = 5;
         public const int AbortCodeRestart = 98;
         public const int AbortCodeShutdown = 99;
 
