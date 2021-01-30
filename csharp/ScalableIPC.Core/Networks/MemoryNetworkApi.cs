@@ -73,6 +73,8 @@ namespace ScalableIPC.Core.Networks
 
         public ITransmissionBehaviour TransmissionBehaviour { get; set; }
 
+        public int AckTimeout { get; set; }
+
         public AbstractPromise<VoidType> StartAsync()
         {
             // nothing to do.
@@ -124,7 +126,7 @@ namespace ScalableIPC.Core.Networks
             }
         }
 
-        public Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, Action<Exception> cb)
+        public Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, Action<int, Exception> cb)
         {
             // Start sending in separate thread of control.
             var newLogicalThreadId = GenerateAndRecordLogicalThreadId(null);
@@ -133,14 +135,15 @@ namespace ScalableIPC.Core.Networks
                 return PromiseApi.CompletedPromise()
                     .StartLogicalThread(newLogicalThreadId)
                     .ThenCompose(_ => _HandleSendAsync(remoteEndpoint, message))
-                    .Then(_ =>
+                    .Then(ackTimeout =>
                     {
-                        cb(null);
+                        //NB: cb is optional
+                        cb?.Invoke(ackTimeout, null);
                         return VoidType.Instance;
                     })
                     .CatchCompose(ex =>
                     {
-                        cb(ex);
+                        cb?.Invoke(0, ex);
                         return PromiseApi.CompletedPromise();
                     })
                     .CatchCompose(ex => RecordLogicalThreadException(
@@ -152,7 +155,7 @@ namespace ScalableIPC.Core.Networks
             return newLogicalThreadId;
         }
 
-        public AbstractPromise<VoidType> _HandleSendAsync(GenericNetworkIdentifier remoteEndpoint,
+        public AbstractPromise<int> _HandleSendAsync(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram datagram)
         {
             // ensure connected network for target endpoint.
@@ -167,7 +170,7 @@ namespace ScalableIPC.Core.Networks
             }
 
             // interpret null send config as immediate success.
-            AbstractPromise<VoidType> sendResult = PromiseApi.CompletedPromise();
+            AbstractPromise<int> sendResult = PromiseApi.Resolve(AckTimeout);
             byte[] serialized = null;
             if (sendConfig != null)
             {
@@ -178,12 +181,13 @@ namespace ScalableIPC.Core.Networks
                 }
                 if (sendConfig.Delay > 0)
                 {
-                    sendResult = sendResult.ThenCompose(_ => PromiseApi.Delay(sendConfig.Delay));
+                    sendResult = sendResult.ThenCompose(v => 
+                        PromiseApi.Delay(sendConfig.Delay).Then(_ => v));
                 }
                 if (sendConfig.Error != null)
                 {
                     // don't proceed further
-                    return sendResult.ThenCompose(_ => PromiseApi.Reject<VoidType>(sendConfig.Error));
+                    return sendResult.ThenCompose(_ => PromiseApi.Reject<int>(sendConfig.Error));
                 }
             }
 

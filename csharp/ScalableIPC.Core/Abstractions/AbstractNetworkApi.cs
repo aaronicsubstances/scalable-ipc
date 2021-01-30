@@ -28,8 +28,9 @@ namespace ScalableIPC.Core.Abstractions
 
         // this separation between RequestSend and HandleSendAsync is for the purpose of
         // launching HandleSendAsync in a separate thread of control.
-        Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram, Action<Exception> cb);
-        AbstractPromise<VoidType> _HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
+        // HandleSendAsync returns ack timeout to cb arg of RequestSend.
+        Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram, Action<int, Exception> cb);
+        AbstractPromise<int> _HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
         
         // similar to send case, this separation between RequestSessionDispose and DisposeSessionAsync is
         // required so DisposeSessionAsync can be called in a separate thread of control, and then
@@ -42,5 +43,6 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> ShutdownAsync(int gracefulWaitPeriodSecs);
         bool IsShuttingDown();
         void _StartNewThreadOfControl(Func<AbstractPromise<VoidType>> cb);
+        int AckTimeout { get; set; }
     }
 }

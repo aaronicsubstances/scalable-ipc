@@ -4,6 +4,17 @@ using System.Text;
 
 namespace ScalableIPC.Core.Session.Abstractions
 {
+    /// <summary>
+    /// Implementation is similar to go-back-N on the side of sender, with some important differences:
+    /// <list type="number">
+    /// <item>transmit window size changes from N to 1 during retries.</item>
+    /// <item>sequence number limits and window number limits are defined separately 
+    /// rather than jointly</item>
+    /// <item>retries always start from the beginning. no assumption is made at the start of a retry
+    /// about which datagrams have arrived at receiver's end.</item>
+    /// <item>retries leverage received acks to skip unnecessary sending of some packets.</item>
+    /// </list>
+    /// </summary>
     public interface ISendHandlerAssistant
     {
         List<ProtocolDatagram> CurrentWindow { get; set; }
@@ -13,7 +24,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         /// Used to alternate between stop and wait flow control, and go back N in between timeouts. 
         /// </summary>
         bool StopAndWait { get; set; }
-        int AckTimeout { get; set; }
+        int EffectiveAckTimeout { get; }
         Action SuccessCallback { get; set; }
         Action<SessionDisposedException> DisposeCallback { get; set; }
         Action<int> WindowFullCallback { get; set; }

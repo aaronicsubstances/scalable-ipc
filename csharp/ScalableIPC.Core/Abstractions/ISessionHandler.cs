@@ -21,10 +21,10 @@ namespace ScalableIPC.Core.Abstractions
         int IdleTimeout { get; set; } // non-positive means disable idle timer 
         int MinRemoteIdleTimeout { get; set; }
         int MaxRemoteIdleTimeout { get; set; }
-        int AckTimeout { get; set; } // non-positive means disable ack timer
+        int MaxRetryPeriod { get; set; } // non-positive means disable retries by total retry time.
         int MaxSendWindowSize { get; set; } // non-positive means use 1.
         int MaxReceiveWindowSize { get; set; } // non-positive means use 1.
-        int MaxRetryCount { get; set; } // non-positive means disable retries.
+        int MaxRetryCount { get; set; } // negative means use 0.
         int MaximumTransferUnitSize { get; set; } // bounded between 512 and datagram max size.
     }
 }

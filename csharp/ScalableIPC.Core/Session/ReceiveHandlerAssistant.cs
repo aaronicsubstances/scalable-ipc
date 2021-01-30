@@ -45,7 +45,7 @@ namespace ScalableIPC.Core.Session
                         IsWindowFull = true
                     }
                 };
-                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, repeatAck, e =>
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, repeatAck, (_, e) =>
                 {
                     // ignore success and care only about failure.
                     if (e != null)
@@ -95,7 +95,7 @@ namespace ScalableIPC.Core.Session
                 WindowId = datagram.WindowId,
                 SequenceNumber = lastEffectiveSeqNr
             };
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, e =>
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, (_, e) =>
             {
                 // ignore success and care only about failure.
                 if (e != null)
@@ -179,7 +179,7 @@ namespace ScalableIPC.Core.Session
                 }
             };
             // ignore any send ack errors.
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, e => { });
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null);
         }
 
         internal static bool AddToCurrentWindow(List<ProtocolDatagram> currentWindow, int maxReceiveWindowSize,

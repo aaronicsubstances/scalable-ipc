@@ -8,21 +8,41 @@ namespace ScalableIPC.Core.Session
 {
     /// <summary>
     /// So design of session handler default implementation is to hide acks, retries, window ids and
-    /// sequence numbers from application layer. 
-    /// It also should be the only one to use PromiseCompletionSource; the rest of the project
-    /// should only use AbstractPromise.
+    /// sequence numbers from application layer. It incorporates 80% of data link layer design and
+    /// 20% of transport design.
+    /// </summary>
+    /// <remarks>
     /// <para>
+    /// Specifically, these are the features:
+    /// </para>
+    /// <list type="number">
+    /// <item>end to end assumption</item>
+    /// <item>end to end idle timeout specification</item>
+    /// <item>packet integrity assumption</item>
+    /// <item>guaranteed delivery via acknowlegements</item>
+    /// <item>deal with out of order packet delivery</item>
+    /// <item>deal with packet duplication - like in TCP</item>
+    /// <item>retries upon timeouts via ARQ - go back N variant (designed for transport layer) 
+    /// on sender side, selective repeat on receiver size.</item>
+    /// <item>all errors are fatal. ie DOES not deal with transient errors.</item>
+    /// <item>flow control</item>
+    /// <item>preservation of message boundaries</item>
+    /// <item>no special startup or shutdown</item>
+    /// <item>DOES NOT deal with congestion control and security</item>
+    /// <item>deals only with unicast communications</item>
+    /// </list>
+    /// <para> 
     /// Also this implementation is intended to be interoperable with counterparts on other programming platforms.
     /// As such it makes certain assumptions and is closed for modification. It assumes
-    /// 1. Limited non-extensible number of states.
-    /// 2. The only opcodes around are data, close and their acks.
-    /// 3. congestion control and data integrity are responsibilities of the underlying network transport
-    ///    (except for duplication of previously sent PDUs, which it handles)
-    /// 4. constant timeout values throughout its operation. For idle timeout however, can handle overrides
-    ///    from remote peer.
-    /// 5. constant max retry count throughout its operation.
     /// </para>
-    /// </summary>
+    /// <list type="number">
+    /// <item>Limited non-extensible number of states.</item>
+    /// <item>The only opcodes around are data, close and their acks.</item>
+    /// <item>constant default idle timeout value throughout its operation. Can handle overrides
+    ///    from remote peer.</item>
+    /// <item>constant max retry count and max retry time throughout its operation.</item>
+    /// </list>
+    /// </remarks>
     public class DefaultSessionHandler : IStandardSessionHandler
     {
         public static readonly int StateOpen = 1;
@@ -82,10 +102,10 @@ namespace ScalableIPC.Core.Session
         public int MaxSendWindowSize { get; set; }
         public int MaximumTransferUnitSize { get; set; }
         public int MaxRetryCount { get; set; }
+        public int MaxRetryPeriod { get; set; }
         public int IdleTimeout { get; set; }
         public int MinRemoteIdleTimeout { get; set; }
         public int MaxRemoteIdleTimeout { get; set; }
-        public int AckTimeout { get; set; }
 
         // Protocol requires initial value for window id to be 0,
         // and hence last window id should be negative to trigger

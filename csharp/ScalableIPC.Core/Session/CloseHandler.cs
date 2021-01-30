@@ -107,9 +107,8 @@ namespace ScalableIPC.Core.Session
                         IsWindowFull = true
                     }
                 };
-
-                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack,
-                    _ => { /* ignore any error */ });
+                /* ignore any error */
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null);
             }
 
             _sessionHandler.ContinueDispose(cause);

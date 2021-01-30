@@ -19,11 +19,13 @@ namespace ScalableIPC.Core.Session
         public Action SuccessCallback { get; set; }
         public Action<SessionDisposedException> DisposeCallback { get; set; }
         public int RetryCount { get; set; }
+        public DateTime RetryStartTime { get; set; }
         public int TotalSentCount { get; set; }
 
         public void Start()
         {
-            RetrySend(_sessionHandler.AckTimeout, false);
+            RetryStartTime = DateTime.UtcNow;
+            RetrySend(false);
         }
 
         public void OnAckReceived(ProtocolDatagram datagram)
@@ -45,14 +47,25 @@ namespace ScalableIPC.Core.Session
             }
             else
             {
+                if (_sessionHandler.MaxRetryPeriod > 0)
+                {
+                    var retryPeriod = (DateTime.UtcNow - RetryStartTime).TotalMilliseconds;
+                    if (retryPeriod >= _sessionHandler.MaxRetryPeriod)
+                    {
+                        // maximum retry time period reached. begin disposing
+                        DisposeCallback.Invoke(new SessionDisposedException(false, ProtocolDatagram.AbortCodeTimeout));
+                        return;
+                    }
+                }
+
                 RetryCount++;
                 // subsequent attempts after timeout within same window id
                 // should always use stop and wait flow control.
-                RetrySend(_sessionHandler.AckTimeout, true);
+                RetrySend(true);
             }
         }
 
-        private void RetrySend(int ackTimeout, bool stopAndWait)
+        private void RetrySend(bool stopAndWait)
         {
             _currentWindowHandler?.Cancel();
             _currentWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
@@ -62,7 +75,6 @@ namespace ScalableIPC.Core.Session
             _currentWindowHandler.TimeoutCallback = OnWindowSendTimeout;
             _currentWindowHandler.SuccessCallback = SuccessCallback;
             _currentWindowHandler.DisposeCallback = DisposeCallback;
-            _currentWindowHandler.AckTimeout = ackTimeout;
             _currentWindowHandler.StopAndWait = stopAndWait;
             _currentWindowHandler.Start();
         }
@@ -72,7 +84,8 @@ namespace ScalableIPC.Core.Session
             TotalSentCount += sentCount;
             // reset retry count for new window.
             RetryCount = 0;
-            RetrySend(_sessionHandler.AckTimeout, false);
+            RetryStartTime = DateTime.UtcNow;
+            RetrySend(false);
         }
     }
 }

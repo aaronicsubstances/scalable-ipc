@@ -16,7 +16,7 @@ namespace ScalableIPC.Core.Session
         public List<ProtocolDatagram> CurrentWindow { get; set; }
         public int SentCount { get; set; }
         public bool StopAndWait { get; set; }
-        public int AckTimeout { get; set; }
+        public int EffectiveAckTimeout { get; set; }
         public Action SuccessCallback { get; set; }
         public Action<SessionDisposedException> DisposeCallback { get; set; }
         public Action<int> WindowFullCallback { get; set; }
@@ -40,10 +40,11 @@ namespace ScalableIPC.Core.Session
             nextDatagram.WindowId = _sessionHandler.NextWindowIdToSend;
             nextDatagram.SequenceNumber = SentCount;
 
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, e =>
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, (ackTimeout, e) =>
             {
                 if (e == null)
                 {
+                    EffectiveAckTimeout = Math.Max(EffectiveAckTimeout, ackTimeout);
                     HandleSendSuccess(nextDatagram);
                 }
                 else
@@ -101,6 +102,7 @@ namespace ScalableIPC.Core.Session
             {
                 // Ack received for stop and wait mode to continue
                 _sessionHandler.CancelAckTimeout();
+                EffectiveAckTimeout = 0;
 
                 // continue stop and wait.
                 SentCount = receiveCount;
@@ -112,6 +114,7 @@ namespace ScalableIPC.Core.Session
                 // Not the normal behaviour, but is acceptable to cater for wide range of network api 
                 // characteristics.
                 _sessionHandler.CancelAckTimeout();
+                EffectiveAckTimeout = 0;
                 ContinueSending();
             }
             else
@@ -135,7 +138,7 @@ namespace ScalableIPC.Core.Session
                 // send success callback received in time
                 if (StopAndWait || SentCount >= CurrentWindow.Count)
                 {
-                    _sessionHandler.ResetAckTimeout(AckTimeout, ProcessAckTimeout);
+                    _sessionHandler.ResetAckTimeout(EffectiveAckTimeout, ProcessAckTimeout);
                 }
                 else
                 {

@@ -21,6 +21,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
     {
         internal static readonly string LogDataKeyConfiguredForSend = "configuredForSend";
         internal static readonly string LogDataKeySendException = "sendException";
+        internal static readonly string LogDataKeySendAckTimeout = "sendAckTimeout";
         internal static readonly string LogDataKeySerializedDatagram = "serializedDatagram";
         internal static readonly string LogDataKeyDatagramHashCode = "datagramHashCode";
         internal static readonly string LogDataKeyTimestamp = "timestamp";
@@ -299,7 +300,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.Equal(logicalThreadIds, actualLogicalThreadIds);
 
             AssertSendReceiveLogs(sendConfig, transmissionConfig,
-                datagram, expectCallback, expectedCallbackEx,
+                datagram, expectCallback, expectedCallbackEx, 0,
                 expectReceives, expectCompleteInitCall, skipReceiveCallExpectation,
                 expectedErrorLogPositions, testLogs, logicalThreadIds, startTime);
         }
@@ -307,7 +308,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
         private void AssertSendReceiveLogs(MemoryNetworkApi.SendConfig sendConfig,
             MemoryNetworkApi.TransmissionConfig transmissionConfig,
             ProtocolDatagram datagram, bool expectCallback,
-            string expectedCallbackEx, bool expectReceives,
+            string expectedCallbackEx, int expectedAckTimeout, bool expectReceives,
             bool expectCompleteInitCall, bool skipReceiveCallExpectation,
             string[] expectedErrorLogPositions, List<TestLogRecord> testLogs,
             List<string> logicalThreadIds, DateTime startTime)
@@ -341,6 +342,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 if (expectedCallbackEx == null)
                 {
                     Assert.Null(actualEx);
+                    var actualAckTimeout = result.GetIntProp(LogDataKeySendAckTimeout);
+                    Assert.Equal(expectedAckTimeout, actualAckTimeout);
                 }
                 else
                 {
@@ -437,7 +440,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
         {
             var testData = new List<object[]>();
 
-            // test that hypothetical case of null being passed for callback is caught.
+            // test that null being passed for callback works alright.
             Action<MemoryNetworkApi, ProtocolDatagram> customizer = null;
             MemoryNetworkApi.SendConfig sendConfig = new MemoryNetworkApi.SendConfig
             {
@@ -451,7 +454,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             bool expectReceives = true;
             bool expectCompleteInitCall = true;
             bool skipReceiveCallExpectation = false;
-            string[] errorLogPositionsToSkip = new string[] { "1b554af7-6b87-448a-af9c-103d9c676030" };
+            string[] errorLogPositionsToSkip = null;
             testData.Add(new object[] { customizer, sendConfig, transmissionConfig, message, sessionId,
                 expectCallback, expectedCallbackEx, expectReceives, expectCompleteInitCall,
                 skipReceiveCallExpectation, errorLogPositionsToSkip });
@@ -638,6 +641,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var addrA = new GenericNetworkIdentifier { HostName = "DestA" };
             var endpointA = new MemoryNetworkApi
             {
+                AckTimeout = 9,
                 LocalEndpoint = addrA,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
             };
@@ -652,6 +656,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var addrB = new GenericNetworkIdentifier { HostName = "DestB" };
             var endpointB = new MemoryNetworkApi
             {
+                AckTimeout = 7,
                 LocalEndpoint = addrB,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
             };
@@ -666,6 +671,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var addrC = new GenericNetworkIdentifier { HostName = "DestC" };
             var endpointC = new MemoryNetworkApi
             {
+                AckTimeout = 1,
                 LocalEndpoint = addrC,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
             };
@@ -739,6 +745,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 var sendConfig = (MemoryNetworkApi.DefaultSendBehaviour)srcEndpoint.SendBehaviour;
                 var transmissionConfig = (MemoryNetworkApi.DefaultTransmissionBehaviour)srcEndpoint.TransmissionBehaviour;
                 string expectedCallbackEx = null;
+                int expectedAckTimeout = srcEndpoint.AckTimeout;
                 var expectReceives = true;
                 var expectCompleteInitCall = true;
                 var skipReceiveCallExpectation = false;
@@ -753,6 +760,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     TransmissionConfig = transmissionConfig?.Config,
                     Datagram = datagram,
                     ExpectedCallbackEx = expectedCallbackEx,
+                    ExpectedAckTimeout = expectedAckTimeout,
                     ExpectReceives = expectReceives,
                     ExpectCompleteInitCall = expectCompleteInitCall,
                     SkipReceiveCallExpectation = skipReceiveCallExpectation,
@@ -774,7 +782,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 try
                 {
                     AssertSendReceiveLogs(sendRequest.SendConfig, sendRequest.TransmissionConfig,
-                        sendRequest.Datagram, true, sendRequest.ExpectedCallbackEx,
+                        sendRequest.Datagram, true,
+                        sendRequest.ExpectedCallbackEx, sendRequest.ExpectedAckTimeout,
                         sendRequest.ExpectReceives, sendRequest.ExpectCompleteInitCall,
                         sendRequest.SkipReceiveCallExpectation,
                         sendRequest.ExpectedErrorLogPositions, specificLogs,
@@ -799,6 +808,23 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
             TestDatabase.ResetDb();
 
+            // used to test that exceptions inside callback execution will still be caught
+            var addrD = new GenericNetworkIdentifier { HostName = "DestD" };
+            var endpointD = new MemoryNetworkApi
+            {
+                AckTimeout = -19999,
+                LocalEndpoint = addrD,
+                SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
+            };
+            endpointD.TransmissionBehaviour = new MemoryNetworkApi.DefaultTransmissionBehaviour
+            {
+                Config = new MemoryNetworkApi.TransmissionConfig
+                {
+                    Delays = new int[0]
+                }
+            };
+            endpointD.ConnectedNetworks.Add(addrC, endpointC);
+
             var parallelTestCount = 40;
             sendRequests.Clear();
             for (int i = 0; i < parallelTestCount; i++)
@@ -822,6 +848,9 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     case 1:
                         srcEndpoint = endpointB;
                         break;
+                    case 3:
+                        srcEndpoint = endpointD;
+                        break;
                     default:
                         srcEndpoint = endpointC;
                         break;
@@ -835,17 +864,26 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 {
                     destAddr = randGen.NextDouble() < 0.5 ? addrA : addrC;
                 }
+                else if (srcEndpoint == endpointD)
+                {
+                    destAddr = addrC;
+                }
                 else
                 {
+                    // assume C.
                     destAddr = randGen.NextDouble() < 0.5 ? addrA : addrB;
                 }
                 
                 bool isSendExceptionCase = false, isReceiveExceptionCase = false;
-                bool isInvalidOpcodeCase = false;
+                bool isInvalidOpcodeCase = false, callbackExceptionCase = false;
                 if (srcEndpoint == endpointA && destAddr == addrC ||
                     srcEndpoint == endpointC && destAddr == addrA)
                 {
                     isSendExceptionCase = true;
+                }
+                else if (srcEndpoint == endpointD)
+                {
+                    callbackExceptionCase = true;
                 }
                 else
                 {
@@ -867,6 +905,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 var sendConfig = (MemoryNetworkApi.DefaultSendBehaviour)srcEndpoint.SendBehaviour;
                 var transmissionConfig = (MemoryNetworkApi.DefaultTransmissionBehaviour)srcEndpoint.TransmissionBehaviour;
                 string expectedCallbackEx = null;
+                int expectedAckTimeout = srcEndpoint.AckTimeout;
                 var expectReceives = true;
                 var expectCompleteInitCall = true;
                 var skipReceiveCallExpectation = false;
@@ -904,6 +943,12 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     datagram.Options.TraceId = ErrorTraceValue;
                     expectedErrorLogPositions = new string[] { "bb741504-3a4b-4ea3-a749-21fc8aec347f" };
                 }
+                else if (callbackExceptionCase)
+                {
+                    CustomLoggerFacade.WriteToStdOut(true, $"{i}. callbackExceptionCase encountered", null);
+                    expectReceives = false;
+                    expectedErrorLogPositions = new string[] { "1b554af7-6b87-448a-af9c-103d9c676030" };
+                }
 
                 var startTime = DateTime.UtcNow;
                 var initId = srcEndpoint.RequestSend(destAddr, datagram, CreateSendCallback());
@@ -914,6 +959,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     TransmissionConfig = transmissionConfig?.Config,
                     Datagram = datagram,
                     ExpectedCallbackEx = expectedCallbackEx,
+                    ExpectedAckTimeout = expectedAckTimeout,
                     ExpectReceives = expectReceives,
                     ExpectCompleteInitCall = expectCompleteInitCall,
                     SkipReceiveCallExpectation = skipReceiveCallExpectation,
@@ -935,7 +981,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 try
                 {
                     AssertSendReceiveLogs(sendRequest.SendConfig, sendRequest.TransmissionConfig,
-                        sendRequest.Datagram, true, sendRequest.ExpectedCallbackEx,
+                        sendRequest.Datagram, true, 
+                        sendRequest.ExpectedCallbackEx, sendRequest.ExpectedAckTimeout,
                         sendRequest.ExpectReceives, sendRequest.ExpectCompleteInitCall,
                         sendRequest.SkipReceiveCallExpectation,
                         sendRequest.ExpectedErrorLogPositions, specificLogs,
@@ -1068,7 +1115,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public int MaxSendWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaximumTransferUnitSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRetryCount { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public int AckTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public int MaxRetryPeriod { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int IdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MinRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
@@ -1123,17 +1170,19 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             }
         }
 
-        private Action<Exception> CreateSendCallback()
+        private Action<int, Exception> CreateSendCallback()
         {
-            Action<Exception> testCb = ex =>
+            Action<int, Exception> testCb = (ackTimeout, ex) =>
             {
                 CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "RequestSend callback called")
                     .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
                         "e870904c-f035-4c5d-99e7-2c4534f4c152")
                     .AddProperty(CustomLogEvent.LogDataKeyCurrentLogicalThreadId,
                         _accraEndpoint.PromiseApi.CurrentLogicalThreadId)
-                    .AddProperty(LogDataKeySendException, ex != null ? ex.ToString() : null)
+                    .AddProperty(LogDataKeySendException, ex?.ToString())
+                    .AddProperty(LogDataKeySendAckTimeout, ackTimeout)
                     .AddProperty(LogDataKeyTimestamp, ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds()));
+                if (ackTimeout < 0) throw new ArgumentException($"Received negative value");
             };
             return testCb;
         }
@@ -1145,6 +1194,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public MemoryNetworkApi.TransmissionConfig TransmissionConfig { get; set; }
             public ProtocolDatagram Datagram { get; set; }
             public string ExpectedCallbackEx { get; set; }
+            public int ExpectedAckTimeout { get; set; }
             public bool ExpectReceives { get; set; }
             public bool ExpectCompleteInitCall { get; set; }
             public bool SkipReceiveCallExpectation { get; set; }
