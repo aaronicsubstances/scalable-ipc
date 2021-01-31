@@ -468,8 +468,8 @@ namespace ScalableIPC.UnitTests.Core
                 0x00, 0x00, 0x03, 0xe8, // sequence number
                 0x02, // op code.
                 0x00, 0x0e,
-                (byte)'s', (byte)'_', (byte)'a', (byte)'b',
-                (byte)'o', (byte)'r', (byte)'t', (byte)'_',
+                (byte)'s', (byte)'_', (byte)'e', (byte)'r',
+                (byte)'r', (byte)'o', (byte)'r', (byte)'_',
                 (byte)'c', (byte)'o', (byte)'d', (byte)'e',
                 0x00,
                 0x00, 0x0e,
@@ -802,8 +802,8 @@ namespace ScalableIPC.UnitTests.Core
                 0x00, 0x09,
                 (byte)'T', (byte)'r', (byte)'u', (byte)'e',
                 0x00, 0x0e,
-                (byte)'s', (byte)'_', (byte)'a', (byte)'b',
-                (byte)'o', (byte)'r', (byte)'t', (byte)'_',
+                (byte)'s', (byte)'_', (byte)'e', (byte)'r',
+                (byte)'r', (byte)'o', (byte)'r', (byte)'_',
                 (byte)'c', (byte)'o', (byte)'d', (byte)'e',
                 0x00,
                 0x00, 0x0e,

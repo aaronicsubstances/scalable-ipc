@@ -11,7 +11,7 @@ namespace ScalableIPC.Core
         public const string KnownOptionPrefix = "s_";
 
         public const string OptionNameIdleTimeout = KnownOptionPrefix + "idle_timeout";
-        public const string OptionNameErrorCode = KnownOptionPrefix + "abort_code";
+        public const string OptionNameErrorCode = KnownOptionPrefix + "error_code";
         public const string OptionNameIsWindowFull = KnownOptionPrefix + "10";
         public const string OptionNameMaxWindowSize = KnownOptionPrefix + "20";
         public const string OptionNameIsLastInWindow = KnownOptionPrefix + "01";
