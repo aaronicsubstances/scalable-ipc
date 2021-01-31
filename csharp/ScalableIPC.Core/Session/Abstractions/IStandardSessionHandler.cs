@@ -25,7 +25,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         // freedom in varying trend of window ids.
         long NextWindowIdToSend { get; set; }
         long LastWindowIdReceived { get; set; }
-        int LastMaxSeqReceived { get; set; }
+        ProtocolDatagram LastAck { get; set; }
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();
 

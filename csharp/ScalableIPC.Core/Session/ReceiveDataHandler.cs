@@ -68,54 +68,50 @@ namespace ScalableIPC.Core.Session
             _currentWindowHandler.OnReceive(datagram);
         }
 
-        private int? OnWindowReceived(List<ProtocolDatagram> currentWindow)
+        private void OnWindowReceived(List<ProtocolDatagram> currentWindow)
         {
-            try
-            {
-                ProtocolDatagram windowAsMessage = ProtocolDatagram.CreateMessageOutOfWindow(currentWindow);
+            ProtocolDatagram windowAsMessage = ProtocolDatagram.CreateMessageOutOfWindow(currentWindow);
 
-                // now create message for application layer, and decode any long options present.
-                ProtocolMessage messageForApp = new ProtocolMessage
+            // now create message for application layer, and decode any long options present.
+            ProtocolMessage messageForApp = new ProtocolMessage
+            {
+                SessionId = windowAsMessage.SessionId,
+                DataBytes = windowAsMessage.DataBytes,
+                DataOffset = windowAsMessage.DataOffset,
+                DataLength = windowAsMessage.DataLength
+            };
+            if (windowAsMessage.Options != null)
+            {
+                messageForApp.Attributes = new Dictionary<string, List<string>>();
+                foreach (var option in windowAsMessage.Options.AllOptions)
                 {
-                    SessionId = windowAsMessage.SessionId,
-                    DataBytes = windowAsMessage.DataBytes,
-                    DataOffset = windowAsMessage.DataOffset,
-                    DataLength = windowAsMessage.DataLength
-                };
-                if (windowAsMessage.Options != null)
-                {
-                    messageForApp.Attributes = new Dictionary<string, List<string>>();
-                    foreach (var option in windowAsMessage.Options.AllOptions)
+                    if (option.Key.StartsWith(ProtocolDatagramFragmenter.EncodedOptionNamePrefix))
                     {
-                        if (option.Key.StartsWith(ProtocolDatagramFragmenter.EncodedOptionNamePrefix))
+                        // NB: long option decoding could result in errors.
+                        try
                         {
-                            // NB: long option decoding could result in errors.
                             var originalOption = ProtocolDatagramFragmenter.DecodeLongOption(option.Value);
                             messageForApp.Attributes.Add(originalOption[0], new List<string> { originalOption[1] });
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            messageForApp.Attributes.Add(option.Key, option.Value);
+                            throw new ProtocolOperationException(false,
+                                ProtocolOperationException.ErrorCodeOptionDecodingError, ex);
                         }
                     }
+                    else
+                    {
+                        messageForApp.Attributes.Add(option.Key, option.Value);
+                    }
                 }
-
-                // ready to pass on to application layer.
-                ProcessCurrentWindowOptions(windowAsMessage.Options);
-                _sessionHandler.OnMessageReceived(messageForApp);
-
-                // now window handler is not needed any more
-                _currentWindowHandler = null;
-
-                return null;
             }
-            catch (Exception ex)
-            {
-                // Failed to pass window group to application layer, so notify window handler as such.
-                int reason = ProtocolOperationException.ErrorCodeOptionDecodingError;
-                _sessionHandler.OnReceiveError(new ProtocolOperationException(false, reason, ex));
-                return reason;
-            }
+
+            // ready to pass on to application layer.
+            ProcessCurrentWindowOptions(windowAsMessage.Options);
+            _sessionHandler.OnMessageReceived(messageForApp);
+
+            // now window handler is not needed any more
+            _currentWindowHandler = null;
         }
 
         private void ProcessCurrentWindowOptions(ProtocolDatagramOptions windowOptions)

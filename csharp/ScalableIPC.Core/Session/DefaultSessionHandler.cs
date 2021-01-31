@@ -125,7 +125,7 @@ namespace ScalableIPC.Core.Session
         public long NextWindowIdToSend { get; set; } = 0;
         public long LastWindowIdReceived { get; set; } = -1;
 
-        public int LastMaxSeqReceived { get; set; }
+        public ProtocolDatagram LastAck { get; set; }
         public int? RemoteIdleTimeout { get; set; }
 
         public virtual void IncrementNextWindowIdToSend()
