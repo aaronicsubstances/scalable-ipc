@@ -251,7 +251,7 @@ namespace ScalableIPC.Core.Networks
                             ProtocolDatagram deserialized = ProtocolDatagram.Parse(serialized, 0, serialized.Length);
                             return deserialized;
                         })
-                        .ThenCompose(deserialized => connectedNetwork.HandleReceiveAsync(
+                        .ThenCompose(deserialized => connectedNetwork._HandleReceiveAsync(
                             LocalEndpoint, deserialized))
                         .CatchCompose(ex => RecordLogicalThreadException(
                             "bb741504-3a4b-4ea3-a749-21fc8aec347f",
@@ -264,7 +264,24 @@ namespace ScalableIPC.Core.Networks
             return sendResult;
         }
 
-        private AbstractPromise<VoidType> HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint,
+        public Guid RequestSendToSelf(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram)
+        {
+            var newLogicalThreadId = GenerateAndRecordLogicalThreadId(null);
+            _StartNewThreadOfControl(() =>
+            {
+                return PromiseApi.CompletedPromise()
+                    .StartLogicalThread(newLogicalThreadId)
+                    .ThenCompose(_ => _HandleReceiveAsync(remoteEndpoint, datagram))
+                    .CatchCompose(ex => RecordLogicalThreadException(
+                        "c42673d8-a1d1-4cb1-b9c1-a5369bedff64",
+                        $"Error occured during message receipt handling from {remoteEndpoint}",
+                        ex))
+                    .EndLogicalThread(() => RecordEndOfLogicalThread());
+            });
+            return newLogicalThreadId;
+        }
+        
+        public AbstractPromise<VoidType> _HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram datagram)
         {
             if (!IsDatagramValid(datagram))
@@ -316,6 +333,8 @@ namespace ScalableIPC.Core.Networks
 
         protected internal virtual bool IsDatagramValid(ProtocolDatagram datagram)
         {
+            // TODO: given that RequestSendToSelf can receive anything, do we do a full
+            // validation?
             switch (datagram.OpCode)
             {
                 case ProtocolDatagram.OpCodeData:

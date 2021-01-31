@@ -25,6 +25,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
         internal static readonly string LogDataKeySerializedDatagram = "serializedDatagram";
         internal static readonly string LogDataKeyDatagramHashCode = "datagramHashCode";
         internal static readonly string LogDataKeyTimestamp = "timestamp";
+        internal static readonly string LogDataKeyRemoteEndpoint = "remoteEndpoint";
 
         internal static readonly string ErrorTraceValue = "f3157968-128f-4520-8448-ab0a0cef2eee"; 
 
@@ -136,7 +137,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
         {
             var allErrorPositionIds = new string[] { "1b554af7-6b87-448a-af9c-103d9c676030" ,
                 "bb741504-3a4b-4ea3-a749-21fc8aec347f", "74566405-9d14-489f-9dbd-0c9b3e0e3e67",
-                "823df166-6430-4bcf-ae8f-2cb4c5e77cb1", "86a662a4-c098-4053-ac26-32b984079419" };
+                "823df166-6430-4bcf-ae8f-2cb4c5e77cb1", "86a662a4-c098-4053-ac26-32b984079419",
+                "c42673d8-a1d1-4cb1-b9c1-a5369bedff64" };
             foreach (var testLog in testLogs)
             {
                 var logPositionId = testLog.GetLogPositionId();
@@ -299,18 +301,18 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var actualLogicalThreadIds = GetRelatedLogicalThreadIds(testLogs, initId);
             Assert.Equal(logicalThreadIds, actualLogicalThreadIds);
 
-            AssertSendReceiveLogs(sendConfig, transmissionConfig,
+            AssertSendReceiveLogs(true, sendConfig, transmissionConfig,
                 datagram, expectCallback, expectedCallbackEx, 0,
                 expectReceives, expectCompleteInitCall, skipReceiveCallExpectation,
-                expectedErrorLogPositions, testLogs, logicalThreadIds, startTime);
+                expectedErrorLogPositions, _accraAddr, testLogs, logicalThreadIds, startTime);
         }
 
-        private void AssertSendReceiveLogs(MemoryNetworkApi.SendConfig sendConfig,
+        private void AssertSendReceiveLogs(bool expectSends, MemoryNetworkApi.SendConfig sendConfig,
             MemoryNetworkApi.TransmissionConfig transmissionConfig,
             ProtocolDatagram datagram, bool expectCallback,
             string expectedCallbackEx, int expectedAckTimeout, bool expectReceives,
             bool expectCompleteInitCall, bool skipReceiveCallExpectation,
-            string[] expectedErrorLogPositions, List<TestLogRecord> testLogs,
+            string[] expectedErrorLogPositions, GenericNetworkIdentifier expectedRemoteEndpoint, List<TestLogRecord> testLogs,
             List<string> logicalThreadIds, DateTime startTime)
         {
             AssertAbsenceOfSendReceiveErrors(testLogs, expectedErrorLogPositions);
@@ -319,121 +321,132 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 Assert.NotEmpty(testLogs.Where(x => expectedErrorLogPositions.Contains(x.GetLogPositionId())));
             }
 
-            var logNavigator = new LogNavigator<TestLogRecord>(testLogs);
+            LogNavigator<TestLogRecord> logNavigator;
+            TestLogRecord result;
+            long sendDelayMillis = 0;
 
             Assert.True(logicalThreadIds.Count > 0);
-            var sendThreadId = logicalThreadIds[0];
 
-            long sendDelayMillis = 0;
-            if (sendConfig != null)
+            if (expectSends)
             {
-                sendDelayMillis = sendConfig.Delay;
-            }
-            if (sendDelayMillis < 0) sendDelayMillis = 0;
+                var sendThreadId = logicalThreadIds[0];
 
-            // test send callback invocation
-            TestLogRecord result;
-            if (expectCallback)
-            {
+                logNavigator = new LogNavigator<TestLogRecord>(testLogs);
+
+                if (sendConfig != null)
+                {
+                    sendDelayMillis = sendConfig.Delay;
+                }
+                if (sendDelayMillis < 0) sendDelayMillis = 0;
+
+                // test send callback invocation
+                if (expectCallback)
+                {
+                    result = logNavigator.Next(x => x.GetLogPositionId() == "e870904c-f035-4c5d-99e7-2c4534f4c152" &&
+                        x.GetCurrentLogicalThreadId() == sendThreadId);
+                    Assert.NotNull(result);
+                    var actualEx = result.GetStrProp(LogDataKeySendException);
+                    if (expectedCallbackEx == null)
+                    {
+                        Assert.Null(actualEx);
+                        var actualAckTimeout = result.GetIntProp(LogDataKeySendAckTimeout);
+                        Assert.Equal(expectedAckTimeout, actualAckTimeout);
+                    }
+                    else
+                    {
+                        Assert.Contains(expectedCallbackEx, actualEx);
+                    }
+
+                    // check time taken for callback to be called
+                    var stopTimeEpoch = result.GetIntProp(LogDataKeyTimestamp).Value;
+                    var actualStopTime = DateTimeOffset.FromUnixTimeMilliseconds(stopTimeEpoch);
+                    var expectedStopTime = startTime.AddMilliseconds(sendDelayMillis);
+                    // allow some secs tolerance in comparison using 
+                    // time differences observed in failed/flaky test results.
+                    Assert.Equal(expectedStopTime, actualStopTime.UtcDateTime, TimeSpan.FromSeconds(2));
+                }
                 result = logNavigator.Next(x => x.GetLogPositionId() == "e870904c-f035-4c5d-99e7-2c4534f4c152" &&
                     x.GetCurrentLogicalThreadId() == sendThreadId);
-                Assert.NotNull(result);
-                var actualEx = result.GetStrProp(LogDataKeySendException);
-                if (expectedCallbackEx == null)
-                {
-                    Assert.Null(actualEx);
-                    var actualAckTimeout = result.GetIntProp(LogDataKeySendAckTimeout);
-                    Assert.Equal(expectedAckTimeout, actualAckTimeout);
-                }
-                else
-                {
-                    Assert.Contains(expectedCallbackEx, actualEx);
-                }
+                Assert.Null(result);
 
-                // check time taken for callback to be called
-                var stopTimeEpoch = result.GetIntProp(LogDataKeyTimestamp).Value;
-                var actualStopTime = DateTimeOffset.FromUnixTimeMilliseconds(stopTimeEpoch);
-                var expectedStopTime = startTime.AddMilliseconds(sendDelayMillis);
-                // allow some secs tolerance in comparison using 
-                // time differences observed in failed/flaky test results.
-                Assert.Equal(expectedStopTime, actualStopTime.UtcDateTime, TimeSpan.FromSeconds(2));
             }
-            result = logNavigator.Next(x => x.GetLogPositionId() == "e870904c-f035-4c5d-99e7-2c4534f4c152" &&
-                x.GetCurrentLogicalThreadId() == sendThreadId);
-            Assert.Null(result);
 
-            // reset log navigator since ordering of callback and complete init is not deterministic
-            logNavigator = new LogNavigator<TestLogRecord>(testLogs);
-
-            var receiveThreadIds = logicalThreadIds.Skip(1).ToList();
-            var expectedReceiveThreadCount = 0;
             if (expectReceives)
             {
-                expectedReceiveThreadCount = 1;
+                // reset log navigator since ordering of callback and complete init is not deterministic
+                logNavigator = new LogNavigator<TestLogRecord>(testLogs);
+
+                var receiveThreadIds = logicalThreadIds.Skip(expectSends ? 1 : 0).ToList();
+                var expectedReceiveThreadCount = 1;
                 if (transmissionConfig?.Delays != null)
                 {
                     expectedReceiveThreadCount = transmissionConfig.Delays.Length;
                 }
                 Assert.Equal(expectedReceiveThreadCount, receiveThreadIds.Count);
-            }
 
-            // test session handler factory usage.
-            if (expectReceives && expectCompleteInitCall)
-            {
-                result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
-                    receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
-                Assert.NotNull(result);
-                var actualConfiguredForSend = (bool)result.ParsedProperties[LogDataKeyConfiguredForSend];
-                Assert.False(actualConfiguredForSend);
-            }
-            result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
-                receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
-            Assert.Null(result);
-
-            // test calls to session handler receive method.
-            if (expectReceives && !skipReceiveCallExpectation)
-            {
-                var seenReceivedThreadIds = new List<string>();
-                while (seenReceivedThreadIds.Count < receiveThreadIds.Count)
+                // test session handler factory usage.
+                if (expectCompleteInitCall)
                 {
-                    result = logNavigator.Next(x => x.GetLogPositionId() == "30d12d3a-11b1-4761-b4b7-8a4261b1dd9c" &&
+                    result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
                         receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
                     Assert.NotNull(result);
-                    var newReceivedThreadId = result.GetCurrentLogicalThreadId();
-                    Assert.DoesNotContain(newReceivedThreadId, seenReceivedThreadIds);
-                    seenReceivedThreadIds.Add(newReceivedThreadId);
-
-                    // assert datagram is received as expected.
-                    string expectedDatagramRepr = "" + datagram.GetHashCode();
-                    var actualDatagramRepr = result.GetStrProp(LogDataKeyDatagramHashCode);
-                    if (sendConfig != null && sendConfig.SerializeDatagram)
-                    {
-                        var datagramBytes = datagram.ToRawDatagram();
-                        expectedDatagramRepr = ProtocolDatagram.ConvertBytesToHex(datagramBytes, 0,
-                            datagramBytes.Length);
-                        actualDatagramRepr = result.GetStrProp(LogDataKeySerializedDatagram);
-                    }
-                    Assert.Equal(expectedDatagramRepr, actualDatagramRepr);
-                    var actualSessionHandlerId = result.GetStrProp(CustomLogEvent.LogDataKeySessionId);
-                    Assert.Equal(datagram.SessionId, actualSessionHandlerId);
-
-                    // test that delay is as expected.
-                    var stopTimeEpoch = result.GetIntProp(LogDataKeyTimestamp).Value;
-                    var actualStopTime = DateTimeOffset.FromUnixTimeMilliseconds(stopTimeEpoch);
-                    var resultWithDelay = testLogs.Single(
-                        x => x.GetStrProp(CustomLogEvent.LogDataKeyNewLogicalThreadId) == newReceivedThreadId);
-                    long delay = resultWithDelay.GetIntProp(MemoryNetworkApi.LogDataKeyDelay).Value;
-                    if (delay < 0) delay = 0;
-                    var expectedStopTime = startTime.AddMilliseconds(sendDelayMillis + delay);
-                    // allow some secs tolerance in comparison using 
-                    // time differences observed in failed/flaky test results.
-                    Assert.Equal(expectedStopTime, actualStopTime.UtcDateTime, TimeSpan.FromSeconds(2));
+                    var actualConfiguredForSend = (bool)result.ParsedProperties[LogDataKeyConfiguredForSend];
+                    Assert.False(actualConfiguredForSend);
                 }
-            }
+                result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
+                    receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
+                Assert.Null(result);
 
-            result = logNavigator.Next(x => x.GetLogPositionId() == "30d12d3a-11b1-4761-b4b7-8a4261b1dd9c" &&
-                receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
-            Assert.Null(result);
+                // test calls to session handler receive method.
+                if (!skipReceiveCallExpectation)
+                {
+                    var seenReceivedThreadIds = new List<string>();
+                    while (seenReceivedThreadIds.Count < receiveThreadIds.Count)
+                    {
+                        result = logNavigator.Next(x => x.GetLogPositionId() == "30d12d3a-11b1-4761-b4b7-8a4261b1dd9c" &&
+                            receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
+                        Assert.NotNull(result);
+                        var newReceivedThreadId = result.GetCurrentLogicalThreadId();
+                        Assert.DoesNotContain(newReceivedThreadId, seenReceivedThreadIds);
+                        seenReceivedThreadIds.Add(newReceivedThreadId);
+
+                        // assert datagram is received as expected.
+                        string expectedDatagramRepr = "" + datagram.GetHashCode();
+                        var actualDatagramRepr = result.GetStrProp(LogDataKeyDatagramHashCode);
+                        if (sendConfig != null && sendConfig.SerializeDatagram)
+                        {
+                            var datagramBytes = datagram.ToRawDatagram();
+                            expectedDatagramRepr = ProtocolDatagram.ConvertBytesToHex(datagramBytes, 0,
+                                datagramBytes.Length);
+                            actualDatagramRepr = result.GetStrProp(LogDataKeySerializedDatagram);
+                        }
+                        Assert.Equal(expectedDatagramRepr, actualDatagramRepr);
+                        var actualSessionHandlerId = result.GetStrProp(CustomLogEvent.LogDataKeySessionId);
+                        Assert.Equal(datagram.SessionId, actualSessionHandlerId);
+                        var actualRemoteEndpoint = result.GetStrProp(LogDataKeyRemoteEndpoint);
+                        Assert.Equal(expectedRemoteEndpoint.ToString(), actualRemoteEndpoint);
+
+                        // test that delay is as expected.
+                        if (expectSends)
+                        {
+                            var stopTimeEpoch = result.GetIntProp(LogDataKeyTimestamp).Value;
+                            var actualStopTime = DateTimeOffset.FromUnixTimeMilliseconds(stopTimeEpoch);
+                            var resultWithDelay = testLogs.Single(
+                                x => x.GetStrProp(CustomLogEvent.LogDataKeyNewLogicalThreadId) == newReceivedThreadId);
+                            long delay = resultWithDelay.GetIntProp(MemoryNetworkApi.LogDataKeyDelay).Value;
+                            if (delay < 0) delay = 0;
+                            var expectedStopTime = startTime.AddMilliseconds(sendDelayMillis + delay);
+                            // allow some secs tolerance in comparison using 
+                            // time differences observed in failed/flaky test results.
+                            Assert.Equal(expectedStopTime, actualStopTime.UtcDateTime, TimeSpan.FromSeconds(2));
+                        }
+                    }
+                }
+
+                result = logNavigator.Next(x => x.GetLogPositionId() == "30d12d3a-11b1-4761-b4b7-8a4261b1dd9c" &&
+                    receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
+                Assert.Null(result);
+            }
         }
 
         public static List<object[]> CreateTestSendReceiveData()
@@ -635,6 +648,107 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             return testData;
         }
 
+        [Theory]
+        [MemberData(nameof(CreateTestSendToSelfData))]
+        public async Task TestSendToSelf(Action<MemoryNetworkApi, ProtocolDatagram> customizer,
+            string message, string sessionId, bool expectCompleteInitCall, bool skipReceiveCallExpectation,
+            string[] expectedErrorLogPositions)
+        {
+            TestDatabase.ResetDb();
+
+            var dataToSend = ProtocolDatagram.ConvertStringToBytes(message);
+            var datagram = new ProtocolDatagram
+            {
+                DataBytes = dataToSend,
+                DataLength = dataToSend.Length,
+                SessionId = sessionId
+            };
+
+            if (customizer != null)
+            {
+                customizer.Invoke(_kumasiEndpoint, datagram);
+            }
+
+            var startTime = DateTime.UtcNow;
+            var initId = _kumasiEndpoint.RequestSendToSelf(_accraAddr, datagram);
+            var logicalThreadIds = await WaitForAllLogicalThreads(20);
+
+            // Now run assertions on logs
+            var testLogs = GetValidatedTestLogs();
+
+            // test that getting related logical threads will give same result as Wait did.
+            var actualLogicalThreadIds = GetRelatedLogicalThreadIds(testLogs, initId);
+            Assert.Equal(logicalThreadIds, actualLogicalThreadIds);
+
+            AssertSendReceiveLogs(false, null, null,
+                datagram, false, null, 0, true, expectCompleteInitCall, skipReceiveCallExpectation,
+                expectedErrorLogPositions, _accraAddr, testLogs, logicalThreadIds, startTime);
+        }
+
+        public static List<object[]> CreateTestSendToSelfData()
+        {
+            var testData = new List<object[]>();
+
+            Action<MemoryNetworkApi, ProtocolDatagram> customizer = null;
+            string message = "hello";
+            string sessionId = ProtocolDatagram.GenerateSessionId();
+            bool expectCompleteInitCall = true;
+            bool skipReceiveCallExpectation = false;
+            string[] errorLogPositionsToSkip = null;
+            testData.Add(new object[] { customizer, message, sessionId, expectCompleteInitCall,
+                skipReceiveCallExpectation, errorLogPositionsToSkip });
+
+            customizer = null;
+            message = "success";
+            sessionId = ProtocolDatagram.GenerateSessionId();
+            expectCompleteInitCall = true;
+            skipReceiveCallExpectation = false;
+            errorLogPositionsToSkip = null;
+            testData.Add(new object[] { customizer, message, sessionId, expectCompleteInitCall,
+                skipReceiveCallExpectation, errorLogPositionsToSkip });
+
+            // test shutdown.
+            customizer = (networkApi, _) =>
+            {
+                networkApi.ShutdownAsync(0);
+            };
+            message = "...";
+            sessionId = ProtocolDatagram.GenerateSessionId();
+            expectCompleteInitCall = false;
+            skipReceiveCallExpectation = true;
+            errorLogPositionsToSkip = new string[] { "823df166-6430-4bcf-ae8f-2cb4c5e77cb1" };
+            testData.Add(new object[] { customizer, message, sessionId, expectCompleteInitCall,
+                skipReceiveCallExpectation, errorLogPositionsToSkip });
+
+            // test invalid datagram opcode.
+            customizer = (_, datagram) =>
+            {
+                datagram.OpCode = ProtocolDatagram.OpCodeRestart;
+            };
+            message = "...";
+            sessionId = ProtocolDatagram.GenerateSessionId();
+            expectCompleteInitCall = false;
+            skipReceiveCallExpectation = true;
+            errorLogPositionsToSkip = new string[] { "74566405-9d14-489f-9dbd-0c9b3e0e3e67" };
+            testData.Add(new object[] { customizer, message, sessionId, expectCompleteInitCall,
+                skipReceiveCallExpectation, errorLogPositionsToSkip });
+
+            // test that exceptions are caught during receive processing.
+            customizer = (networkApi, _) =>
+            {
+                networkApi.SessionHandlerFactory = null;
+            };
+            message = "...";
+            sessionId = ProtocolDatagram.GenerateSessionId();
+            expectCompleteInitCall = false;
+            skipReceiveCallExpectation = true;
+            errorLogPositionsToSkip = new string[] { "c42673d8-a1d1-4cb1-b9c1-a5369bedff64" };
+            testData.Add(new object[] { customizer, message, sessionId, expectCompleteInitCall,
+                skipReceiveCallExpectation, errorLogPositionsToSkip });
+
+            return testData;
+        }
+
         [Fact]
         public async Task TestSendReceiveInParallel()
         {
@@ -765,6 +879,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     ExpectCompleteInitCall = expectCompleteInitCall,
                     SkipReceiveCallExpectation = skipReceiveCallExpectation,
                     ExpectedErrorLogPositions = expectedErrorLogPositions,
+                    ExpectedRemoteEndpoint = srcEndpoint.LocalEndpoint,
                     StartTime = startTime
                 };
                 sendRequests.Add(requestContext);
@@ -781,12 +896,12 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
                 try
                 {
-                    AssertSendReceiveLogs(sendRequest.SendConfig, sendRequest.TransmissionConfig,
+                    AssertSendReceiveLogs(true, sendRequest.SendConfig, sendRequest.TransmissionConfig,
                         sendRequest.Datagram, true,
                         sendRequest.ExpectedCallbackEx, sendRequest.ExpectedAckTimeout,
                         sendRequest.ExpectReceives, sendRequest.ExpectCompleteInitCall,
                         sendRequest.SkipReceiveCallExpectation,
-                        sendRequest.ExpectedErrorLogPositions, specificLogs,
+                        sendRequest.ExpectedErrorLogPositions, sendRequest.ExpectedRemoteEndpoint, specificLogs,
                         specificLogicalThreadIds, sendRequest.StartTime);
                 }
                 catch (Exception ex)
@@ -964,6 +1079,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     ExpectCompleteInitCall = expectCompleteInitCall,
                     SkipReceiveCallExpectation = skipReceiveCallExpectation,
                     ExpectedErrorLogPositions = expectedErrorLogPositions,
+                    ExpectedRemoteEndpoint = srcEndpoint.LocalEndpoint,
                     StartTime = startTime
                 };
                 sendRequests.Add(requestContext);
@@ -980,12 +1096,12 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
                 try
                 {
-                    AssertSendReceiveLogs(sendRequest.SendConfig, sendRequest.TransmissionConfig,
+                    AssertSendReceiveLogs(true, sendRequest.SendConfig, sendRequest.TransmissionConfig,
                         sendRequest.Datagram, true, 
                         sendRequest.ExpectedCallbackEx, sendRequest.ExpectedAckTimeout,
                         sendRequest.ExpectReceives, sendRequest.ExpectCompleteInitCall,
                         sendRequest.SkipReceiveCallExpectation,
-                        sendRequest.ExpectedErrorLogPositions, specificLogs,
+                        sendRequest.ExpectedErrorLogPositions, sendRequest.ExpectedRemoteEndpoint, specificLogs,
                         specificLogicalThreadIds, sendRequest.StartTime);
                 }
                 catch (Exception ex)
@@ -1154,7 +1270,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                             serializedDatagram)
                         .AddProperty(LogDataKeyDatagramHashCode, "" + datagram.GetHashCode())
                         .AddProperty(LogDataKeyTimestamp, ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds())
-                        .AddProperty(CustomLogEvent.LogDataKeySessionId, SessionId));
+                        .AddProperty(CustomLogEvent.LogDataKeySessionId, SessionId)
+                        .AddProperty(LogDataKeyRemoteEndpoint, RemoteEndpoint.ToString()));
                 if (datagram.Options?.TraceId == ErrorTraceValue)
                 {
                     throw new Exception(ErrorTraceValue);
@@ -1204,6 +1321,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public bool ExpectCompleteInitCall { get; set; }
             public bool SkipReceiveCallExpectation { get; set; }
             public string[] ExpectedErrorLogPositions { get; set; }
+            public GenericNetworkIdentifier ExpectedRemoteEndpoint { get; set; }
             public DateTime StartTime { get; set; }
         }
     }

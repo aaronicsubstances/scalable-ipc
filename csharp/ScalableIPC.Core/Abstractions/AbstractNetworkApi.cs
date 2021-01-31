@@ -31,7 +31,12 @@ namespace ScalableIPC.Core.Abstractions
         // HandleSendAsync returns ack timeout to cb arg of RequestSend.
         Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram, Action<int, Exception> cb);
         AbstractPromise<int> _HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
-        
+
+        // this separation between RequestSendToSelf and HandleReceiveAsync is for the purpose of
+        // launching HandleReceiveAsync in a separate thread of control.
+        Guid RequestSendToSelf(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
+        AbstractPromise<VoidType> _HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
+
         // similar to send case, this separation between RequestSessionDispose and DisposeSessionAsync is
         // required so DisposeSessionAsync can be called in a separate thread of control, and then
         // RequestSessionDipose can return for session handlers to update their internal state prior to final
