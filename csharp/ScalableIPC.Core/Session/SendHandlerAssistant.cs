@@ -153,7 +153,7 @@ namespace ScalableIPC.Core.Session
 
         private void HandleSendSuccess(ProtocolDatagram datagram)
         {
-            _sessionHandler.TaskExecutor.PostCallback(() =>
+            _sessionHandler.PostEventLoopCallback(() =>
             {
                 // check if not needed or arriving too late.
                 if (IsComplete || SentCount != datagram.SequenceNumber + 1)
@@ -176,7 +176,7 @@ namespace ScalableIPC.Core.Session
 
         private void HandleSendError(ProtocolDatagram datagram, Exception error)
         {
-            _sessionHandler.TaskExecutor.PostCallback(() =>
+            _sessionHandler.PostEventLoopCallback(() =>
             {
                 // check if not needed or arriving too late.
                 if (IsComplete || SentCount != datagram.SequenceNumber + 1)

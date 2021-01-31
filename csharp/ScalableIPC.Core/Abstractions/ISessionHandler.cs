@@ -4,13 +4,17 @@ using System.Collections.Generic;
 
 namespace ScalableIPC.Core.Abstractions
 {
+    public interface ISessionHandlerFactory
+    {
+        ISessionHandler Create();
+    }
+
     public interface ISessionHandler
     {
         void CompleteInit(string sessionId, bool configureForInitialSend,
             AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint);
         AbstractNetworkApi NetworkApi { get; }
         GenericNetworkIdentifier RemoteEndpoint { get; }
-        ISessionTaskExecutor TaskExecutor { get; }
         string SessionId { get; }
         AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram);
         AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message);

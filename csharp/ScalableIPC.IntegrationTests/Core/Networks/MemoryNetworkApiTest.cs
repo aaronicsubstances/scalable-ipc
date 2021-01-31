@@ -1109,8 +1109,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
             public string SessionId { get; private set; }
 
-            public ISessionTaskExecutor TaskExecutor => throw new NotImplementedException();
-
             public int MaxWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRetryCount { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }

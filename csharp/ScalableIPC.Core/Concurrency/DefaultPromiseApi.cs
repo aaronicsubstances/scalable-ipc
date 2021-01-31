@@ -17,9 +17,9 @@ namespace ScalableIPC.Core.Concurrency
         private DefaultPromiseApi()
         { }
 
-        public PromiseCompletionSource<T> CreateCallback<T>(ISessionTaskExecutor sessionTaskExecutor)
+        public PromiseCompletionSource<T> CreateCallback<T>(AbstractEventLoopApi completionEventLoop)
         {
-            return new DefaultPromiseCompletionSource<T>(this, sessionTaskExecutor);
+            return new DefaultPromiseCompletionSource<T>(this, completionEventLoop);
         }
 
         public AbstractPromise<T> Resolve<T>(T value)
@@ -515,14 +515,14 @@ namespace ScalableIPC.Core.Concurrency
 
     public class DefaultPromiseCompletionSource<T> : PromiseCompletionSource<T>
     {
-        private readonly ISessionTaskExecutor _sessionTaskExecutor;
+        private readonly AbstractEventLoopApi _completionEventLoop;
 
         public DefaultPromiseCompletionSource(AbstractPromiseApi promiseApi,
-            ISessionTaskExecutor sessionTaskExecutor)
+            AbstractEventLoopApi completionEventLoop)
         {
-            // allow null for sessionTaskExecutor so that promise completion sources
-            // can be created independently of session task executors.
-            _sessionTaskExecutor = sessionTaskExecutor;
+            // Event loop is optional so that promise completion sources
+            // can be created independently of event loops.
+            _completionEventLoop = completionEventLoop;
 
             WrappedSource = new TaskCompletionSource<T>();
             RelatedPromise = new DefaultPromise<T>(promiseApi, WrappedSource.Task);
@@ -535,9 +535,9 @@ namespace ScalableIPC.Core.Concurrency
         // event in event loop has been processed.
         public void CompleteSuccessfully(T value)
         {
-            if (_sessionTaskExecutor != null)
+            if (_completionEventLoop != null)
             {
-                _sessionTaskExecutor.PostCallback(() => WrappedSource.TrySetResult(value));
+                _completionEventLoop.PostCallback(() => WrappedSource.TrySetResult(value));
             }
             else
             {
@@ -547,9 +547,9 @@ namespace ScalableIPC.Core.Concurrency
 
         public void CompleteExceptionally(Exception error)
         {
-            if (_sessionTaskExecutor != null)
+            if (_completionEventLoop != null)
             {
-                _sessionTaskExecutor.PostCallback(() => WrappedSource.TrySetException(error));
+                _completionEventLoop.PostCallback(() => WrappedSource.TrySetException(error));
             }
             else
             {

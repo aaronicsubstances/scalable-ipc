@@ -7,7 +7,8 @@ namespace ScalableIPC.Core.Session.Abstractions
 {
     public interface IStandardSessionHandler: ISessionHandler
     {
-        // Intended to enable testing. Maps to the same classes in production usage.
+        // Intended to enable testing. Maps to similarly-named classes (w/o 'I' prefix) in production usage.
+        AbstractEventLoopApi CreateEventLoop();
         ISendHandlerAssistant CreateSendHandlerAssistant();
         IRetrySendHandlerAssistant CreateRetrySendHandlerAssistant();
         IReceiveHandlerAssistant CreateReceiveHandlerAssistant(); 
@@ -34,9 +35,11 @@ namespace ScalableIPC.Core.Session.Abstractions
 
         void ResetAckTimeout(int timeout, Action cb);
         void CancelAckTimeout();
-        void InitiateDispose(ProtocolOperationException cause);
         void InitiateDispose(ProtocolOperationException cause, PromiseCompletionSource<VoidType> promiseCb);
         void ContinueDispose(ProtocolOperationException cause);
+
+        // event loop method for use by session state handlers
+        void PostEventLoopCallback(Action cb);
 
         // application layer interface. contract here is that these should be scheduled on event loop.
         Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }

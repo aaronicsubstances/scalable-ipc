@@ -23,7 +23,7 @@ namespace ScalableIPC.Core.Abstractions
     /// </summary>
     public interface AbstractPromiseApi
     {
-        PromiseCompletionSource<T> CreateCallback<T>(ISessionTaskExecutor sessionTaskExecutor);
+        PromiseCompletionSource<T> CreateCallback<T>(AbstractEventLoopApi completionEventLoop);
         AbstractPromise<T> Resolve<T>(T value);
         AbstractPromise<T> Reject<T>(Exception reason);
         AbstractPromise<VoidType> CompletedPromise();
@@ -42,6 +42,13 @@ namespace ScalableIPC.Core.Abstractions
         // this project during the protocol's operation.
         Guid? CurrentLogicalThreadId { get; }
         Guid? _CurrentLogicalThreadId { set; }
+    }
+
+    public class VoidType
+    {
+        private VoidType() { }
+
+        public static readonly VoidType Instance = new VoidType();
     }
 
     public class PollCallbackArg<T>

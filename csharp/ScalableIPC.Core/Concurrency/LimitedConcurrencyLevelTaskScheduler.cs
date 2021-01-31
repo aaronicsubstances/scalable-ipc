@@ -27,7 +27,7 @@ namespace ScalableIPC.Core.Concurrency
         
         // Controls maximum concurrency level allowed across all schedulers
         // linked to this common instance.
-        private readonly ISessionTaskExecutorGroup _schedulerGroup;
+        private readonly AbstractEventLoopGroupApi _schedulerGroup;
 
         // Indicates whether the scheduler is currently processing work items.
         private int _delegatesQueuedOrRunning = 0;
@@ -37,7 +37,7 @@ namespace ScalableIPC.Core.Concurrency
 
         // Creates a new instance with the specified degree of parallelism.
         public LimitedConcurrencyLevelTaskScheduler(int maxDegreeOfParallelism,
-            ISessionTaskExecutorGroup schedulerGroup)
+            AbstractEventLoopGroupApi schedulerGroup)
         {
             if (maxDegreeOfParallelism < 1) throw new ArgumentOutOfRangeException("maxDegreeOfParallelism");
             _maxDegreeOfParallelism = maxDegreeOfParallelism;

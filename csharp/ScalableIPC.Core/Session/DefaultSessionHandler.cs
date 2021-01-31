@@ -1,5 +1,6 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Concurrency;
+using ScalableIPC.Core.Helpers;
 using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;
@@ -50,6 +51,7 @@ namespace ScalableIPC.Core.Session
         public static readonly int StateDisposeAwaiting = 3;
         public static readonly int StateDisposed = 4;
 
+        private AbstractEventLoopApi _taskExecutor;
         private List<ISessionStateHandler> _stateHandlers;
         private CloseHandler _closeHandler;
 
@@ -67,7 +69,7 @@ namespace ScalableIPC.Core.Session
             RemoteEndpoint = remoteEndpoint;
             SessionId = sessionId;
 
-            TaskExecutor = new DefaultSessionTaskExecutor(sessionId, networkApi.SessionTaskExecutorGroup);
+            _taskExecutor = CreateEventLoop();
 
             _stateHandlers = new List<ISessionStateHandler>();
             _stateHandlers.Add(new ReceiveDataHandler(this));
@@ -75,6 +77,11 @@ namespace ScalableIPC.Core.Session
             _stateHandlers.Add(new SendDataWithoutAckHandler(this));
             _closeHandler = new CloseHandler(this);
             _stateHandlers.Add(_closeHandler);
+        }
+
+        public AbstractEventLoopApi CreateEventLoop()
+        {
+            return new DefaultEventLoopApi(NetworkApi.SessionTaskExecutorGroup);
         }
 
         public ISendHandlerAssistant CreateSendHandlerAssistant()
@@ -100,7 +107,6 @@ namespace ScalableIPC.Core.Session
         public AbstractNetworkApi NetworkApi { get; private set; }
         public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
         public string SessionId { get; private set; }
-        public ISessionTaskExecutor TaskExecutor { get; private set; }
 
         public int SessionState { get; set; } = StateOpen;
 
@@ -141,7 +147,7 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram)
         {
-            TaskExecutor.PostCallback(() =>
+            PostEventLoopCallback(() =>
             {
                 bool handled = false;
                 if (SessionState < StateDisposeAwaiting)
@@ -166,8 +172,8 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message)
         {
-            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(TaskExecutor);
-            TaskExecutor.PostCallback(() =>
+            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
+            PostEventLoopCallback(() =>
             {
                 if (SessionState >= StateDisposeAwaiting)
                 {
@@ -200,8 +206,8 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<bool> ProcessSendWithoutAckAsync(ProtocolMessage message)
         {
-            PromiseCompletionSource<bool> promiseCb = NetworkApi.PromiseApi.CreateCallback<bool>(TaskExecutor);
-            TaskExecutor.PostCallback(() =>
+            PromiseCompletionSource<bool> promiseCb = NetworkApi.PromiseApi.CreateCallback<bool>(_taskExecutor);
+            PostEventLoopCallback(() =>
             {
                 if (SessionState >= StateDisposeAwaiting)
                 {
@@ -239,8 +245,8 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> CloseAsync(bool closeGracefully)
         {
-            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(TaskExecutor);
-            TaskExecutor.PostCallback(() =>
+            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
+            PostEventLoopCallback(() =>
             {
                 if (SessionState == StateDisposed)
                 {
@@ -280,7 +286,7 @@ namespace ScalableIPC.Core.Session
             // interpret non positive timeout as disable ack timeout.
             if (timeout > 0)
             {
-                _lastAckTimeoutId = TaskExecutor.ScheduleTimeout(timeout,
+                _lastAckTimeoutId = ScheduleEventLoopTimeout(timeout,
                     () => ProcessAckTimeout(cb));
             }
         }
@@ -302,7 +308,7 @@ namespace ScalableIPC.Core.Session
             // In the end, only positive values result in idle timeouts.
             if (effectiveIdleTimeout > 0)
             {
-                _lastIdleTimeoutId = TaskExecutor.ScheduleTimeout(IdleTimeout, ProcessIdleTimeout);
+                _lastIdleTimeoutId = ScheduleEventLoopTimeout(IdleTimeout, ProcessIdleTimeout);
             }
         }
 
@@ -310,7 +316,7 @@ namespace ScalableIPC.Core.Session
         {
             if (_lastIdleTimeoutId != null)
             {
-                TaskExecutor.CancelTimeout(_lastIdleTimeoutId);
+                _taskExecutor.CancelTimeout(_lastIdleTimeoutId);
                 _lastIdleTimeoutId = null;
             }
         }
@@ -319,7 +325,7 @@ namespace ScalableIPC.Core.Session
         {
             if (_lastAckTimeoutId != null)
             {
-                TaskExecutor.CancelTimeout(_lastAckTimeoutId);
+                _taskExecutor.CancelTimeout(_lastAckTimeoutId);
                 _lastAckTimeoutId = null;
             }
         }
@@ -379,8 +385,8 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause)
         {
-            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(TaskExecutor);
-            TaskExecutor.PostCallback(() =>
+            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
+            PostEventLoopCallback(() =>
             {
                 if (SessionState == StateDisposed)
                 {
@@ -411,6 +417,45 @@ namespace ScalableIPC.Core.Session
             return promiseCb.RelatedPromise;
         }
 
+        // event loop methods
+        public void PostEventLoopCallback(Action cb)
+        {
+            _taskExecutor.PostCallback(() =>
+            {
+                try
+                {
+                    cb();
+                }
+                catch (Exception ex)
+                {
+                    RecordEventLoopCallbackException("c67258ee-0014-4a96-b3d3-3d340486b0ba", ex);
+                }
+            });
+        }
+
+        private object ScheduleEventLoopTimeout(int millis, Action cb)
+        {
+            return _taskExecutor.ScheduleTimeout(millis, () =>
+            {
+                try
+                {
+                    cb();
+                }
+                catch (Exception ex)
+                {
+                    RecordEventLoopCallbackException("909b8db5-e52a-47f9-91e7-4233a852efd0", ex);
+                }
+            });
+        }
+
+        private void RecordEventLoopCallbackException(string logPosition, Exception ex)
+        {
+            CustomLoggerFacade.Log(() => new CustomLogEvent(GetType(),
+                "Error occured on event loop during callback processing", ex)
+                   .AddProperty(CustomLogEvent.LogDataKeySessionId, SessionId)
+                   .AddProperty(CustomLogEvent.LogDataKeyLogPositionId, logPosition));
+        }
+
         // calls to application layer.
         // Contract here is that these calls should behave like notifications, and
         // hence these once invoked, should continue execution outside event loop if possible, but after current
@@ -424,32 +469,32 @@ namespace ScalableIPC.Core.Session
 
         public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {
-            TaskExecutor.PostCallback(() => DatagramDiscardedHandler?.Invoke(this, datagram));
+            PostEventLoopCallback(() => DatagramDiscardedHandler?.Invoke(this, datagram));
         }
 
         public void OnMessageReceived(ProtocolMessage message)
         {
-            TaskExecutor.PostCallback(() => MessageReceivedHandler?.Invoke(this, message));
+            PostEventLoopCallback(() => MessageReceivedHandler?.Invoke(this, message));
         }
 
         public void OnSessionDisposing(ProtocolOperationException cause)
         {
-            TaskExecutor.PostCallback(() => SessionDisposingHandler?.Invoke(this, cause));
+            PostEventLoopCallback(() => SessionDisposingHandler?.Invoke(this, cause));
         }
 
         public void OnSessionDisposed(ProtocolOperationException cause)
         {
-            TaskExecutor.PostCallback(() => SessionDisposedHandler?.Invoke(this, cause));
+            PostEventLoopCallback(() => SessionDisposedHandler?.Invoke(this, cause));
         }
 
         public void OnSendError(ProtocolOperationException cause)
         {
-            TaskExecutor.PostCallback(() => SendErrorHandler?.Invoke(this, cause));
+            PostEventLoopCallback(() => SendErrorHandler?.Invoke(this, cause));
         }
 
         public void OnReceiveError(ProtocolOperationException cause)
         {
-            TaskExecutor.PostCallback(() => ReceiveErrorHandler?.Invoke(this, cause));
+            PostEventLoopCallback(() => ReceiveErrorHandler?.Invoke(this, cause));
         }
     }
 }

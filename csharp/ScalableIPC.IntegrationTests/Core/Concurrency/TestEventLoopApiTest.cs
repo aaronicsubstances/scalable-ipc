@@ -4,11 +4,11 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using static ScalableIPC.Core.Concurrency.TestSessionTaskExecutor;
+using static ScalableIPC.Core.Concurrency.TestEventLoopApi;
 
 namespace ScalableIPC.IntegrationTests.Core.Concurrency
 {
-    public class TestSessionTaskExecutorTest
+    public class TestEventLoopApiTest
     {
         [Theory]
         [MemberData(nameof(CreateTestStableSortData))]
@@ -82,7 +82,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [Fact]
         public void TestNormalUsage()
         {
-            var instance = new TestSessionTaskExecutor(null, 0);
+            var instance = new TestEventLoopApi(0);
             Assert.Equal(0, instance.CurrentTimestamp);
 
             var callbackLogs = new List<string>();
@@ -222,9 +222,9 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         {
             Assert.ThrowsAny<Exception>(() =>
             {
-                new TestSessionTaskExecutor(null, -1);
+                new TestEventLoopApi(-1);
             });
-            var instance = new TestSessionTaskExecutor(null, 1);
+            var instance = new TestEventLoopApi(1);
             Assert.ThrowsAny<Exception>(() =>
             {
                 instance.AdvanceTimeBy(-1);
@@ -238,17 +238,17 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [Fact]
         public Task TestPromiseCallbackSuccess()
         {
-            var instance = new TestSessionTaskExecutor(null, 0);
+            var instance = new TestEventLoopApi(0);
             instance.RunImmediateCallbacksWithoutAdvance = true;
-            return DefaultSessionTaskExecutorTest.GenericTestPromiseCallbackSuccess(instance);
+            return DefaultEventLoopApiTest.GenericTestPromiseCallbackSuccess(instance);
         }
 
         [Fact]
         public Task TestPromiseCallbackError()
         {
-            var instance = new TestSessionTaskExecutor(null, 0);
+            var instance = new TestEventLoopApi(0);
             instance.RunImmediateCallbacksWithoutAdvance = true;
-            return DefaultSessionTaskExecutorTest.GenericTestPromiseCallbackError(instance);
+            return DefaultEventLoopApiTest.GenericTestPromiseCallbackError(instance);
         }
     }
 }

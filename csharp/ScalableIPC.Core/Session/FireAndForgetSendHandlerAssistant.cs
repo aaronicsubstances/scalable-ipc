@@ -48,7 +48,7 @@ namespace ScalableIPC.Core.Session
 
         private void HandleSendSuccess()
         {
-            _sessionHandler.TaskExecutor.PostCallback(() =>
+            _sessionHandler.PostEventLoopCallback(() =>
             {
                 // check if not needed or arriving too late.
                 if (IsComplete || !Sent)
@@ -65,7 +65,7 @@ namespace ScalableIPC.Core.Session
 
         private void HandleSendError(Exception error)
         {
-            _sessionHandler.TaskExecutor.PostCallback(() =>
+            _sessionHandler.PostEventLoopCallback(() =>
             {
                 // check if not needed or arriving too late.
                 if (IsComplete || !Sent)

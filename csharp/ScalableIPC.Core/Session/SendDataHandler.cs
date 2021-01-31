@@ -178,7 +178,8 @@ namespace ScalableIPC.Core.Session
 
         private void OnDisposalOutcome(ProtocolOperationException cause)
         {
-            _sessionHandler.InitiateDispose(cause);
+            // should not have any code declared after this call.
+            _sessionHandler.InitiateDispose(cause, null);
         }
     }
 }

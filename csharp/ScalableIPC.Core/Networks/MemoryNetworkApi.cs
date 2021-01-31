@@ -63,7 +63,7 @@ namespace ScalableIPC.Core.Networks
 
         public AbstractPromiseApi PromiseApi { get; set; }
         public ISessionHandlerFactory SessionHandlerFactory { get; set; }
-        public ISessionTaskExecutorGroup SessionTaskExecutorGroup { get; set; }
+        public AbstractEventLoopGroupApi SessionTaskExecutorGroup { get; set; }
 
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
 

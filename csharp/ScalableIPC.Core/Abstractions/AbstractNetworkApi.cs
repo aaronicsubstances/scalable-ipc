@@ -21,7 +21,7 @@ namespace ScalableIPC.Core.Abstractions
         GenericNetworkIdentifier LocalEndpoint { get; set; }
         AbstractPromiseApi PromiseApi { get; set; }
         ISessionHandlerFactory SessionHandlerFactory { get; set; }
-        ISessionTaskExecutorGroup SessionTaskExecutorGroup { get; set; }
+        AbstractEventLoopGroupApi SessionTaskExecutorGroup { get; set; }
         AbstractPromise<VoidType> StartAsync();
         AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             ISessionHandler sessionHandler);

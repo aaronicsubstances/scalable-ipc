@@ -12,7 +12,7 @@ using Xunit;
 namespace ScalableIPC.IntegrationTests.Core.Concurrency
 {
     [Collection("SequentialTests")]
-    public class DefaultSessionTaskExecutorTest
+    public class DefaultEventLoopApiTest
     {
         private static readonly string LogDataKeyWorkIndex = "workIndex";
         private static readonly string LogDataKeyWorkLogIndex = "workLogIndex";
@@ -27,15 +27,15 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         {
             TestDatabase.ResetDb();
 
-            DefaultSessionTaskExecutor eventLoop;
+            DefaultEventLoopApi eventLoop;
             if (maxDegreeOfParallelism == 0)
             {
                 // ensure testing of production usage constructor.
-                eventLoop = new DefaultSessionTaskExecutor(null, null);
+                eventLoop = new DefaultEventLoopApi(null);
             }
             else
             {
-                eventLoop = new DefaultSessionTaskExecutor(null, null,
+                eventLoop = new DefaultEventLoopApi(null,
                     maxDegreeOfParallelism, runCallbacksUnderMutex);
             }
             const int expectedCbCount = 1_000;
@@ -103,15 +103,15 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         {
             TestDatabase.ResetDb();
 
-            DefaultSessionTaskExecutor eventLoop;
+            DefaultEventLoopApi eventLoop;
             if (maxDegreeOfParallelism == 0)
             {
                 // ensure testing of production usage constructor.
-                eventLoop = new DefaultSessionTaskExecutor(null, null);
+                eventLoop = new DefaultEventLoopApi(null);
             }
             else
             {
-                eventLoop = new DefaultSessionTaskExecutor(null, null,
+                eventLoop = new DefaultEventLoopApi(null,
                     maxDegreeOfParallelism, true);
             }
             const int expectedCbCount = 1_000;
@@ -167,7 +167,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         {
             // contract to test is that during a PostCallback, cancel works regardless of
             // how long we spend inside it.
-            var eventLoop = new DefaultSessionTaskExecutor(null, null);
+            var eventLoop = new DefaultEventLoopApi(null);
             var promiseCb = new DefaultPromiseCompletionSource<VoidType>(DefaultPromiseApi.Instance,
                 null);
             var startTime = DateTime.UtcNow;
@@ -239,18 +239,18 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [Fact]
         public Task TestPromiseCallbackSuccess()
         {
-            var instance = new DefaultSessionTaskExecutor(null, null);
+            var instance = new DefaultEventLoopApi(null);
             return GenericTestPromiseCallbackSuccess(instance);
         }
 
         [Fact]
         public Task TestPromiseCallbackError()
         {
-            var instance = new DefaultSessionTaskExecutor(null, null);
+            var instance = new DefaultEventLoopApi(null);
             return GenericTestPromiseCallbackError(instance);
         }
 
-        internal static async Task GenericTestPromiseCallbackSuccess(DefaultSessionTaskExecutor instance)
+        internal static async Task GenericTestPromiseCallbackSuccess(DefaultEventLoopApi instance)
         {
             AbstractPromiseApi relatedInstance = DefaultPromiseApi.Instance;
             var promiseCb = relatedInstance.CreateCallback<int>(instance);
@@ -273,7 +273,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             Assert.Equal(100, result);
         }
 
-        internal static async Task GenericTestPromiseCallbackError(DefaultSessionTaskExecutor instance)
+        internal static async Task GenericTestPromiseCallbackError(DefaultEventLoopApi instance)
         {
             AbstractPromiseApi relatedInstance = DefaultPromiseApi.Instance;
             var promiseCb = relatedInstance.CreateCallback<int>(instance);
@@ -317,7 +317,7 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         [Fact]
         public async Task TestCallbackExceptionRecording()
         {
-            var sessionTaskExecutor = new DefaultSessionTaskExecutor("test", null);
+            var sessionTaskExecutor = new DefaultEventLoopApi(null);
 
             // test postCallback
             TestDatabase.ResetDb();
@@ -331,9 +331,8 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             var record = logNavigator.Next(
                 rec => rec.Properties.Contains("1e934595-0dcb-423a-966c-5786d1925e3d"));
             Assert.NotNull(record);
-            Assert.Equal("test", record.ParsedProperties[CustomLogEvent.LogDataKeySessionId]);
             Assert.Equal(cbExecutionIds[0],
-                record.ParsedProperties[CustomLogEvent.LogDataKeySessionTaskExecutionId]);
+                record.ParsedProperties[CustomLogEvent.LogDataKeyEventLoopCallbackExecutionId]);
             Assert.Contains("testing cb", record.Exception);
 
             // test setTimeout
@@ -348,9 +347,8 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("5394ab18-fb91-4ea3-b07a-e9a1aa150dd6"));
             Assert.NotNull(record);
-            Assert.Equal("test", record.ParsedProperties[CustomLogEvent.LogDataKeySessionId]);
             Assert.Equal(cbExecutionIds[0],
-                record.ParsedProperties[CustomLogEvent.LogDataKeySessionTaskExecutionId]);
+                record.ParsedProperties[CustomLogEvent.LogDataKeyEventLoopCallbackExecutionId]);
             Assert.Contains("testing ex", record.Exception);
 
             // test cancellation.
@@ -384,19 +382,19 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
 
             var expectedGroupConcurrencyLevel = Math.Max(1,
                 taskExecutorCount * individualDegreeOfParallelism / 2);
-            var group = new DefaultSessionTaskExecutorGroup(expectedGroupConcurrencyLevel);
-            var taskExecutors = new List<DefaultSessionTaskExecutor>();
+            var group = new DefaultEventLoopGroupApi(expectedGroupConcurrencyLevel);
+            var taskExecutors = new List<DefaultEventLoopApi>();
             for (int i = 0; i < taskExecutorCount; i++)
             {
-                DefaultSessionTaskExecutor executor;
+                DefaultEventLoopApi executor;
                 if (individualDegreeOfParallelism == 0)
                 {
                     // ensure testing of production usage constructor.
-                    executor = new DefaultSessionTaskExecutor($"session-{i}", putInGroup ? group : null);
+                    executor = new DefaultEventLoopApi(putInGroup ? group : null);
                 }
                 else
                 {
-                    executor = new DefaultSessionTaskExecutor($"session-{i}", putInGroup ? group : null,
+                    executor = new DefaultEventLoopApi(putInGroup ? group : null,
                         individualDegreeOfParallelism, true);
                 }
                 taskExecutors.Add(executor);
@@ -500,8 +498,8 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
         {
             return TestDatabase.GetTestLogs(record =>
             {
-                if (record.Logger.Contains(typeof(DefaultSessionTaskExecutor).FullName) ||
-                    record.Logger.Contains(typeof(DefaultSessionTaskExecutorTest).FullName) ||
+                if (record.Logger.Contains(typeof(DefaultEventLoopApi).FullName) ||
+                    record.Logger.Contains(typeof(DefaultEventLoopApiTest).FullName) ||
                     record.Logger.Contains(typeof(LimitedConcurrencyLevelTaskScheduler).FullName))
                 {
                     return true;
@@ -517,10 +515,10 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             int lastId = -1;
             foreach (var testLog in testLogs)
             {
-                if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyNewSessionTaskId))
+                if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyNewEventLoopCallbackId))
                 {
                     newCallbackExecutionIds.Add((string)testLog.ParsedProperties[
-                        CustomLogEvent.LogDataKeyNewSessionTaskId]);
+                        CustomLogEvent.LogDataKeyNewEventLoopCallbackId]);
                     lastId = testLog.Id;
                 }
             }
@@ -534,10 +532,10 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
                     CustomLoggerFacade.WriteToStdOut(false, $"Fetch count = {testLogs.Count}", null);
                     foreach (var testLog in testLogs)
                     {
-                        if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyEndingSessionTaskExecutionId))
+                        if (testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyEndingEventLoopCallbackExecutionId))
                         {
                             newCallbackExecutionIds.Remove((string)testLog.ParsedProperties[
-                                CustomLogEvent.LogDataKeyEndingSessionTaskExecutionId]);
+                                CustomLogEvent.LogDataKeyEndingEventLoopCallbackExecutionId]);
                         }
                     }
                     CustomLoggerFacade.WriteToStdOut(false, $"End rem count = {newCallbackExecutionIds.Count}", null);
@@ -550,10 +548,10 @@ namespace ScalableIPC.IntegrationTests.Core.Concurrency
             }
             testLogs = GetValidatedTestLogs();
             Assert.Empty(testLogs.Where(testLog => testLog.Id > lastId &&
-                testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyNewSessionTaskId)));
+                testLog.ParsedProperties.ContainsKey(CustomLogEvent.LogDataKeyNewEventLoopCallbackId)));
             return testLogs.Where(x => x.ParsedProperties.ContainsKey(
-                CustomLogEvent.LogDataKeyNewSessionTaskId))
-                .Select(x => (string)x.ParsedProperties[CustomLogEvent.LogDataKeyNewSessionTaskId])
+                CustomLogEvent.LogDataKeyNewEventLoopCallbackId))
+                .Select(x => (string)x.ParsedProperties[CustomLogEvent.LogDataKeyNewEventLoopCallbackId])
                 .ToList();
         }
     }

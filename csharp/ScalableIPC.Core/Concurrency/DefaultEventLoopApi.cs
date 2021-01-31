@@ -9,7 +9,7 @@ using static ScalableIPC.Core.Helpers.CustomLogEvent;
 
 namespace ScalableIPC.Core.Concurrency
 {
-    public class DefaultSessionTaskExecutor : ISessionTaskExecutor
+    public class DefaultEventLoopApi : AbstractEventLoopApi
     {
         private readonly LimitedConcurrencyLevelTaskScheduler _throttledTaskScheduler;
 
@@ -27,17 +27,15 @@ namespace ScalableIPC.Core.Concurrency
 
         // limit parallelism to one to guarantee that callbacks posted from same thread
         // are executed within mutex lock in same order as that of original submission.
-        public DefaultSessionTaskExecutor(string sessionId, ISessionTaskExecutorGroup executorGroup):
-            this(sessionId, executorGroup, 1, true)
+        public DefaultEventLoopApi(AbstractEventLoopGroupApi executorGroup):
+            this(executorGroup, 1, true)
         { }
 
         // for subclasses, to avoid creation of task scheduler if not needed, or use more degrees of
         // parallelism (e.g. for testing).
-        protected internal DefaultSessionTaskExecutor(string sessionId,
-            ISessionTaskExecutorGroup executorGroup,
+        protected internal DefaultEventLoopApi(AbstractEventLoopGroupApi executorGroup,
             int maxDegreeOfParallelism, bool runCallbacksUnderMutex)
         {
-            SessionId = sessionId;
             _runCallbacksUnderMutex = runCallbacksUnderMutex;
             if (maxDegreeOfParallelism > 0)
             {
@@ -49,8 +47,6 @@ namespace ScalableIPC.Core.Concurrency
                 _throttledTaskScheduler = null;
             }
         }
-
-        public string SessionId { get; }
 
         public virtual void PostCallback(Action cb)
         {
@@ -130,9 +126,9 @@ namespace ScalableIPC.Core.Concurrency
             var callbackExecutionId = Guid.NewGuid();
             CustomLoggerFacade.TestLog(() =>
             {
-                var logEvent = new CustomLogEvent(GetType(), "Session task is to be scheduled for execution")
-                    .AddProperty(LogDataKeyNewSessionTaskId, callbackExecutionId)
-                    .AddProperty(LogDataKeySessionId, SessionId);
+                var logEvent = new CustomLogEvent(GetType(), "Callback is about to be scheduled " +
+                        "for execution on event loop")
+                    .AddProperty(LogDataKeyNewEventLoopCallbackId, callbackExecutionId);
                 return logEvent;
             });
             return callbackExecutionId;
@@ -142,9 +138,8 @@ namespace ScalableIPC.Core.Concurrency
         {
             CustomLoggerFacade.TestLog(() =>
             {
-                var logEvent = new CustomLogEvent(GetType(), "Session task has finished executing")
-                    .AddProperty(LogDataKeyEndingSessionTaskExecutionId, callbackExecutionId)
-                    .AddProperty(LogDataKeySessionId, SessionId);
+                var logEvent = new CustomLogEvent(GetType(), "Callback has finished executing on event loop")
+                    .AddProperty(LogDataKeyEndingEventLoopCallbackExecutionId, callbackExecutionId);
                 return logEvent;
             });
         }
@@ -153,20 +148,19 @@ namespace ScalableIPC.Core.Concurrency
             Exception ex)
         {
             CustomLoggerFacade.Log(() => new CustomLogEvent(GetType(), 
-                "Error occured on session task executor during callback processing", ex)
-                   .AddProperty(LogDataKeySessionTaskExecutionId, callbackExecutionId)
-                   .AddProperty(LogDataKeyLogPositionId, logPosition)
-                   .AddProperty(LogDataKeySessionId, SessionId));
+                "Error occured on event loop during callback processing", ex)
+                   .AddProperty(LogDataKeyEventLoopCallbackExecutionId, callbackExecutionId)
+                   .AddProperty(LogDataKeyLogPositionId, logPosition));
         }
     }
 
-    public class DefaultSessionTaskExecutorGroup: ISessionTaskExecutorGroup
+    public class DefaultEventLoopGroupApi : AbstractEventLoopGroupApi
     {
         private int _delegatesQueuedOrRunning = 0;
         private readonly int _maxDegreeOfParallelism;
         private readonly LinkedList<Action> _notificationListeners;
 
-        public DefaultSessionTaskExecutorGroup(int maxDegreeOfParallelism)
+        public DefaultEventLoopGroupApi(int maxDegreeOfParallelism)
         {
             if (maxDegreeOfParallelism < 1) throw new ArgumentOutOfRangeException("maxDegreeOfParallelism");
             _maxDegreeOfParallelism = maxDegreeOfParallelism;

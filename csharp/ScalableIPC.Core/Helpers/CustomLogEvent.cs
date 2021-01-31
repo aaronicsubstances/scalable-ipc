@@ -11,9 +11,9 @@ namespace ScalableIPC.Core.Helpers
         public static readonly string LogDataKeyEndingLogicalThreadId = "endingLogicalThreadId";
         public static readonly string LogDataKeyNewLogicalThreadId = "newLogicalThreadId";
         public static readonly string LogDataKeySessionId = "sessionId";
-        public static readonly string LogDataKeySessionTaskExecutionId = "sessionTaskExecutionId";
-        public static readonly string LogDataKeyEndingSessionTaskExecutionId = "endingSessionTaskExecutionId";
-        public static readonly string LogDataKeyNewSessionTaskId = "newSessionTaskExecutionId";
+        public static readonly string LogDataKeyEventLoopCallbackExecutionId = "eventLoopCallbackExecutionId";
+        public static readonly string LogDataKeyEndingEventLoopCallbackExecutionId = "endingEventLoopCallbackExecutionId";
+        public static readonly string LogDataKeyNewEventLoopCallbackId = "newEventLoopCallbackExecutionId";
         public static readonly string ThrottledTaskSchedulerId = "throttledTaskSchedulerId";
         public static readonly string ThrottledTaskSchedulerConcurrencyLevel = "throttledTaskSchedulerConcurrencyLevel";
 

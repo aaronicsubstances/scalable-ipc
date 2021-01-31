@@ -1,11 +1,10 @@
-﻿using ScalableIPC.Core.Abstractions;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace ScalableIPC.Core.Concurrency
 {
-    public class TestSessionTaskExecutor: DefaultSessionTaskExecutor
+    public class TestEventLoopApi: DefaultEventLoopApi
     {
         public class TaskDescriptor
         {
@@ -46,8 +45,8 @@ namespace ScalableIPC.Core.Concurrency
 
         private readonly List<TaskDescriptor> _taskQueue = new List<TaskDescriptor>();
 
-        public TestSessionTaskExecutor(string sessionId, long initialTimestamp):
-            base(sessionId, null, 0, false)
+        public TestEventLoopApi(long initialTimestamp):
+            base(null, 0, false)
         {
             if (initialTimestamp < 0)
             {

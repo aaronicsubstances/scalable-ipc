@@ -16,17 +16,14 @@ namespace ScalableIPC.Core.Abstractions
     ///  2. Side-effects of executed tasks must be visible to tasks which will be run later.
     ///  3. Provide timeouts asynchronously without using dedicated timer thread.
     /// </summary>
-    public interface ISessionTaskExecutor
+    public interface AbstractEventLoopApi
     {
-        string SessionId { get;  }
-
-        // these are the event loop operations.
         void PostCallback(Action cb);
         object ScheduleTimeout(int millis, Action cb);
         void CancelTimeout(object id);
     }
 
-    public interface ISessionTaskExecutorGroup
+    public interface AbstractEventLoopGroupApi
     {
         bool ConfirmAddWorker(Action notificationListener);
         void OnWorkerFinished();
