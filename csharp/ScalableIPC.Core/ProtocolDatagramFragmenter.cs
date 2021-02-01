@@ -148,12 +148,10 @@ namespace ScalableIPC.Core
                     "options so large that no space is left for data");
             }
 
-            // clear out to eliminate false expectations
-            // and set session id.
+            // clear out to eliminate false expectations.
             foreach (var nextFragment in nextFragments)
             {
                 nextFragment.ExpectedDatagramLength = 0;
-                nextFragment.SessionId = _message.SessionId;
             }
 
             return nextFragments;

@@ -36,7 +36,6 @@ namespace ScalableIPC.Core.Session.Abstractions
 
         void ResetAckTimeout(int timeout, Action cb);
         void CancelAckTimeout();
-        void InitiateDispose(ProtocolOperationException cause, PromiseCompletionSource<VoidType> promiseCb);
         void ContinueDispose(ProtocolOperationException cause);
 
         // event loop method for use by session state handlers
@@ -49,11 +48,13 @@ namespace ScalableIPC.Core.Session.Abstractions
         Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
+        Action<ISessionHandler> IdleTimeoutHandler { get; set; }
         void OnDatagramDiscarded(ProtocolDatagram datagram);
         void OnMessageReceived(ProtocolMessage message);
         void OnSessionDisposing(ProtocolOperationException cause);
         void OnSessionDisposed(ProtocolOperationException cause);
         void OnSendError(ProtocolOperationException error);
         void OnReceiveError(ProtocolOperationException error);
+        void OnIdleTimeout();
     }
 }

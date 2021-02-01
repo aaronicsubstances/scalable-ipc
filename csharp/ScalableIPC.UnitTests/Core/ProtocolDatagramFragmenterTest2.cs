@@ -249,10 +249,7 @@ namespace ScalableIPC.UnitTests.Core
             var testData = new List<object[]>();
 
             // empty input test
-            ProtocolMessage message = new ProtocolMessage
-            {
-                SessionId = "x"
-            };
+            ProtocolMessage message = new ProtocolMessage();
             int maxFragmentSize = 110;
             List<string> extraOptionsToSkip = null;
             int maxFragmentOptionsSize = 150;
@@ -261,10 +258,7 @@ namespace ScalableIPC.UnitTests.Core
             {
                 new List<ProtocolDatagram>
                 {
-                    new ProtocolDatagram
-                    {
-                        SessionId = "x"
-                    }
+                    new ProtocolDatagram()
                 },
                 new List<ProtocolDatagram>()
             };
@@ -384,10 +378,7 @@ namespace ScalableIPC.UnitTests.Core
             var testData = new List<object[]>();
 
             // fragment size too small
-            ProtocolMessage message = new ProtocolMessage
-            {
-                SessionId = "x"
-            };
+            ProtocolMessage message = new ProtocolMessage();
             int maxFragmentSize = 10;
             List<string> extraOptionsToSkip = null;
             int maxFragmentOptionsSize = 150;

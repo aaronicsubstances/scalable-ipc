@@ -3,6 +3,7 @@
 Defines and implements an application layer network protocol to serve as 
 
    1. OS-neutral IPC mechanism of choice on a single host machine (localhost)
+   2. Protocol of choice for use on internal/backend networks of applications running on the Internet.
    3. Common interface to pluggable underlying networks for HTTP, in order to dissociate HTTP from TCP, and leverage any alternative underlying network available which may be more efficient depending on the context (e.g. on a single host machine).
    
 The initial motivation for this protocol came from deliberations on IPC efficiency between microservice-based web applications.
@@ -15,12 +16,13 @@ The initial motivation for this protocol came from deliberations on IPC efficien
   * Exposes configuration parameters such as maximum window size, MTU, idle/ack timeout, and maximum retry attempts on a per application basis, and thus makes the protocol adaptable to a wide range of networking needs. When using TCP directly however, such parameters can only be configured globally for all operating system connections.
   * Makes streaming and duplex communication easier at application layer, by
 
-     * enabling idle timeout to be applied end-to-end.
-     * disabling idle timeout per session without need for keep-alive packets.
+     * enabling idle timeout to be applied end-to-end, including disabling it entirely per session.
+     * preventing idle timeout from tearing down sessions without using or needing keep-alive packets. In general, all errors are transient, and do not tear down a session.
      * preserving message boundaries like in UDP.
 
-  * Optimized for networking within single host machine by using Unix domain sockets and Windows named pipes. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale from single host networking to interhost networking.
-  * Extensible for use as a standalone transport layer protocol, by using UDP and allowing for congestion control, security (e.g. DTLS), forward error correction, and whatever is possible with custom PDU types, options and session state handlers. In any case protocol is already designed to make maximum utilisation of "long fat networks", ie internal networks with large bandwidth-delay products.
+  * Optimized for networking within single host machine by using faster IPC mechanisms where available, such as UDP, Unix domain sockets and Windows named pipes. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale *down* from global internetworking, to localhost internetworking; and also scale *up* from localhost to global.
+
+  * Designed to make maximum utilisation of "long fat networks", ie internal networks with large bandwidth-delay products.
 
 ## Roadmap
 

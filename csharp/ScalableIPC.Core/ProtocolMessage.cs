@@ -7,8 +7,6 @@ namespace ScalableIPC.Core
 {
     public class ProtocolMessage
     {
-        public string SessionId { get; set; }
-
         public Dictionary<string, List<string>> Attributes { get; set; }
 
         public byte[] DataBytes { get; set; }
@@ -19,8 +17,6 @@ namespace ScalableIPC.Core
         {
             var sb = new StringBuilder();
             sb.Append(nameof(ProtocolMessage)).Append("{");
-            sb.Append(nameof(SessionId)).Append("=").Append(SessionId);
-            sb.Append(", ");
             sb.Append(nameof(Attributes)).Append("=").Append(StringUtilities.StringifyOptions(Attributes));
             sb.Append(", ");
             sb.Append(nameof(DataOffset)).Append("=").Append(DataOffset);

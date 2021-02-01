@@ -75,7 +75,6 @@ namespace ScalableIPC.Core.Session
             // now create message for application layer, and decode any long options present.
             ProtocolMessage messageForApp = new ProtocolMessage
             {
-                SessionId = windowAsMessage.SessionId,
                 DataBytes = windowAsMessage.DataBytes,
                 DataOffset = windowAsMessage.DataOffset,
                 DataLength = windowAsMessage.DataLength

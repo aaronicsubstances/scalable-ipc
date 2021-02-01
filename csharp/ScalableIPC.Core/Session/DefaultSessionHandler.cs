@@ -311,7 +311,10 @@ namespace ScalableIPC.Core.Session
         private void ProcessIdleTimeout()
         {
             _lastIdleTimeoutId = null;
-            InitiateDispose(new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeIdleTimeout));
+            if (SessionState < StateDisposeAwaiting)
+            {
+                OnIdleTimeout();
+            }
         }
 
         private void ProcessAckTimeout(Action cb)
@@ -323,12 +326,7 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void InitiateDispose(ProtocolOperationException cause)
-        {
-            InitiateDispose(cause, null);
-        }
-
-        public void InitiateDispose(ProtocolOperationException cause, PromiseCompletionSource<VoidType> cb)
+        private void InitiateDispose(ProtocolOperationException cause, PromiseCompletionSource<VoidType> cb)
         {
             if (SessionState >= StateClosing)
             {
@@ -336,7 +334,8 @@ namespace ScalableIPC.Core.Session
             }
 
             SessionState = StateClosing;
-            // check if null. may be timeout triggered.
+            
+            // check if null.
             if (cb != null)
             {
                 _closeHandler.QueueCallback(cb);
@@ -444,6 +443,7 @@ namespace ScalableIPC.Core.Session
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
+        public Action<ISessionHandler> IdleTimeoutHandler { get; set; }
 
         public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {
@@ -473,6 +473,11 @@ namespace ScalableIPC.Core.Session
         public void OnReceiveError(ProtocolOperationException cause)
         {
             PostEventLoopCallback(() => ReceiveErrorHandler?.Invoke(this, cause));
+        }
+
+        public void OnIdleTimeout()
+        {
+            PostEventLoopCallback(() => IdleTimeoutHandler?.Invoke(this));
         }
     }
 }
