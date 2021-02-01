@@ -26,29 +26,18 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             ISessionHandler sessionHandler);
 
-        // this separation between RequestSend and HandleSendAsync is for the purpose of
-        // launching HandleSendAsync in a separate thread of control.
-        // HandleSendAsync returns ack timeout to cb arg of RequestSend.
+        // Contract here is that Request* methods should launch actual operations in separate thread of
+        // control.
+
+        // RequestSend returns ack timeout to cb arg.
         Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram, Action<int, Exception> cb);
-        AbstractPromise<int> _HandleSendAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
-
-        // this separation between RequestSendToSelf and HandleReceiveAsync is for the purpose of
-        // launching HandleReceiveAsync in a separate thread of control.
         Guid RequestSendToSelf(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
-        AbstractPromise<VoidType> _HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
-
-        // similar to send case, this separation between RequestSessionDispose and DisposeSessionAsync is
-        // required so DisposeSessionAsync can be called in a separate thread of control, and then
-        // RequestSessionDipose can return for session handlers to update their internal state prior to final
-        // disposal.
         Guid RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint, string sessionId, ProtocolOperationException cause);
-        AbstractPromise<VoidType> _DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
-            ProtocolOperationException cause);
-
+        
         AbstractPromise<VoidType> ShutdownAsync(int gracefulWaitPeriodSecs);
         bool IsShuttingDown();
         void _StartNewThreadOfControl(Func<AbstractPromise<VoidType>> cb);
-        int AckTimeout { get; set; } // non-positive means disable ack timeout.
+        int MinAckTimeout { get; set; } // non-positive means disable ack timeout.
         int MaximumTransferUnitSize { get; set; } // bounded between 512 and datagram max size.
     }
 }

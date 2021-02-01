@@ -132,7 +132,6 @@ namespace ScalableIPC.Core.Session
             _sendWindowHandler.CurrentWindow = new List<ProtocolDatagram> { closeDatagram };
             _sendWindowHandler.SuccessCallback = () => OnSendSuccessOrError(cause);
             _sendWindowHandler.ErrorCallback = _ => OnSendSuccessOrError(cause);
-            _sendWindowHandler.DisposeCallback = _ => OnSendSuccessOrError(cause);
             _sendWindowHandler.Start();
 
             SendInProgress = true;

@@ -135,8 +135,7 @@ namespace ScalableIPC.Core.Session
             {
                 CurrentWindow = nextWindow,
                 SuccessCallback = OnWindowSendSuccess,
-                ErrorCallback = OnWindowSendError,
-                DisposeCallback = OnDisposalOutcome
+                ErrorCallback = OnWindowSendError
             };
 
             // Found some datagrams to send in next window.
@@ -174,12 +173,6 @@ namespace ScalableIPC.Core.Session
 
             // notify application layer.
             _sessionHandler.OnSendError(error);
-        }
-
-        private void OnDisposalOutcome(ProtocolOperationException cause)
-        {
-            // should not have any code declared after this call.
-            _sessionHandler.InitiateDispose(cause, null);
         }
     }
 }

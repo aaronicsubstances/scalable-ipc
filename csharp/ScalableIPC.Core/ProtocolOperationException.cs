@@ -8,7 +8,7 @@ namespace ScalableIPC.Core
     public class ProtocolOperationException: Exception
     {
         public const int ErrorCodeNormalClose = 0;
-        public const int ErrorCodeTimeout = 1;
+        public const int ErrorCodeIdleTimeout = 1;
         public const int ErrorCodeForceClose = 2;
         public const int ErrorCodeInternalApplicationError = 3;
         public const int ErrorCodeWindowGroupOverflow = 4;
@@ -18,6 +18,7 @@ namespace ScalableIPC.Core
         // communications. As such they are negative.
         public const int ErrorCodeRestart = -1;
         public const int ErrorCodeShutdown = -2;
+        public const int ErrorCodeSendTimeout = -3;
 
         public static string StringifyReason(bool causedByRemotePeer, int errorCode)
         {
@@ -30,8 +31,10 @@ namespace ScalableIPC.Core
         {
             if (code == ErrorCodeNormalClose)
                 return "NORMAL CLOSE";
-            else if (code == ErrorCodeTimeout)
-                return "TIMEOUT";
+            else if (code == ErrorCodeIdleTimeout)
+                return "IDLE_TIMEOUT";
+            else if (code == ErrorCodeSendTimeout)
+                return "SEND_TIMEOUT";
             else if (code == ErrorCodeForceClose)
                 return "FORCED CLOSE";
             else if (code == ErrorCodeInternalApplicationError)

@@ -8,33 +8,12 @@ using System.Collections.Generic;
 namespace ScalableIPC.Core.Session
 {
     /// <summary>
-    /// So design of session handler default implementation is to hide acks, retries, window ids and
-    /// sequence numbers from application layer. It incorporates 80% of data link layer design and
-    /// 20% of transport design.
+    /// This implementation is intended to be interoperable with counterparts on other programming platforms.
+    /// As such it makes certain assumptions and is closed for modification. 
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Specifically, these are the features:
-    /// </para>
-    /// <list type="number">
-    /// <item>end to end assumption of communication endpoints</item>
-    /// <item>end to end idle timeout specification</item>
-    /// <item>packet integrity assumption</item>
-    /// <item>guaranteed delivery via acknowlegements</item>
-    /// <item>deal with out of order packet delivery</item>
-    /// <item>deal with packet duplication - like in TCP</item>
-    /// <item>retries upon timeouts via ARQ - go back N variant (designed for transport layer) 
-    /// on sender side, selective repeat on receiver size.</item>
-    /// <item>all send errors are transient by default. Fatal errors are the exception.</item>
-    /// <item>flow control</item>
-    /// <item>preservation of message boundaries</item>
-    /// <item>no special startup or shutdown</item>
-    /// <item>DOES NOT deal with congestion control and security</item>
-    /// <item>deals only with unicast communications</item>
-    /// </list>
     /// <para> 
-    /// Also this implementation is intended to be interoperable with counterparts on other programming platforms.
-    /// As such it makes certain assumptions and is closed for modification. It assumes
+    /// It assumes
     /// </para>
     /// <list type="number">
     /// <item>Limited non-extensible number of states.</item>
@@ -110,7 +89,6 @@ namespace ScalableIPC.Core.Session
 
         public int SessionState { get; set; } = StateOpen;
 
-        public int MaxRemoteWindowSize { get; set; }
         public int MaxWindowSize { get; set; }
         public int MaxRetryCount { get; set; }
         public int MaxRetryPeriod { get; set; }
@@ -127,6 +105,7 @@ namespace ScalableIPC.Core.Session
 
         public ProtocolDatagram LastAck { get; set; }
         public int? RemoteIdleTimeout { get; set; }
+        public int? RemoteMaxWindowSize { get; set; }
 
         public virtual void IncrementNextWindowIdToSend()
         {
@@ -240,14 +219,15 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> CloseAsync()
         {
-            return CloseAsync(true);
+            return CloseAsync(ProtocolOperationException.ErrorCodeNormalClose);
         }
 
-        public AbstractPromise<VoidType> CloseAsync(bool closeGracefully)
+        public AbstractPromise<VoidType> CloseAsync(int errorCode)
         {
             PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
             PostEventLoopCallback(() =>
             {
+                var closeGracefully = errorCode == ProtocolOperationException.ErrorCodeNormalClose;
                 if (SessionState == StateDisposed)
                 {
                     promiseCb.CompleteSuccessfully(VoidType.Instance);
@@ -263,9 +243,7 @@ namespace ScalableIPC.Core.Session
                 else
                 {
                     ResetIdleTimeout();
-                    var cause = new ProtocolOperationException(false, closeGracefully ? 
-                        ProtocolOperationException.ErrorCodeNormalClose :
-                        ProtocolOperationException.ErrorCodeForceClose);
+                    var cause = new ProtocolOperationException(false, errorCode);
                     if (closeGracefully)
                     {
                         InitiateDispose(cause, promiseCb);
@@ -333,7 +311,7 @@ namespace ScalableIPC.Core.Session
         private void ProcessIdleTimeout()
         {
             _lastIdleTimeoutId = null;
-            InitiateDispose(new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeTimeout));
+            InitiateDispose(new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeIdleTimeout));
         }
 
         private void ProcessAckTimeout(Action cb)

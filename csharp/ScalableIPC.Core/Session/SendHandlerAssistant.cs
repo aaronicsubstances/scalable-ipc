@@ -111,17 +111,8 @@ namespace ScalableIPC.Core.Session
 
                 // Look for window size at remote peer and use it for
                 // subsequent send operations.
-                // don't require it, since remote may have already processed the
-                // window group.
-                int? remoteWindowSize = ack.Options?.MaxWindowSize;
-                if (remoteWindowSize != null)
-                {
-                    _sessionHandler.MaxRemoteWindowSize = remoteWindowSize.Value;
-                }
-                else
-                {
-                    _sessionHandler.MaxRemoteWindowSize = 0;
-                }
+                // don't require it.
+                _sessionHandler.RemoteMaxWindowSize = ack.Options?.MaxWindowSize;
 
                 WindowFullCallback.Invoke(receiveCount);
             }

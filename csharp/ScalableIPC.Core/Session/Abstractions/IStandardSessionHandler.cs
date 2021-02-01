@@ -30,6 +30,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         bool IsSendInProgress();
 
         int? RemoteIdleTimeout { get; set; }
+        int? RemoteMaxWindowSize { get; set; } // non-positive means ignore it.
 
         void ResetIdleTimeout();
 

@@ -58,7 +58,7 @@ namespace ScalableIPC.Core.Networks
         {
             _sessionHandlerStore = new SessionHandlerStore();
             PromiseApi = DefaultPromiseApi.Instance;
-            ConnectedNetworks = new Dictionary<GenericNetworkIdentifier, MemoryNetworkApi>();
+            ConnectedNetworks = new Dictionary<GenericNetworkIdentifier, AbstractNetworkApi>();
         }
 
         public AbstractPromiseApi PromiseApi { get; set; }
@@ -67,13 +67,13 @@ namespace ScalableIPC.Core.Networks
 
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
 
-        public Dictionary<GenericNetworkIdentifier, MemoryNetworkApi> ConnectedNetworks { get; set; }
+        public Dictionary<GenericNetworkIdentifier, AbstractNetworkApi> ConnectedNetworks { get; set; }
 
         public ISendBehaviour SendBehaviour { get; set; }
 
         public ITransmissionBehaviour TransmissionBehaviour { get; set; }
 
-        public int AckTimeout { get; set; }
+        public int MinAckTimeout { get; set; }
 
         public int MaximumTransferUnitSize { get; set; }
 
@@ -136,7 +136,7 @@ namespace ScalableIPC.Core.Networks
             {
                 return PromiseApi.CompletedPromise()
                     .StartLogicalThread(newLogicalThreadId)
-                    .ThenCompose(_ => _HandleSendAsync(remoteEndpoint, message))
+                    .ThenCompose(_ => HandleSendAsync(remoteEndpoint, message))
                     .Catch(ex =>
                     {
                         //NB: cb is optional
@@ -157,7 +157,7 @@ namespace ScalableIPC.Core.Networks
             return newLogicalThreadId;
         }
 
-        public AbstractPromise<int> _HandleSendAsync(GenericNetworkIdentifier remoteEndpoint,
+        private AbstractPromise<int> HandleSendAsync(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram datagram)
         {
             // ensure connected network for target endpoint.
@@ -172,7 +172,7 @@ namespace ScalableIPC.Core.Networks
             }
 
             // interpret null send config as immediate success.
-            AbstractPromise<int> sendResult = PromiseApi.Resolve(AckTimeout);
+            AbstractPromise<int> sendResult = PromiseApi.Resolve(MinAckTimeout);
             byte[] serialized = null;
             if (sendConfig != null)
             {
@@ -244,15 +244,14 @@ namespace ScalableIPC.Core.Networks
                         })
                         .Then(_ =>
                         {
-                            if (serialized == null)
+                            ProtocolDatagram deserialized = datagram;
+                            if (serialized != null)
                             {
-                                return datagram;
+                                deserialized = ProtocolDatagram.Parse(serialized, 0, serialized.Length);
                             }
-                            ProtocolDatagram deserialized = ProtocolDatagram.Parse(serialized, 0, serialized.Length);
-                            return deserialized;
+                            connectedNetwork.RequestSendToSelf(LocalEndpoint, deserialized);
+                            return VoidType.Instance;
                         })
-                        .ThenCompose(deserialized => connectedNetwork._HandleReceiveAsync(
-                            LocalEndpoint, deserialized))
                         .CatchCompose(ex => RecordLogicalThreadException(
                             "bb741504-3a4b-4ea3-a749-21fc8aec347f",
                             $"Error occured during message receipt handling from {remoteEndpoint}",
@@ -271,7 +270,7 @@ namespace ScalableIPC.Core.Networks
             {
                 return PromiseApi.CompletedPromise()
                     .StartLogicalThread(newLogicalThreadId)
-                    .ThenCompose(_ => _HandleReceiveAsync(remoteEndpoint, datagram))
+                    .ThenCompose(_ => HandleReceiveAsync(remoteEndpoint, datagram))
                     .CatchCompose(ex => RecordLogicalThreadException(
                         "c42673d8-a1d1-4cb1-b9c1-a5369bedff64",
                         $"Error occured during message receipt handling from {remoteEndpoint}",
@@ -281,7 +280,7 @@ namespace ScalableIPC.Core.Networks
             return newLogicalThreadId;
         }
         
-        public AbstractPromise<VoidType> _HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint,
+        private AbstractPromise<VoidType> HandleReceiveAsync(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram datagram)
         {
             if (!IsDatagramValid(datagram))
@@ -356,7 +355,7 @@ namespace ScalableIPC.Core.Networks
             _StartNewThreadOfControl(() => {
                 return PromiseApi.CompletedPromise()
                     .StartLogicalThread(newLogicalThreadId)
-                    .ThenCompose(_ => _DisposeSessionAsync(remoteEndpoint, sessionId, cause))
+                    .ThenCompose(_ => HandleSessionDisposeAsync(remoteEndpoint, sessionId, cause))
                     .CatchCompose(ex => RecordLogicalThreadException(
                         "86a662a4-c098-4053-ac26-32b984079419",
                         "Error encountered while disposing session handler", ex))
@@ -365,7 +364,7 @@ namespace ScalableIPC.Core.Networks
             return newLogicalThreadId;
         }
 
-        public AbstractPromise<VoidType> _DisposeSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
+        private AbstractPromise<VoidType> HandleSessionDisposeAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             ProtocolOperationException cause)
         {
             SessionHandlerWrapper sessionHandler;

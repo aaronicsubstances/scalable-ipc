@@ -376,7 +376,21 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 // reset log navigator since ordering of callback and complete init is not deterministic
                 logNavigator = new LogNavigator<TestLogRecord>(testLogs);
 
-                var receiveThreadIds = logicalThreadIds.Skip(expectSends ? 1 : 0).ToList();
+                List<string> receiveThreadIds;
+                if (expectSends)
+                {
+                    var sendThreadId = logicalThreadIds[0];
+                    var firstLevelIds = testLogs.Where(
+                                x => x.GetStrProp(CustomLogEvent.LogDataKeyNewLogicalThreadId) != null &&
+                                x.GetCurrentLogicalThreadId() == sendThreadId)
+                        .Select(x => x.GetStrProp(CustomLogEvent.LogDataKeyNewLogicalThreadId)).ToList();
+                    // leave out all but the terminal threads.
+                    receiveThreadIds = logicalThreadIds.Skip(1).Where(x => !firstLevelIds.Contains(x)).ToList();
+                }
+                else
+                {
+                    receiveThreadIds = logicalThreadIds;
+                }
                 var expectedReceiveThreadCount = 1;
                 if (transmissionConfig?.Delays != null)
                 {
@@ -431,8 +445,14 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                         {
                             var stopTimeEpoch = result.GetIntProp(LogDataKeyTimestamp).Value;
                             var actualStopTime = DateTimeOffset.FromUnixTimeMilliseconds(stopTimeEpoch);
+                            
+                            // fetch delay from grandparent of received thread.
                             var resultWithDelay = testLogs.Single(
                                 x => x.GetStrProp(CustomLogEvent.LogDataKeyNewLogicalThreadId) == newReceivedThreadId);
+                            resultWithDelay = testLogs.Single(
+                                x => x.GetStrProp(CustomLogEvent.LogDataKeyNewLogicalThreadId) == 
+                                    resultWithDelay.GetCurrentLogicalThreadId());
+
                             long delay = resultWithDelay.GetIntProp(MemoryNetworkApi.LogDataKeyDelay).Value;
                             if (delay < 0) delay = 0;
                             var expectedStopTime = startTime.AddMilliseconds(sendDelayMillis + delay);
@@ -602,7 +622,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             expectReceives = true;
             expectCompleteInitCall = false;
             skipReceiveCallExpectation = true;
-            errorLogPositionsToSkip = new string[] { "bb741504-3a4b-4ea3-a749-21fc8aec347f" };
+            errorLogPositionsToSkip = new string[] { "c42673d8-a1d1-4cb1-b9c1-a5369bedff64" };
             testData.Add(new object[] { customizer, sendConfig, transmissionConfig, message, sessionId,
                 expectCallback, expectedCallbackEx, expectReceives, expectCompleteInitCall,
                 skipReceiveCallExpectation, errorLogPositionsToSkip });
@@ -755,7 +775,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var addrA = new GenericNetworkIdentifier { HostName = "DestA" };
             var endpointA = new MemoryNetworkApi
             {
-                AckTimeout = 9,
+                MinAckTimeout = 9,
                 LocalEndpoint = addrA,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
             };
@@ -770,7 +790,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var addrB = new GenericNetworkIdentifier { HostName = "DestB" };
             var endpointB = new MemoryNetworkApi
             {
-                AckTimeout = 7,
+                MinAckTimeout = 7,
                 LocalEndpoint = addrB,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
             };
@@ -785,7 +805,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var addrC = new GenericNetworkIdentifier { HostName = "DestC" };
             var endpointC = new MemoryNetworkApi
             {
-                AckTimeout = 1,
+                MinAckTimeout = 1,
                 LocalEndpoint = addrC,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
             };
@@ -859,7 +879,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 var sendConfig = (MemoryNetworkApi.DefaultSendBehaviour)srcEndpoint.SendBehaviour;
                 var transmissionConfig = (MemoryNetworkApi.DefaultTransmissionBehaviour)srcEndpoint.TransmissionBehaviour;
                 string expectedCallbackEx = null;
-                int expectedAckTimeout = srcEndpoint.AckTimeout;
+                int expectedAckTimeout = srcEndpoint.MinAckTimeout;
                 var expectReceives = true;
                 var expectCompleteInitCall = true;
                 var skipReceiveCallExpectation = false;
@@ -927,7 +947,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var addrD = new GenericNetworkIdentifier { HostName = "DestD" };
             var endpointD = new MemoryNetworkApi
             {
-                AckTimeout = -19999,
+                MinAckTimeout = -19999,
                 LocalEndpoint = addrD,
                 SessionHandlerFactory = new DefaultSessionHandlerFactory(typeof(TestSessionHandler)),
             };
@@ -1020,7 +1040,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 var sendConfig = (MemoryNetworkApi.DefaultSendBehaviour)srcEndpoint.SendBehaviour;
                 var transmissionConfig = (MemoryNetworkApi.DefaultTransmissionBehaviour)srcEndpoint.TransmissionBehaviour;
                 string expectedCallbackEx = null;
-                int expectedAckTimeout = srcEndpoint.AckTimeout;
+                int expectedAckTimeout = srcEndpoint.MinAckTimeout;
                 var expectReceives = true;
                 var expectCompleteInitCall = true;
                 var skipReceiveCallExpectation = false;
@@ -1057,7 +1077,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 {
                     datagram.Options = new ProtocolDatagramOptions();
                     datagram.Options.TraceId = ErrorTraceValue;
-                    expectedErrorLogPositions = new string[] { "bb741504-3a4b-4ea3-a749-21fc8aec347f" };
+                    expectedErrorLogPositions = new string[] { "c42673d8-a1d1-4cb1-b9c1-a5369bedff64" };
                 }
                 else if (callbackExceptionCase)
                 {
@@ -1239,7 +1259,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 throw new NotImplementedException();
             }
 
-            public AbstractPromise<VoidType> CloseAsync(bool closeGracefully)
+            public AbstractPromise<VoidType> CloseAsync(int errorCode)
             {
                 throw new NotImplementedException();
             }

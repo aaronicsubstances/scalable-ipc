@@ -9,7 +9,6 @@ namespace ScalableIPC.Core.Session.Abstractions
         List<ProtocolDatagram> CurrentWindow { get; set; }
         Action SuccessCallback { get; set; }
         Action<ProtocolOperationException> ErrorCallback { get; set; }
-        Action<ProtocolOperationException> DisposeCallback { get; set; }
         int TotalSentCount { get; set; }
         int RetryCount { get; }
         DateTime RetryStartTime { get; }
