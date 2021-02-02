@@ -16,8 +16,8 @@ The initial motivation for this protocol came from deliberations on IPC efficien
   * Exposes configuration parameters such as maximum window size, MTU, idle/ack timeout, and maximum retry attempts on a per application basis, and thus makes the protocol adaptable to a wide range of networking needs. When using TCP directly however, such parameters can only be configured globally for all operating system connections.
   * Makes streaming and duplex communication easier at application layer, by
 
-     * enabling idle timeout to be applied end-to-end, including disabling it entirely per session.
-     * preventing idle timeout from tearing down sessions without using or needing keep-alive packets. In general, all errors are transient, and do not tear down a session.
+     * enabling idle timeout to be applied or disabled per session.
+     * treating all errors as transient, so that sessions persist in spite of errors.
      * preserving message boundaries like in UDP.
 
   * Optimized for networking within single host machine by using faster IPC mechanisms where available, such as UDP, Unix domain sockets and Windows named pipes. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale *down* from global internetworking, to localhost internetworking; and also scale *up* from localhost to global.
