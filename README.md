@@ -17,10 +17,10 @@ The initial motivation for this protocol came from deliberations on IPC efficien
   * Makes streaming and duplex communication easier at application layer, by
 
      * enabling idle timeout to be applied or disabled per session.
-     * treating all errors as transient, so that sessions persist in spite of errors.
+     * treating all errors as transient, so that sessions persist in spite of errors. Sessions also persist without the need for keep-alive packets.
      * preserving message boundaries like in UDP.
 
-  * Optimized for networking within single host machine by using faster IPC mechanisms where available, such as UDP, Unix domain sockets and Windows named pipes. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale *down* from global internetworking, to localhost internetworking; and also scale *up* from localhost to global.
+  * Optimized for networking within single host machine by using faster IPC mechanisms where available, such as UDP, Unix domain sockets and Windows named pipes. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale *down* from global internetworking to localhost internetworking; and also scale *up* from localhost to global.
 
   * Designed to make maximum utilisation of "long fat networks", ie internal networks with large bandwidth-delay products.
 
