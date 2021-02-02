@@ -23,26 +23,21 @@ namespace ScalableIPC.Core.Session
 
         public void OnReceive(ProtocolDatagram datagram)
         {
+            if (_sessionHandler.LastWindowIdReceived == 0)
+            {
+                // already received and announced to application layer.
+                // just send back repeat acknowledgement.
+
+                /* fire and forget */
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint,
+                    _sessionHandler.LastAck, null, null);
+                return;
+            }
+
             // Reject unexpected window id
             if (datagram.WindowId != 0 || datagram.SequenceNumber != 0)
             {
                 _sessionHandler.OnDatagramDiscarded(datagram);
-                return;
-            }
-            if (_sessionHandler.LastWindowIdReceived != -1)
-            {
-                // already received and announced to application layer.
-                // just send back repeat acknowledgement.
-                if (_sessionHandler.LastAck != null && _sessionHandler.LastAck.OpCode == ProtocolDatagram.OpCodeOpenAck)
-                {
-                    /* fire and forget */
-                    _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint,
-                        _sessionHandler.LastAck, null, null);
-                }
-                else
-                {
-                    _sessionHandler.OnDatagramDiscarded(datagram);
-                }
                 return;
             }
 
