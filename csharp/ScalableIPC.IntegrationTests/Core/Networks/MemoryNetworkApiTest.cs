@@ -1253,6 +1253,15 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public int MinRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public double FireAndForgetSendProbability { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public int EnquireLinkInterval { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Func<int, int> EnquireLinkIntervalAlgorithm { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
             public AbstractPromise<VoidType> CloseAsync()
             {

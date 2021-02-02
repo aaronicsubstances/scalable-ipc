@@ -53,6 +53,17 @@ namespace ScalableIPC.Core.Abstractions
         // ranges from 0 to 1. non-positive means always ignore. 
         // 1 or more means always send.
         double FireAndForgetSendProbability { get; set; }
+        int EnquireLinkInterval { get; set; } // non-positive means disable enquire link timer
+        Func<int, int> EnquireLinkIntervalAlgorithm { get; set; }
+
+        // application layer interface. contract here is that these should be scheduled on event loop.
+        Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
+        Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
+        Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
+        Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
+        Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
+        Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
+        Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get; set; }
     }
 
     public interface ISessionHandlerFactory

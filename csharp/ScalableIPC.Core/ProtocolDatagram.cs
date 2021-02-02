@@ -23,6 +23,8 @@ namespace ScalableIPC.Core
         public const byte OpCodeDataAck = 0x01;
         public const byte OpCodeClose = 0x02;
         public const byte OpCodeCloseAck = 0x03;
+        public const byte OpCodeEnquireLink = 0x04;
+        public const byte OpCodeEnquireLinkAck = 0x05;
         public const byte OpCodeRestart = 0x7e;
         public const byte OpCodeShutdown = 0x7f;
 

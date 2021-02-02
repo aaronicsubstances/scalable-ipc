@@ -17,7 +17,7 @@ namespace ScalableIPC.Core.Session
     /// </para>
     /// <list type="number">
     /// <item>Limited non-extensible number of states.</item>
-    /// <item>The only opcodes around are data, close and their acks.</item>
+    /// <item>The only opcodes around are data, close, enquire link and their acks.</item>
     /// <item>constant default idle timeout value throughout its operation. Can handle overrides
     ///    from remote peer.</item>
     /// <item>constant max retry count throughout its operation.</item>
@@ -36,6 +36,8 @@ namespace ScalableIPC.Core.Session
 
         private object _lastIdleTimeoutId;
         private object _lastAckTimeoutId;
+        private object _lastEnquireLinkTimeoutId;
+        private int _enquireLinkCount = 0;
         private ProtocolOperationException _disposalCause;
 
         public DefaultSessionHandler()
@@ -95,6 +97,8 @@ namespace ScalableIPC.Core.Session
         public int MinRemoteIdleTimeout { get; set; }
         public int MaxRemoteIdleTimeout { get; set; }
         public double FireAndForgetSendProbability { get; set; }
+        public int EnquireLinkInterval { get; set; }
+        public Func<int, int> EnquireLinkIntervalAlgorithm { get; set; }
 
         // Protocol requires initial value for window id to be 0,
         // and hence last window id should be negative to trigger
@@ -131,6 +135,7 @@ namespace ScalableIPC.Core.Session
                 if (SessionState < StateDisposeAwaiting)
                 {
                     ResetIdleTimeout();
+                    ScheduleEnquireLinkEvent(true);
                     foreach (ISessionStateHandler stateHandler in _stateHandlers)
                     {
                         handled = stateHandler.ProcessReceive(datagram);
@@ -164,6 +169,7 @@ namespace ScalableIPC.Core.Session
                 else
                 {
                     ResetIdleTimeout();
+                    ScheduleEnquireLinkEvent(true);
                     bool handled = false;
                     foreach (ISessionStateHandler stateHandler in _stateHandlers)
                     {
@@ -198,6 +204,7 @@ namespace ScalableIPC.Core.Session
                 else
                 {
                     ResetIdleTimeout();
+                    ScheduleEnquireLinkEvent(true);
                     bool handled = false;
                     foreach (ISessionStateHandler stateHandler in _stateHandlers)
                     {
@@ -242,6 +249,7 @@ namespace ScalableIPC.Core.Session
                 else
                 {
                     ResetIdleTimeout();
+                    ScheduleEnquireLinkEvent(true);
                     var cause = new ProtocolOperationException(false, errorCode);
                     if (closeGracefully)
                     {
@@ -289,6 +297,39 @@ namespace ScalableIPC.Core.Session
             }
         }
 
+        private void ScheduleEnquireLinkEvent(bool reset)
+        {
+            CancelEnquireLinkTimer();
+
+            if (reset)
+            {
+                _enquireLinkCount = 0;
+            }
+
+            int effectiveEnquireLinkInterval = EnquireLinkInterval;
+            if (EnquireLinkIntervalAlgorithm != null)
+            {
+                try
+                {
+                    effectiveEnquireLinkInterval = EnquireLinkIntervalAlgorithm.Invoke(_enquireLinkCount);
+                }
+                catch (Exception ex)
+                {
+                    CustomLoggerFacade.Log(() =>
+                        new CustomLogEvent(GetType(), 
+                            $"Enquire link algorithm failed at count {_enquireLinkCount}", ex)
+                        .AddProperty(CustomLogEvent.LogDataKeySessionId, SessionId)
+                        .AddProperty(CustomLogEvent.LogDataKeyLogPositionId, "773ad098-ff60-480c-b9c2-fcf8be4c1f34"));
+                }
+            }
+            if (effectiveEnquireLinkInterval > 0)
+            {
+                _lastEnquireLinkTimeoutId = ScheduleEventLoopTimeout(effectiveEnquireLinkInterval,
+                    ProcessEnquireLinkTimerEvent);
+                _enquireLinkCount++;
+            }
+        }
+
         private void CancelIdleTimeout()
         {
             if (_lastIdleTimeoutId != null)
@@ -307,6 +348,15 @@ namespace ScalableIPC.Core.Session
             }
         }
 
+        private void CancelEnquireLinkTimer()
+        {
+            if (_lastEnquireLinkTimeoutId != null)
+            {
+                _taskExecutor.CancelTimeout(_lastEnquireLinkTimeoutId);
+                _lastEnquireLinkTimeoutId = null;
+            }
+        }
+
         private void ProcessIdleTimeout()
         {
             _lastIdleTimeoutId = null;
@@ -321,6 +371,23 @@ namespace ScalableIPC.Core.Session
             {
                 cb.Invoke();
             }
+        }
+
+        private void ProcessEnquireLinkTimerEvent()
+        {
+            OnEnquireLinkTimerFired();
+
+            var enquireLinkDatagram = LastAck;
+            if (enquireLinkDatagram == null)
+            {
+                enquireLinkDatagram = new ProtocolDatagram
+                {
+                    OpCode = ProtocolDatagram.OpCodeEnquireLink,
+                    SessionId = SessionId
+                };
+            }
+            NetworkApi.RequestSend(RemoteEndpoint, enquireLinkDatagram, null);
+            ScheduleEnquireLinkEvent(false);
         }
 
         public void InitiateDispose(ProtocolOperationException cause, PromiseCompletionSource<VoidType> cb)
@@ -369,6 +436,7 @@ namespace ScalableIPC.Core.Session
                 {
                     CancelIdleTimeout();
                     CancelAckTimeout();
+                    CancelEnquireLinkTimer();
 
                     // just in case this method was called abruptly, e.g. in the
                     // case of a shutdown, record dispose cause again.
@@ -439,6 +507,7 @@ namespace ScalableIPC.Core.Session
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
+        public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get; set; }
 
         public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {
@@ -468,6 +537,11 @@ namespace ScalableIPC.Core.Session
         public void OnReceiveError(ProtocolOperationException cause)
         {
             PostEventLoopCallback(() => ReceiveErrorHandler?.Invoke(this, cause));
+        }
+
+        public void OnEnquireLinkTimerFired()
+        {
+            PostEventLoopCallback(() => EnquireLinkTimerFiredHandler?.Invoke(this, _enquireLinkCount));
         }
     }
 }

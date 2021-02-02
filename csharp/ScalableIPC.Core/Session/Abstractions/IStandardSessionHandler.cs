@@ -5,6 +5,10 @@ using System.Text;
 
 namespace ScalableIPC.Core.Session.Abstractions
 {
+    /// <summary>
+    /// Meant to house methods and properties constituting implementation internals of standard
+    /// session handler.
+    /// </summary>
     public interface IStandardSessionHandler: ISessionHandler
     {
         // Intended to enable testing. Maps to similarly-named classes (w/o 'I' prefix) in production usage.
@@ -42,18 +46,13 @@ namespace ScalableIPC.Core.Session.Abstractions
         // event loop method for use by session state handlers
         void PostEventLoopCallback(Action cb);
 
-        // application layer interface. contract here is that these should be scheduled on event loop.
-        Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
-        Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
-        Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
-        Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
-        Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
-        Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
+        // application layer interface.
         void OnDatagramDiscarded(ProtocolDatagram datagram);
         void OnMessageReceived(ProtocolMessage message);
         void OnSessionDisposing(ProtocolOperationException cause);
         void OnSessionDisposed(ProtocolOperationException cause);
         void OnSendError(ProtocolOperationException error);
         void OnReceiveError(ProtocolOperationException error);
+        void OnEnquireLinkTimerFired();
     }
 }
