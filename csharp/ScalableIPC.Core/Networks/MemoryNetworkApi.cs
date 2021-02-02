@@ -352,6 +352,8 @@ namespace ScalableIPC.Core.Networks
             // validation?
             switch (datagram.OpCode)
             {
+                case ProtocolDatagram.OpCodeOpen:
+                case ProtocolDatagram.OpCodeOpenAck:
                 case ProtocolDatagram.OpCodeData:
                 case ProtocolDatagram.OpCodeDataAck:
                 case ProtocolDatagram.OpCodeClose:

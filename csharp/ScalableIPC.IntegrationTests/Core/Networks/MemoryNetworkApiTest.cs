@@ -279,6 +279,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var dataToSend = ProtocolDatagram.ConvertStringToBytes(message);
             var datagram = new ProtocolDatagram
             {
+                OpCode = ProtocolDatagram.OpCodeData,
                 DataBytes = dataToSend,
                 DataLength = dataToSend.Length,
                 SessionId = sessionId
@@ -677,6 +678,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var dataToSend = ProtocolDatagram.ConvertStringToBytes(message);
             var datagram = new ProtocolDatagram
             {
+                OpCode = ProtocolDatagram.OpCodeData,
                 DataBytes = dataToSend,
                 DataLength = dataToSend.Length,
                 SessionId = sessionId
@@ -961,6 +963,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 var sessionId = ProtocolDatagram.GenerateSessionId();
                 var datagram = new ProtocolDatagram
                 {
+                    OpCode = ProtocolDatagram.OpCodeData,
                     DataBytes = dataToSend,
                     DataLength = dataToSend.Length,
                     SessionId = sessionId

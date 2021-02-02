@@ -19,12 +19,14 @@ namespace ScalableIPC.Core
     /// </summary>
     public class ProtocolDatagram
     {
-        public const byte OpCodeData = 0x00;
-        public const byte OpCodeDataAck = 0x01;
-        public const byte OpCodeClose = 0x02;
-        public const byte OpCodeCloseAck = 0x03;
-        public const byte OpCodeEnquireLink = 0x04;
-        public const byte OpCodeEnquireLinkAck = 0x05;
+        public const byte OpCodeOpen = 0x01;
+        public const byte OpCodeOpenAck = 0x02;
+        public const byte OpCodeData = 0x03;
+        public const byte OpCodeDataAck = 0x04;
+        public const byte OpCodeClose = 0x05;
+        public const byte OpCodeCloseAck = 0x06;
+        public const byte OpCodeEnquireLink = 0x07;
+        public const byte OpCodeEnquireLinkAck = 0x08;
         public const byte OpCodeRestart = 0x7e;
         public const byte OpCodeShutdown = 0x7f;
 
