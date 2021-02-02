@@ -58,6 +58,14 @@ namespace ScalableIPC.Core.Session
             _stateHandlers.Add(new SendDataWithoutAckHandler(this));
             _closeHandler = new CloseHandler(this);
             _stateHandlers.Add(_closeHandler);
+            if (configureForInitialSend)
+            {
+                _stateHandlers.Add(new SendOpenHandler(this));
+            }
+            else
+            {
+                _stateHandlers.Add(new ReceiveOpenHandler(this));
+            }
         }
 
         public AbstractEventLoopApi CreateEventLoop()
@@ -78,6 +86,11 @@ namespace ScalableIPC.Core.Session
         public IReceiveHandlerAssistant CreateReceiveHandlerAssistant()
         {
             return new ReceiveHandlerAssistant(this);
+        }
+
+        public IReceiveOpenHandlerAssistant CreateReceiveOpenHandlerAssistant()
+        {
+            return new ReceiveOpenHandlerAssistant(this);
         }
 
         public IFireAndForgetSendHandlerAssistant CreateFireAndForgetSendHandlerAssistant()
@@ -127,6 +140,41 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
+        public AbstractPromise<VoidType> ProcessOpenAsync()
+        {
+            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
+            PostEventLoopCallback(() =>
+            {
+                if (SessionState >= StateDisposeAwaiting)
+                {
+                    promiseCb.CompleteExceptionally(_disposalCause);
+                }
+                else if (IsSendInProgress())
+                {
+                    promiseCb.CompleteExceptionally(new Exception("Send is in progress"));
+                }
+                else
+                {
+                    ResetIdleTimeout();
+                    ScheduleEnquireLinkEvent(true);
+                    bool handled = false;
+                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
+                    {
+                        handled = stateHandler.ProcessOpen(promiseCb);
+                        if (handled)
+                        {
+                            break;
+                        }
+                    }
+                    if (!handled)
+                    {
+                        promiseCb.CompleteExceptionally(new Exception("No state handler found to process open"));
+                    }
+                }
+            });
+            return promiseCb.RelatedPromise;
+        }
+
         public AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram)
         {
             PostEventLoopCallback(() =>
@@ -153,7 +201,7 @@ namespace ScalableIPC.Core.Session
             return NetworkApi.PromiseApi.CompletedPromise();
         }
 
-        public AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message)
+        public AbstractPromise<VoidType> SendAsync(ProtocolMessage message)
         {
             PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
             PostEventLoopCallback(() =>
@@ -188,7 +236,7 @@ namespace ScalableIPC.Core.Session
             return promiseCb.RelatedPromise;
         }
 
-        public AbstractPromise<bool> ProcessSendWithoutAckAsync(ProtocolMessage message)
+        public AbstractPromise<bool> SendWithoutAckAsync(ProtocolMessage message)
         {
             PromiseCompletionSource<bool> promiseCb = NetworkApi.PromiseApi.CreateCallback<bool>(_taskExecutor);
             PostEventLoopCallback(() =>
@@ -504,6 +552,7 @@ namespace ScalableIPC.Core.Session
         // hence these once invoked, should continue execution outside event loop if possible, but after current
         // event in event loop has been processed.
         public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
+        public Action<ISessionHandler> OpenReceivedHandler { get; set; }
         public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
@@ -516,6 +565,14 @@ namespace ScalableIPC.Core.Session
             if (DatagramDiscardedHandler != null)
             {
                 PostEventLoopCallback(() => DatagramDiscardedHandler?.Invoke(this, datagram));
+            }
+        }
+
+        public void OnOpenReceived()
+        {
+            if (OpenReceivedHandler != null)
+            {
+                PostEventLoopCallback(() => OpenReceivedHandler?.Invoke(this));
             }
         }
 

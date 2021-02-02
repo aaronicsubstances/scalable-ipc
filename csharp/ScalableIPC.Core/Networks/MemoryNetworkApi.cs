@@ -135,7 +135,11 @@ namespace ScalableIPC.Core.Networks
                         new SessionHandlerWrapper(sessionHandler));
                     sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
                 }
-                return PromiseApi.Resolve(sessionHandler);
+                return sessionHandler.ProcessOpenAsync()
+                    .Then(_ =>
+                    {
+                        return sessionHandler;
+                    });
             }
             catch (Exception ex)
             {

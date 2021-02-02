@@ -35,6 +35,11 @@ namespace ScalableIPC.Core.Session
             _currentWindowHandler = null;
         }
 
+        public bool ProcessOpen(PromiseCompletionSource<VoidType> promiseCb)
+        {
+            return false;
+        }
+
         public bool ProcessReceive(ProtocolDatagram datagram)
         {
             // check opcode.

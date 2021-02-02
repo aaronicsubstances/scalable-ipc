@@ -37,9 +37,11 @@ namespace ScalableIPC.Core.Abstractions
         AbstractNetworkApi NetworkApi { get; }
         GenericNetworkIdentifier RemoteEndpoint { get; }
         string SessionId { get; }
+
+        AbstractPromise<VoidType> ProcessOpenAsync();
         AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram);
-        AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message);
-        AbstractPromise<bool> ProcessSendWithoutAckAsync(ProtocolMessage message);
+        AbstractPromise<VoidType> SendAsync(ProtocolMessage message);
+        AbstractPromise<bool> SendWithoutAckAsync(ProtocolMessage message);
         AbstractPromise<VoidType> CloseAsync();
         AbstractPromise<VoidType> CloseAsync(int errorCode);
         AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause);
@@ -58,6 +60,7 @@ namespace ScalableIPC.Core.Abstractions
 
         // application layer interface. contract here is that these should be scheduled on event loop.
         Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
+        Action<ISessionHandler> OpenReceivedHandler { get; set; }
         Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }

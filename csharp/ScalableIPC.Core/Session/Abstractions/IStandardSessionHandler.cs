@@ -15,7 +15,8 @@ namespace ScalableIPC.Core.Session.Abstractions
         AbstractEventLoopApi CreateEventLoop();
         ISendHandlerAssistant CreateSendHandlerAssistant();
         IRetrySendHandlerAssistant CreateRetrySendHandlerAssistant();
-        IReceiveHandlerAssistant CreateReceiveHandlerAssistant(); 
+        IReceiveHandlerAssistant CreateReceiveHandlerAssistant();
+        IReceiveOpenHandlerAssistant CreateReceiveOpenHandlerAssistant(); 
         IFireAndForgetSendHandlerAssistant CreateFireAndForgetSendHandlerAssistant();
 
         int SessionState { get; set; }
@@ -48,6 +49,7 @@ namespace ScalableIPC.Core.Session.Abstractions
 
         // application layer interface.
         void OnDatagramDiscarded(ProtocolDatagram datagram);
+        void OnOpenReceived();
         void OnMessageReceived(ProtocolMessage message);
         void OnSessionDisposing(ProtocolOperationException cause);
         void OnSessionDisposed(ProtocolOperationException cause);

@@ -1258,6 +1258,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler> OpenReceivedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
             public AbstractPromise<VoidType> CloseAsync()
             {
@@ -1286,6 +1287,19 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 throw new NotImplementedException();
             }
 
+            public AbstractPromise<VoidType> ProcessOpenAsync()
+            {
+                CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "OpenAsync() called")
+                        .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
+                           "12f2f4e3-af83-460f-8d46-0ac0fc9d95fe")
+                        .AddProperty(CustomLogEvent.LogDataKeyCurrentLogicalThreadId,
+                            NetworkApi.PromiseApi.CurrentLogicalThreadId)
+                        .AddProperty(LogDataKeyTimestamp, ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds())
+                        .AddProperty(CustomLogEvent.LogDataKeySessionId, SessionId)
+                        .AddProperty(LogDataKeyRemoteEndpoint, RemoteEndpoint.ToString()));
+                return NetworkApi.PromiseApi.CompletedPromise();
+            }
+
             public AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram)
             {
                 var datagramBytes = datagram.ToRawDatagram();
@@ -1309,12 +1323,12 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 return NetworkApi.PromiseApi.CompletedPromise();
             }
 
-            public AbstractPromise<VoidType> ProcessSendAsync(ProtocolMessage message)
+            public AbstractPromise<VoidType> SendAsync(ProtocolMessage message)
             {
                 throw new NotImplementedException();
             }
 
-            public AbstractPromise<bool> ProcessSendWithoutAckAsync(ProtocolMessage message)
+            public AbstractPromise<bool> SendWithoutAckAsync(ProtocolMessage message)
             {
                 throw new NotImplementedException();
             }

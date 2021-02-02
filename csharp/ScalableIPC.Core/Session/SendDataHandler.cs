@@ -39,6 +39,11 @@ namespace ScalableIPC.Core.Session
             }
         }
 
+        public bool ProcessOpen(PromiseCompletionSource<VoidType> promiseCb)
+        {
+            return false;
+        }
+
         public bool ProcessReceive(ProtocolDatagram datagram)
         {
             if (datagram.OpCode != ProtocolDatagram.OpCodeDataAck)

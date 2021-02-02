@@ -196,7 +196,14 @@ namespace ScalableIPC.Core.Session
                 }
 
                 Complete();
-                ErrorCallback.Invoke(new ProtocolOperationException(error));
+                if (error is ProtocolOperationException protEr)
+                {
+                    ErrorCallback.Invoke(protEr);
+                }
+                else
+                {
+                    ErrorCallback.Invoke(new ProtocolOperationException(error));
+                }
             });
         }
 
