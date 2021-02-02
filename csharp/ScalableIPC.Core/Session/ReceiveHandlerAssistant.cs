@@ -37,7 +37,7 @@ namespace ScalableIPC.Core.Session
 
                 /* fire and forget */
                 _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, 
-                    _sessionHandler.LastAck, null);
+                    _sessionHandler.LastAck, null, null);
                 return;
             }
 
@@ -81,7 +81,7 @@ namespace ScalableIPC.Core.Session
                 SequenceNumber = lastEffectiveSeqNr
             };
             /* fire and forget */
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null);
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null, null);
         }
 
         private void UpdateWindowGroup(ProtocolDatagram datagram, int lastEffectiveSeqNr)
@@ -149,7 +149,7 @@ namespace ScalableIPC.Core.Session
                 }
             };
             _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, 
-                _sessionHandler.LastAck, null);
+                _sessionHandler.LastAck, null, null);
 
             if (processingError != null)
             {

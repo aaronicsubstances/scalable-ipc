@@ -7,6 +7,7 @@ namespace ScalableIPC.Core.Session
     public class SendHandlerAssistant: ISendHandlerAssistant
     {
         private readonly IStandardSessionHandler _sessionHandler;
+        private object _sendContext;
 
         public SendHandlerAssistant(IStandardSessionHandler sessionHandler)
         {
@@ -16,22 +17,42 @@ namespace ScalableIPC.Core.Session
         public List<ProtocolDatagram> CurrentWindow { get; set; }
         public int SentCount { get; set; }
         public bool StopAndWait { get; set; }
-        public int EffectiveAckTimeout { get; set; }
+        public int RetryCount { get; set; }
         public Action SuccessCallback { get; set; }
         public Action<ProtocolOperationException> ErrorCallback { get; set; }
         public Action<int> WindowFullCallback { get; set; }
         public Action TimeoutCallback { get; set; }
         public bool IsComplete { get; set; } = false;
 
-        public void Start()
+        public void Complete()
         {
-            SentCount = 0;
-            ContinueSending();
+            if (!IsComplete)
+            {
+                IsComplete = true;
+                _sessionHandler.NetworkApi.DisposeSendContext(_sendContext);
+            }
         }
 
         public void Cancel()
         {
-            IsComplete = true;
+            Complete();
+        }
+
+        public void Start()
+        {
+            SentCount = 0;
+            RestartSending();
+        }
+
+        private void RestartSending()
+        {
+            object previousSendContext = _sendContext;
+            _sendContext = _sessionHandler.NetworkApi.CreateSendContext(RetryCount, previousSendContext);
+            if (previousSendContext != null)
+            {
+                _sessionHandler.NetworkApi.DisposeSendContext(previousSendContext);
+            }
+            ContinueSending();
         }
 
         private void ContinueSending()
@@ -40,11 +61,10 @@ namespace ScalableIPC.Core.Session
             nextDatagram.WindowId = _sessionHandler.NextWindowIdToSend;
             nextDatagram.SequenceNumber = SentCount;
 
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, (ackTimeout, e) =>
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, _sendContext, e =>
             {
                 if (e == null)
                 {
-                    EffectiveAckTimeout = Math.Max(EffectiveAckTimeout, ackTimeout);
                     HandleSendSuccess(nextDatagram);
                 }
                 else
@@ -86,7 +106,7 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.CancelAckTimeout();
 
                 _sessionHandler.IncrementNextWindowIdToSend();
-                IsComplete = true;
+                Complete();
                 ErrorCallback.Invoke(new ProtocolOperationException(true,
                     ack.Options.ErrorCode.Value));
                 return;
@@ -98,7 +118,7 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.CancelAckTimeout();
 
                 _sessionHandler.IncrementNextWindowIdToSend();
-                IsComplete = true;
+                Complete();
                 SuccessCallback.Invoke();
             }
             else if (ack.Options?.IsWindowFull == true)
@@ -107,7 +127,7 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.CancelAckTimeout();
 
                 _sessionHandler.IncrementNextWindowIdToSend();
-                IsComplete = true;
+                Complete();
 
                 // Look for window size at remote peer and use it for
                 // subsequent send operations.
@@ -120,11 +140,10 @@ namespace ScalableIPC.Core.Session
             {
                 // Ack received for stop and wait mode to continue
                 _sessionHandler.CancelAckTimeout();
-                EffectiveAckTimeout = 0;
 
                 // continue stop and wait.
                 SentCount = receiveCount;
-                ContinueSending();
+                RestartSending();
             }
             else if (receiveCount == SentCount)
             {
@@ -132,8 +151,7 @@ namespace ScalableIPC.Core.Session
                 // Not the normal behaviour, but is acceptable to cater for wide range of network api 
                 // characteristics.
                 _sessionHandler.CancelAckTimeout();
-                EffectiveAckTimeout = 0;
-                ContinueSending();
+                RestartSending();
             }
             else
             {
@@ -156,7 +174,8 @@ namespace ScalableIPC.Core.Session
                 // send success callback received in time
                 if (StopAndWait || SentCount >= CurrentWindow.Count)
                 {
-                    _sessionHandler.ResetAckTimeout(EffectiveAckTimeout, ProcessAckTimeout);
+                    int ackTimeout = _sessionHandler.NetworkApi.DetermineAckTimeout(_sendContext);
+                    _sessionHandler.ResetAckTimeout(ackTimeout, ProcessAckTimeout);
                 }
                 else
                 {
@@ -176,7 +195,7 @@ namespace ScalableIPC.Core.Session
                     return;
                 }
 
-                IsComplete = true;
+                Complete();
                 ErrorCallback.Invoke(new ProtocolOperationException(error));
             });
         }
@@ -185,7 +204,7 @@ namespace ScalableIPC.Core.Session
         {
             if (!IsComplete)
             {
-                IsComplete = true;
+                Complete();
                 TimeoutCallback.Invoke();
             }
         }

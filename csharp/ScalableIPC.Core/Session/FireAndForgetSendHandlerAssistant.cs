@@ -27,7 +27,7 @@ namespace ScalableIPC.Core.Session
             MessageToSend.WindowId = _sessionHandler.NextWindowIdToSend;
             MessageToSend.SequenceNumber = 0;
 
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, MessageToSend, (ackTimeout, e) =>
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, MessageToSend, null, e =>
             {
                 if (e == null)
                 {

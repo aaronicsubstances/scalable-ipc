@@ -106,7 +106,7 @@ namespace ScalableIPC.Core.Session
                     }
                 };
                 /* ignore any error */
-                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null);
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null, null);
             }
 
             _sessionHandler.ContinueDispose(cause);

@@ -79,6 +79,7 @@ namespace ScalableIPC.Core.Session
             _currentWindowHandler.SuccessCallback = SuccessCallback;
             _currentWindowHandler.ErrorCallback = ErrorCallback;
             _currentWindowHandler.StopAndWait = stopAndWait;
+            _currentWindowHandler.RetryCount = RetryCount;
             _currentWindowHandler.Start();
         }
 

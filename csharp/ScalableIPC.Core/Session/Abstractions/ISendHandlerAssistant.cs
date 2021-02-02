@@ -24,7 +24,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         /// Used to alternate between using send window size as it is, or reducing it to 1 if property is true.
         /// </summary>
         bool StopAndWait { get; set; }
-        int EffectiveAckTimeout { get; }
+        int RetryCount { get; set;  }
         Action SuccessCallback { get; set; }
         Action<ProtocolOperationException> ErrorCallback { get; set; }
         Action<int> WindowFullCallback { get; set; }

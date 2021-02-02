@@ -22,22 +22,29 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromiseApi PromiseApi { get; set; }
         ISessionHandlerFactory SessionHandlerFactory { get; set; }
         AbstractEventLoopGroupApi SessionTaskExecutorGroup { get; set; }
+        int MaximumTransferUnitSize { get; set; } // bounded between 512 and datagram max size.
+
+        // these methods are used during sending to give network api implementations total
+        // control in determininig ack timeouts.
+        object CreateSendContext(int retryCount, object previousSendContext);
+        void DisposeSendContext(object sendContext);
+        int DetermineAckTimeout(object sendContext);
         AbstractPromise<VoidType> StartAsync();
+
         AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             ISessionHandler sessionHandler);
 
         // Contract here is that Request* methods should launch actual operations in separate thread of
         // control.
 
-        // RequestSend returns ack timeout to cb arg.
-        Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram, Action<int, Exception> cb);
+        Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram,
+            object sendContext, Action<Exception> cb);
         Guid RequestSendToSelf(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram datagram);
-        Guid RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint, string sessionId, ProtocolOperationException cause);
+        Guid RequestSessionDispose(GenericNetworkIdentifier remoteEndpoint, string sessionId,
+            ProtocolOperationException cause);
         
         AbstractPromise<VoidType> ShutdownAsync(int gracefulWaitPeriodSecs);
         bool IsShuttingDown();
         void _StartNewThreadOfControl(Func<AbstractPromise<VoidType>> cb);
-        int MinAckTimeout { get; set; } // non-positive means disable ack timeout.
-        int MaximumTransferUnitSize { get; set; } // bounded between 512 and datagram max size.
     }
 }

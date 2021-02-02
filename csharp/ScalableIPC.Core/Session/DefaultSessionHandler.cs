@@ -388,7 +388,7 @@ namespace ScalableIPC.Core.Session
                 OpCode = ProtocolDatagram.OpCodeEnquireLink,
                 SessionId = SessionId
             };
-            NetworkApi.RequestSend(RemoteEndpoint, enquireLinkDatagram, null);
+            NetworkApi.RequestSend(RemoteEndpoint, enquireLinkDatagram, null, null);
             ScheduleEnquireLinkEvent(false);
         }
 

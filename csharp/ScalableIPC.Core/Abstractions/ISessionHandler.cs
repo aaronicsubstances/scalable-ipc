@@ -25,7 +25,7 @@ namespace ScalableIPC.Core.Abstractions
     /// <item>all send errors are transient by default. Fatal errors are the exception.</item>
     /// <item>flow control</item>
     /// <item>preservation of message boundaries</item>
-    /// <item>no special startup or shutdown</item>
+    /// <item>special startup and shutdown (designed for transport layer)</item>
     /// <item>DOES NOT deal with congestion control and security</item>
     /// <item>deals only with unicast communications</item>
     /// </list>
