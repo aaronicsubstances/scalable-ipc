@@ -383,15 +383,11 @@ namespace ScalableIPC.Core.Session
         {
             OnEnquireLinkTimerFired();
 
-            var enquireLinkDatagram = LastAck;
-            if (enquireLinkDatagram == null)
+            var enquireLinkDatagram = new ProtocolDatagram
             {
-                enquireLinkDatagram = new ProtocolDatagram
-                {
-                    OpCode = ProtocolDatagram.OpCodeEnquireLink,
-                    SessionId = SessionId
-                };
-            }
+                OpCode = ProtocolDatagram.OpCodeEnquireLink,
+                SessionId = SessionId
+            };
             NetworkApi.RequestSend(RemoteEndpoint, enquireLinkDatagram, null);
             ScheduleEnquireLinkEvent(false);
         }
