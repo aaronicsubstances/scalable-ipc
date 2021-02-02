@@ -37,7 +37,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         int? RemoteMaxWindowSize { get; set; } // non-positive means ignore it.
 
         void ResetIdleTimeout();
-
+        void ScheduleEnquireLinkEvent(bool reset);
         void ResetAckTimeout(int timeout, Action cb);
         void CancelAckTimeout();
         void InitiateDispose(ProtocolOperationException cause, PromiseCompletionSource<VoidType> promiseCb);

@@ -297,7 +297,13 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        private void ScheduleEnquireLinkEvent(bool reset)
+        public AbstractPromise<VoidType> ResetEnquireLinkTimerAsync()
+        {
+            PostEventLoopCallback(() => ScheduleEnquireLinkEvent(true));
+            return NetworkApi.PromiseApi.CompletedPromise();
+        }
+
+        public void ScheduleEnquireLinkEvent(bool reset)
         {
             CancelEnquireLinkTimer();
 
@@ -511,37 +517,58 @@ namespace ScalableIPC.Core.Session
 
         public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {
-            PostEventLoopCallback(() => DatagramDiscardedHandler?.Invoke(this, datagram));
+            if (DatagramDiscardedHandler != null)
+            {
+                PostEventLoopCallback(() => DatagramDiscardedHandler?.Invoke(this, datagram));
+            }
         }
 
         public void OnMessageReceived(ProtocolMessage message)
         {
-            PostEventLoopCallback(() => MessageReceivedHandler?.Invoke(this, message));
+            if (MessageReceivedHandler != null)
+            {
+                PostEventLoopCallback(() => MessageReceivedHandler?.Invoke(this, message));
+            }
         }
 
         public void OnSessionDisposing(ProtocolOperationException cause)
         {
-            PostEventLoopCallback(() => SessionDisposingHandler?.Invoke(this, cause));
+            if (SessionDisposingHandler != null)
+            {
+                PostEventLoopCallback(() => SessionDisposingHandler?.Invoke(this, cause));
+            }
         }
 
         public void OnSessionDisposed(ProtocolOperationException cause)
         {
-            PostEventLoopCallback(() => SessionDisposedHandler?.Invoke(this, cause));
+            if (SessionDisposedHandler != null)
+            {
+                PostEventLoopCallback(() => SessionDisposedHandler?.Invoke(this, cause));
+            }
         }
 
         public void OnSendError(ProtocolOperationException cause)
         {
-            PostEventLoopCallback(() => SendErrorHandler?.Invoke(this, cause));
+            if (SendErrorHandler != null)
+            {
+                PostEventLoopCallback(() => SendErrorHandler?.Invoke(this, cause));
+            }
         }
 
         public void OnReceiveError(ProtocolOperationException cause)
         {
-            PostEventLoopCallback(() => ReceiveErrorHandler?.Invoke(this, cause));
+            if (ReceiveErrorHandler != null)
+            {
+                PostEventLoopCallback(() => ReceiveErrorHandler?.Invoke(this, cause));
+            }
         }
 
         public void OnEnquireLinkTimerFired()
         {
-            PostEventLoopCallback(() => EnquireLinkTimerFiredHandler?.Invoke(this, _enquireLinkCount));
+            if (EnquireLinkTimerFiredHandler != null)
+            {
+                PostEventLoopCallback(() => EnquireLinkTimerFiredHandler?.Invoke(this, _enquireLinkCount));
+            }
         }
     }
 }
