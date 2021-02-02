@@ -19,12 +19,10 @@ namespace ScalableIPC.Core.Session
         public Action SuccessCallback { get; set; }
         public Action<ProtocolOperationException> ErrorCallback { get; set; }
         public int RetryCount { get; set; }
-        public DateTime RetryStartTime { get; set; }
         public int TotalSentCount { get; set; }
 
         public void Start()
         {
-            RetryStartTime = DateTime.UtcNow;
             RetrySend(false);
         }
 
@@ -45,15 +43,6 @@ namespace ScalableIPC.Core.Session
             {
                 // maximum retry count reached.
                 tryAgain = false;
-            }            
-            if (_sessionHandler.MaxRetryPeriod > 0)
-            {
-                var retryPeriod = (DateTime.UtcNow - RetryStartTime).TotalMilliseconds;
-                if (retryPeriod >= _sessionHandler.MaxRetryPeriod)
-                {
-                    // maximum retry time period reached
-                    tryAgain = false;
-                }
             }
 
             if (tryAgain)
@@ -98,7 +87,6 @@ namespace ScalableIPC.Core.Session
             TotalSentCount += sentCount;
             // reset retry count for new window.
             RetryCount = 0;
-            RetryStartTime = DateTime.UtcNow;
             RetrySend(false);
         }
     }

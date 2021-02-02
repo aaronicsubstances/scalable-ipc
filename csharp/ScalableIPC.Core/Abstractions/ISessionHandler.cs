@@ -47,7 +47,6 @@ namespace ScalableIPC.Core.Abstractions
         int IdleTimeout { get; set; } // non-positive means disable idle timer 
         int MinRemoteIdleTimeout { get; set; }
         int MaxRemoteIdleTimeout { get; set; }
-        int MaxRetryPeriod { get; set; } // non-positive means disable retries by total retry time.
         int MaxWindowSize { get; set; } // non-positive means use 1.
         int MaxRetryCount { get; set; } // negative means use 0.
                                         

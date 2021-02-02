@@ -20,7 +20,7 @@ namespace ScalableIPC.Core.Session
     /// <item>The only opcodes around are data, close and their acks.</item>
     /// <item>constant default idle timeout value throughout its operation. Can handle overrides
     ///    from remote peer.</item>
-    /// <item>constant max retry count and max retry time throughout its operation.</item>
+    /// <item>constant max retry count throughout its operation.</item>
     /// </list>
     /// </remarks>
     public class DefaultSessionHandler : IStandardSessionHandler
@@ -91,7 +91,6 @@ namespace ScalableIPC.Core.Session
 
         public int MaxWindowSize { get; set; }
         public int MaxRetryCount { get; set; }
-        public int MaxRetryPeriod { get; set; }
         public int IdleTimeout { get; set; }
         public int MinRemoteIdleTimeout { get; set; }
         public int MaxRemoteIdleTimeout { get; set; }
