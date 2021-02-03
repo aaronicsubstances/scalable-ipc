@@ -17,7 +17,7 @@ namespace ScalableIPC.Core.Session
     /// </para>
     /// <list type="number">
     /// <item>Limited non-extensible number of states.</item>
-    /// <item>The only opcodes around are data, close, enquire link and their acks.</item>
+    /// <item>The only opcodes around are open, data, close, enquire link and their acks.</item>
     /// <item>constant default idle timeout value throughout its operation. Can handle overrides
     ///    from remote peer.</item>
     /// <item>constant max retry count throughout its operation.</item>

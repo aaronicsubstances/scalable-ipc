@@ -181,6 +181,10 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
             Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSend]);
+            // Test that ProcessOpen is called.
+            record = logNavigator.Next(
+                rec => rec.Properties.Contains("12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
+            Assert.NotNull(record);
 
             // test that session id can't be reused. 
             await Assert.ThrowsAnyAsync<Exception>(() =>
@@ -211,6 +215,10 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             var sessionId2 = sessionHandler2.SessionId;
             Assert.NotNull(sessionId2);
             Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSend]);
+            // Test that ProcessOpen is called.
+            record = logNavigator.Next(
+                rec => rec.Properties.Contains("12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
+            Assert.NotNull(record);
 
             // test that session id can't be reused. 
             await Assert.ThrowsAnyAsync<Exception>(() =>
@@ -1289,14 +1297,9 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
             public AbstractPromise<VoidType> ProcessOpenAsync()
             {
-                CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "OpenAsync() called")
+                CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "ProcessOpenAsync() called")
                         .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
-                           "12f2f4e3-af83-460f-8d46-0ac0fc9d95fe")
-                        .AddProperty(CustomLogEvent.LogDataKeyCurrentLogicalThreadId,
-                            NetworkApi.PromiseApi.CurrentLogicalThreadId)
-                        .AddProperty(LogDataKeyTimestamp, ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds())
-                        .AddProperty(CustomLogEvent.LogDataKeySessionId, SessionId)
-                        .AddProperty(LogDataKeyRemoteEndpoint, RemoteEndpoint.ToString()));
+                           "12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
                 return NetworkApi.PromiseApi.CompletedPromise();
             }
 
