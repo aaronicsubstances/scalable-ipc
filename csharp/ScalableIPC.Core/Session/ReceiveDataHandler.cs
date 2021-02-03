@@ -1,5 +1,4 @@
 ﻿using ScalableIPC.Core.Abstractions;
-using ScalableIPC.Core.Helpers;
 using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;

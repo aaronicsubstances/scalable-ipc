@@ -18,21 +18,36 @@ namespace ScalableIPC.Core.Session
         public List<ProtocolDatagram> CurrentWindow { get; set; }
         public Action SuccessCallback { get; set; }
         public Action<ProtocolOperationException> ErrorCallback { get; set; }
-        public int RetryCount { get; set; }
-        public int TotalSentCount { get; set; }
+        public int RetryCount { get; private set; }
+        public int TotalSentCount { get; private set; }
+        public bool IsComplete { get; private set; } = false;
 
         public void Start()
         {
+            if (IsComplete)
+            {
+                throw new Exception("Cannot reuse cancelled handler");
+            }
+
+            RetryCount = 0;
+            TotalSentCount = 0;
+
             RetrySend(false);
         }
 
         public void OnAckReceived(ProtocolDatagram datagram)
         {
+            if (IsComplete)
+            {
+                throw new Exception("Cannot reuse cancelled handler");
+            }
+
             _currentWindowHandler?.OnAckReceived(datagram);
         }
 
         public void Cancel()
         {
+            IsComplete = true;
             _currentWindowHandler?.Cancel();
         }
 
@@ -55,6 +70,7 @@ namespace ScalableIPC.Core.Session
             else
             {
                 // end retries and signal timeout to application layer.
+                IsComplete = true;
                 ErrorCallback.Invoke(new ProtocolOperationException(false,
                     ProtocolOperationException.ErrorCodeSendTimeout));
             }
@@ -76,11 +92,23 @@ namespace ScalableIPC.Core.Session
             _currentWindowHandler.CurrentWindow = pendingWindow;
             _currentWindowHandler.WindowFullCallback = OnWindowFull;
             _currentWindowHandler.TimeoutCallback = OnWindowSendTimeout;
-            _currentWindowHandler.SuccessCallback = SuccessCallback;
-            _currentWindowHandler.ErrorCallback = ErrorCallback;
+            _currentWindowHandler.SuccessCallback = OnWindowSendSuccess;
+            _currentWindowHandler.ErrorCallback = OnWindowSendError;
             _currentWindowHandler.StopAndWait = stopAndWait;
             _currentWindowHandler.RetryCount = RetryCount;
             _currentWindowHandler.Start();
+        }
+
+        private void OnWindowSendSuccess()
+        {
+            IsComplete = true;
+            SuccessCallback.Invoke();
+        }
+
+        private void OnWindowSendError(ProtocolOperationException error)
+        {
+            IsComplete = true;
+            ErrorCallback.Invoke(error);
         }
 
         private void OnWindowFull(int sentCount)

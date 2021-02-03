@@ -16,13 +16,20 @@ namespace ScalableIPC.Core.Session
 
         public Action<ProtocolDatagram> DataCallback { get; set; }
         public Action<ProtocolOperationException> ErrorCallback { get; set; }
+        public bool IsComplete { get; private set; } = false;
 
         public void Cancel()
         {
+            IsComplete = true;
         }
 
         public void OnReceive(ProtocolDatagram datagram)
         {
+            if (IsComplete)
+            {
+                throw new Exception("Cannot reuse cancelled handler");
+            }
+
             if (_sessionHandler.LastWindowIdReceived == 0)
             {
                 // already received and announced to application layer.
@@ -35,7 +42,7 @@ namespace ScalableIPC.Core.Session
             }
 
             // Reject unexpected window id
-            if (datagram.WindowId != 0 || datagram.SequenceNumber != 0)
+            if (!(datagram.WindowId == 0 && datagram.SequenceNumber == 0))
             {
                 _sessionHandler.OnDatagramDiscarded(datagram);
                 return;

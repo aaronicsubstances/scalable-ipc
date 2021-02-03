@@ -56,7 +56,7 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
-            // we don't do any with acks here, but still indicate that 
+            // we don't do anything with acks here, but still indicate that 
             // they have been used to prevent further processing.
             return true;
         }

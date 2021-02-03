@@ -8,6 +8,7 @@ namespace ScalableIPC.Core.Session.Abstractions
     {
         Action<ProtocolDatagram> DataCallback { get; set; }
         Action<ProtocolOperationException> ErrorCallback { get; set; }
+        bool IsComplete { get; }
 
         void OnReceive(ProtocolDatagram datagram);
         void Cancel();

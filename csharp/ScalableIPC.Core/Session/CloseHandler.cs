@@ -50,15 +50,13 @@ namespace ScalableIPC.Core.Session
         {
             if (datagram.OpCode == ProtocolDatagram.OpCodeCloseAck)
             {
-                if (_sendWindowHandler != null)
+                // to prevent clashes with other handlers performing sends, 
+                // check that specific send in progress is on.
+                if (SendInProgress)
                 {
                     _sendWindowHandler.OnAckReceived(datagram);
+                    return true;
                 }
-                else
-                {
-                    _sessionHandler.OnDatagramDiscarded(datagram);
-                }
-                return true;
             }
             else if (datagram.OpCode == ProtocolDatagram.OpCodeClose)
             {
@@ -145,7 +143,6 @@ namespace ScalableIPC.Core.Session
         private void OnSendSuccessOrError(ProtocolOperationException cause)
         {
             SendInProgress = false;
-            _sendWindowHandler = null;
             _sessionHandler.ContinueDispose(cause);
         }
     }

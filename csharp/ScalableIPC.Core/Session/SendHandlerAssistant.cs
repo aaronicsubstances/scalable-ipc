@@ -7,7 +7,6 @@ namespace ScalableIPC.Core.Session
     public class SendHandlerAssistant: ISendHandlerAssistant
     {
         private readonly IStandardSessionHandler _sessionHandler;
-        private object _sendContext;
 
         public SendHandlerAssistant(IStandardSessionHandler sessionHandler)
         {
@@ -15,21 +14,22 @@ namespace ScalableIPC.Core.Session
         }
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
-        public int SentCount { get; set; }
         public bool StopAndWait { get; set; }
         public int RetryCount { get; set; }
         public Action SuccessCallback { get; set; }
         public Action<ProtocolOperationException> ErrorCallback { get; set; }
         public Action<int> WindowFullCallback { get; set; }
         public Action TimeoutCallback { get; set; }
-        public bool IsComplete { get; set; } = false;
+        public object SendContext { get; private set; }
+        public int SentCount { get; private set; }
+        public bool IsComplete { get; private set; } = false;
 
         public void Complete()
         {
             if (!IsComplete)
             {
                 IsComplete = true;
-                _sessionHandler.NetworkApi.DisposeSendContext(_sendContext);
+                _sessionHandler.NetworkApi.DisposeSendContext(SendContext);
             }
         }
 
@@ -40,14 +40,19 @@ namespace ScalableIPC.Core.Session
 
         public void Start()
         {
+            if (IsComplete)
+            {
+                throw new Exception("Cannot reuse cancelled handler");
+            }
+
             SentCount = 0;
             RestartSending();
         }
 
         private void RestartSending()
         {
-            object previousSendContext = _sendContext;
-            _sendContext = _sessionHandler.NetworkApi.CreateSendContext(RetryCount, previousSendContext);
+            object previousSendContext = SendContext;
+            SendContext = _sessionHandler.NetworkApi.CreateSendContext(RetryCount, previousSendContext);
             if (previousSendContext != null)
             {
                 _sessionHandler.NetworkApi.DisposeSendContext(previousSendContext);
@@ -61,7 +66,7 @@ namespace ScalableIPC.Core.Session
             nextDatagram.WindowId = _sessionHandler.NextWindowIdToSend;
             nextDatagram.SequenceNumber = SentCount;
 
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, _sendContext, e =>
+            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, SendContext, e =>
             {
                 if (e == null)
                 {
@@ -79,6 +84,11 @@ namespace ScalableIPC.Core.Session
 
         public void OnAckReceived(ProtocolDatagram ack)
         {
+            if (IsComplete)
+            {
+                throw new Exception("Cannot reuse cancelled handler");
+            }
+
             if (_sessionHandler.NextWindowIdToSend != ack.WindowId)
             {
                 _sessionHandler.OnDatagramDiscarded(ack);
@@ -174,7 +184,7 @@ namespace ScalableIPC.Core.Session
                 // send success callback received in time
                 if (StopAndWait || SentCount >= CurrentWindow.Count)
                 {
-                    int ackTimeout = _sessionHandler.NetworkApi.DetermineAckTimeout(_sendContext);
+                    int ackTimeout = _sessionHandler.NetworkApi.DetermineAckTimeout(SendContext);
                     _sessionHandler.ResetAckTimeout(ackTimeout, ProcessAckTimeout);
                 }
                 else

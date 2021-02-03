@@ -15,13 +15,18 @@ namespace ScalableIPC.Core.Session
         }
 
         public ProtocolDatagram MessageToSend { get; set; }
-        public bool Sent { get; set; }
         public Action SuccessCallback { get; set; }
         public Action<ProtocolOperationException> ErrorCallback { get; set; }
-        public bool IsComplete { get; set; } = false;
+        public bool IsComplete { get; private set; } = false;
+        public bool Sent { get; private set; }
 
         public void Start()
         {
+            if (IsComplete)
+            {
+                throw new Exception("Cannot reuse cancelled handler");
+            }
+
             Sent = false;
 
             MessageToSend.WindowId = _sessionHandler.NextWindowIdToSend;

@@ -8,12 +8,27 @@ namespace ScalableIPC.Core.Session
     public class SendOpenHandler : ISessionStateHandler
     {
         private readonly IStandardSessionHandler _sessionHandler;
+        private readonly IRetrySendHandlerAssistant _sendWindowHandler;
         private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
-        private IRetrySendHandlerAssistant _sendWindowHandler;
 
         public SendOpenHandler(DefaultSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
+
+            _sendWindowHandler = _sessionHandler.CreateRetrySendHandlerAssistant();
+            _sendWindowHandler.SuccessCallback = OnSendSuccess;
+            _sendWindowHandler.ErrorCallback = OnSendError;
+
+            var openDatagram = new ProtocolDatagram
+            {
+                SessionId = _sessionHandler.SessionId,
+                OpCode = ProtocolDatagram.OpCodeOpen,
+                Options = new ProtocolDatagramOptions
+                {
+                    IdleTimeout = _sessionHandler.IdleTimeout
+                }
+            };
+            _sendWindowHandler.CurrentWindow = new List<ProtocolDatagram> { openDatagram };
         }
 
         public bool SendInProgress { get; set; }
@@ -25,8 +40,7 @@ namespace ScalableIPC.Core.Session
 
         public void Dispose(ProtocolOperationException cause)
         {
-            _sendWindowHandler?.Cancel();
-            _sendWindowHandler = null;
+            _sendWindowHandler.Cancel();
             SendInProgress = false;
             _pendingPromiseCallback?.CompleteExceptionally(cause);
             _pendingPromiseCallback = null;
@@ -75,20 +89,6 @@ namespace ScalableIPC.Core.Session
             }
 
             _pendingPromiseCallback = promiseCb;
-
-            var openDatagram = new ProtocolDatagram
-            {
-                SessionId = _sessionHandler.SessionId,
-                OpCode = ProtocolDatagram.OpCodeOpen,
-                Options = new ProtocolDatagramOptions
-                {
-                    IdleTimeout = _sessionHandler.IdleTimeout
-                }
-            };
-            _sendWindowHandler = _sessionHandler.CreateRetrySendHandlerAssistant();
-            _sendWindowHandler.CurrentWindow = new List<ProtocolDatagram> { openDatagram };
-            _sendWindowHandler.SuccessCallback = OnSendSuccess;
-            _sendWindowHandler.ErrorCallback = OnSendError;
             _sendWindowHandler.Start();
 
             SendInProgress = true;

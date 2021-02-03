@@ -18,7 +18,6 @@ namespace ScalableIPC.Core.Session.Abstractions
     public interface ISendHandlerAssistant
     {
         List<ProtocolDatagram> CurrentWindow { get; set; }
-        int SentCount { get; set; }
 
         /// <summary>
         /// Used to alternate between using send window size as it is, or reducing it to 1 if property is true.
@@ -30,6 +29,8 @@ namespace ScalableIPC.Core.Session.Abstractions
         Action<int> WindowFullCallback { get; set; }
         Action TimeoutCallback { get; set; }
         bool IsComplete { get; }
+        int SentCount { get; }
+        object SendContext { get; }
 
         void Start();
         void OnAckReceived(ProtocolDatagram datagram);

@@ -30,6 +30,11 @@ namespace ScalableIPC.Core.Session
 
         public void OnReceive(ProtocolDatagram datagram)
         {
+            if (IsComplete)
+            {
+                throw new Exception("Cannot reuse cancelled handler");
+            }
+
             if (datagram.WindowId == _sessionHandler.LastWindowIdReceived)
             {
                 // already received and passed to application layer.

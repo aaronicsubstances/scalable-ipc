@@ -7,10 +7,10 @@ namespace ScalableIPC.Core.Session.Abstractions
     public interface IFireAndForgetSendHandlerAssistant
     {
         ProtocolDatagram MessageToSend { get; set; }
-        bool Sent { get; set; }
         Action SuccessCallback { get; set; }
         Action<ProtocolOperationException> ErrorCallback { get; set; }
-        bool IsComplete { get; set; }
+        bool IsComplete { get; }
+        bool Sent { get; }
         void Start();
         void Cancel();
     }

@@ -8,11 +8,14 @@ namespace ScalableIPC.Core.Session
     public class ReceiveOpenHandler : ISessionStateHandler
     {
         private readonly IStandardSessionHandler _sessionHandler;
-        private IReceiveOpenHandlerAssistant _currentWindowHandler;
+        private readonly IReceiveOpenHandlerAssistant _delegateHandler;
 
         public ReceiveOpenHandler(IStandardSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
+            _delegateHandler = _sessionHandler.CreateReceiveOpenHandlerAssistant();
+            _delegateHandler.DataCallback = OnOpenReceived;
+            _delegateHandler.ErrorCallback = OnOpenReceiveError;
         }
 
         public bool SendInProgress => false;
@@ -24,8 +27,7 @@ namespace ScalableIPC.Core.Session
 
         public void Dispose(ProtocolOperationException cause)
         {
-            _currentWindowHandler?.Cancel();
-            _currentWindowHandler = null;
+            _delegateHandler.Cancel();
         }
 
         public bool ProcessOpen(PromiseCompletionSource<VoidType> promiseCb)
@@ -56,13 +58,7 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessReceiveOpen(ProtocolDatagram datagram)
         {
-            if (_currentWindowHandler == null)
-            {
-                _currentWindowHandler = _sessionHandler.CreateReceiveOpenHandlerAssistant();
-                _currentWindowHandler.DataCallback = OnOpenReceived;
-                _currentWindowHandler.ErrorCallback = OnOpenReceiveError;
-            }
-            _currentWindowHandler.OnReceive(datagram);
+            _delegateHandler.OnReceive(datagram);
         }
 
         private void OnOpenReceived(ProtocolDatagram openRequest)
