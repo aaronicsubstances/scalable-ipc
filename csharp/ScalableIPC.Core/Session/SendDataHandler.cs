@@ -121,7 +121,7 @@ namespace ScalableIPC.Core.Session
                 SuccessCallback = OnWindowSendSuccess,
                 ErrorCallback = OnWindowSendError,
                 TimeoutCallback = () => OnWindowSendError(
-                    new ProtocolOperationException(true, ProtocolOperationException.ErrorCodeSendTimeout))
+                    new ProtocolOperationException(ProtocolOperationException.ErrorCodeSendTimeout))
             };
 
             // Found some datagrams to send in next window.

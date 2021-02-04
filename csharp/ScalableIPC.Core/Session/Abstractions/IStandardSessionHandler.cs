@@ -43,7 +43,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         void ResetAckTimeout(int timeout, Action cb);
         void CancelAckTimeout();
         void InitiateDispose(ProtocolOperationException cause, PromiseCompletionSource<VoidType> promiseCb);
-        void ContinueDispose(ProtocolOperationException cause);
+        void InitiateDisposeBypassingSendClose(ProtocolOperationException cause);
 
         // event loop method for use by session state handlers
         void PostEventLoopCallback(Action cb, PromiseCompletionSource<VoidType> promisesCb);
@@ -57,5 +57,6 @@ namespace ScalableIPC.Core.Session.Abstractions
         void OnSendError(ProtocolOperationException error);
         void OnReceiveError(ProtocolOperationException error);
         void OnEnquireLinkTimerFired();
+        void OnEnquireLinkSuccess();
     }
 }

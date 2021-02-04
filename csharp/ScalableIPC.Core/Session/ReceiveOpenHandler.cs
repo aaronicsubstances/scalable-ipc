@@ -62,7 +62,7 @@ namespace ScalableIPC.Core.Session
 
         private void OnOpenReceiveError(ProtocolOperationException error)
         {
-            _sessionHandler.InitiateDispose(error, null);
+            _sessionHandler.InitiateDisposeBypassingSendClose(error);
         }
     }
 }

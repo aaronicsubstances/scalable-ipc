@@ -53,16 +53,30 @@ namespace ScalableIPC.Core.Session
                 ProcessReceiveClose(datagram);
                 return true;
             }
+            else if (datagram.OpCode == ProtocolDatagram.OpCodeEnquireLinkAck)
+            {
+                ProcessEnquireLink(datagram);
+                return true;
+            }
             return false;
+        }
+
+        private void ProcessEnquireLink(ProtocolDatagram datagram)
+        {
+            int enquireLinkErrorCode = ProtocolOperationException.FetchExpectedErrorCode(datagram);
+            if (enquireLinkErrorCode == 0)
+            {
+                _sessionHandler.OnEnquireLinkSuccess();
+            }
+            else
+            {
+                _sessionHandler.InitiateDisposeBypassingSendClose(new ProtocolOperationException(enquireLinkErrorCode));
+            }
         }
 
         private void ProcessReceiveClose(ProtocolDatagram datagram)
         {
-            var recvdErrorCode = ProtocolOperationException.ErrorCodeNormalClose;
-            if (datagram.Options?.ErrorCode != null && datagram.Options.ErrorCode > 0)
-            {
-                recvdErrorCode = datagram.Options.ErrorCode.Value;
-            }
+            var recvdErrorCode = ProtocolOperationException.FetchExpectedErrorCode(datagram);
             
             // if graceful close, then try and validate before proceeding with close.
             if (recvdErrorCode == ProtocolOperationException.ErrorCodeNormalClose)
@@ -76,7 +90,7 @@ namespace ScalableIPC.Core.Session
                 }
             }
 
-            var cause = new ProtocolOperationException(true, recvdErrorCode);
+            var cause = new ProtocolOperationException(recvdErrorCode);
 
             // send back acknowledgement if closing gracefully, but ignore errors.
             // also don't wait.
@@ -96,25 +110,27 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null, null);
             }
 
-            _sessionHandler.ContinueDispose(cause);
+            _sessionHandler.InitiateDisposeBypassingSendClose(cause);
         }
 
         public void ProcessSendClose(ProtocolOperationException cause)
         {
             // send but ignore errors.
+            var errorCodeToSend = ProtocolOperationException.ErrorCodeInternalError;
+            if (cause.ErrorCode > 0)
+            {
+                errorCodeToSend = cause.ErrorCode;
+            }
             var closeDatagram = new ProtocolDatagram
             {
                 OpCode = ProtocolDatagram.OpCodeClose,
                 SessionId = _sessionHandler.SessionId,
-                WindowId = _sessionHandler.NextWindowIdToSend
-            };
-            if (cause.ErrorCode != ProtocolOperationException.ErrorCodeNormalClose)
-            {
-                closeDatagram.Options = new ProtocolDatagramOptions
+                WindowId = _sessionHandler.NextWindowIdToSend,
+                Options = new ProtocolDatagramOptions
                 {
-                    ErrorCode = cause.ErrorCode
-                };
-            }
+                    ErrorCode = errorCodeToSend
+                }
+            };
             _sendWindowHandler = _sessionHandler.CreateRetrySendHandlerAssistant();
             _sendWindowHandler.CurrentWindow = new List<ProtocolDatagram> { closeDatagram };
             _sendWindowHandler.SuccessCallback = () => OnSendSuccessOrError(cause);
@@ -128,7 +144,7 @@ namespace ScalableIPC.Core.Session
         private void OnSendSuccessOrError(ProtocolOperationException cause)
         {
             SendInProgress = false;
-            _sessionHandler.ContinueDispose(cause);
+            _sessionHandler.InitiateDisposeBypassingSendClose(cause);
         }
     }
 }

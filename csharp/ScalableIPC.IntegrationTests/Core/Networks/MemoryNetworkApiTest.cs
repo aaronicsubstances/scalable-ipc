@@ -1148,7 +1148,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
 
             TestDatabase.ResetDb();
             _accraEndpoint.RequestSessionDispose(_kumasiAddr, sessionId,
-                new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeNormalClose));
+                new ProtocolOperationException(ProtocolOperationException.ErrorCodeNormalClose));
             var logicalThreadIds = await WaitForAllLogicalThreads(2);
             Assert.Single(logicalThreadIds);
 
@@ -1166,7 +1166,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             // test disposing non-existent session id
             TestDatabase.ResetDb();
             _accraEndpoint.RequestSessionDispose(_kumasiAddr, sessionId,
-                new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeNormalClose));
+                new ProtocolOperationException(ProtocolOperationException.ErrorCodeNormalClose));
             logicalThreadIds = await WaitForAllLogicalThreads(2);
             Assert.Single(logicalThreadIds);
 
@@ -1184,7 +1184,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             // test that FinalizeDisposeAsync is not called in erroneous call.
             TestDatabase.ResetDb();
             _accraEndpoint.RequestSessionDispose(null, sessionId,
-                new ProtocolOperationException(false, ProtocolOperationException.ErrorCodeNormalClose));
+                new ProtocolOperationException(ProtocolOperationException.ErrorCodeNormalClose));
             logicalThreadIds = await WaitForAllLogicalThreads(2);
             Assert.Single(logicalThreadIds);
 
@@ -1269,6 +1269,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler> EnquireLinkSuccessHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler> OpenSuccessHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
             public AbstractPromise<VoidType> CloseAsync()

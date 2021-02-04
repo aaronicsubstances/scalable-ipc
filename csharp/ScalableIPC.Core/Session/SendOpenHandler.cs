@@ -18,7 +18,7 @@ namespace ScalableIPC.Core.Session
             _sendWindowHandler = _sessionHandler.CreateRetrySendHandlerAssistant();
             _sendWindowHandler.SuccessCallback = OnSendSuccess;
             _sendWindowHandler.TimeoutCallback = () => OnSendError(
-                new ProtocolOperationException(true, ProtocolOperationException.ErrorCodeOpenTimeout));
+                new ProtocolOperationException(ProtocolOperationException.ErrorCodeOpenTimeout));
             _sendWindowHandler.ErrorCallback = OnSendError;
 
             var openDatagram = new ProtocolDatagram
@@ -92,7 +92,7 @@ namespace ScalableIPC.Core.Session
 
         private void OnSendError(ProtocolOperationException error)
         {
-            _sessionHandler.InitiateDispose(error, null);
+            _sessionHandler.InitiateDisposeBypassingSendClose(error);
         }
     }
 }

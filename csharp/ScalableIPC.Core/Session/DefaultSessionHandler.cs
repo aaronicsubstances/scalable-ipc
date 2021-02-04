@@ -293,14 +293,14 @@ namespace ScalableIPC.Core.Session
                     }
                     ResetIdleTimeout();
                     ScheduleEnquireLinkEvent(true);
-                    var cause = new ProtocolOperationException(false, errorCode);
+                    var cause = new ProtocolOperationException(errorCode);
                     if (closeGracefully)
                     {
                         InitiateDispose(cause, promiseCb);
                     }
                     else
                     {
-                        ContinueDispose(cause);
+                        InitiateDisposeBypassingSendClose(cause);
                     }
                 }
             }, promiseCb);
@@ -407,7 +407,7 @@ namespace ScalableIPC.Core.Session
         private void ProcessIdleTimeout()
         {
             _lastIdleTimeoutId = null;
-            InitiateDispose(new ProtocolOperationException(false, SessionState == StateOpening ?
+            InitiateDispose(new ProtocolOperationException(SessionState == StateOpening ?
                 ProtocolOperationException.ErrorCodeOpenTimeout :
                 ProtocolOperationException.ErrorCodeIdleTimeout), null);
         }
@@ -456,7 +456,7 @@ namespace ScalableIPC.Core.Session
             _closeHandler.ProcessSendClose(cause);
         }
 
-        public void ContinueDispose(ProtocolOperationException cause)
+        public void InitiateDisposeBypassingSendClose(ProtocolOperationException cause)
         {
             _disposalCause = cause;
 
@@ -571,6 +571,7 @@ namespace ScalableIPC.Core.Session
         public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
         public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get; set; }
+        public Action<ISessionHandler> EnquireLinkSuccessHandler { get; set; }
 
         public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {
@@ -634,6 +635,14 @@ namespace ScalableIPC.Core.Session
             if (EnquireLinkTimerFiredHandler != null)
             {
                 PostEventLoopCallback(() => EnquireLinkTimerFiredHandler?.Invoke(this, _enquireLinkCount), null);
+            }
+        }
+
+        public void OnEnquireLinkSuccess()
+        {
+            if (EnquireLinkSuccessHandler != null)
+            {
+                PostEventLoopCallback(() => EnquireLinkSuccessHandler?.Invoke(this), null);
             }
         }
     }

@@ -68,6 +68,7 @@ namespace ScalableIPC.Core.Abstractions
         Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
         Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get; set; }
+        Action<ISessionHandler> EnquireLinkSuccessHandler { get; set; }
     }
 
     public interface ISessionHandlerFactory

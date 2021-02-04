@@ -78,7 +78,7 @@ namespace ScalableIPC.Core.Session
                         }
                         catch (Exception ex)
                         {
-                            throw new ProtocolOperationException(false,
+                            throw new ProtocolOperationException(
                                 ProtocolOperationException.ErrorCodeOptionDecodingError, ex);
                         }
                     }

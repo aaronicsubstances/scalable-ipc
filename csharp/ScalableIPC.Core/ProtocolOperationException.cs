@@ -7,12 +7,19 @@ namespace ScalableIPC.Core
 {
     public class ProtocolOperationException: Exception
     {
+        // close codes.
         public const int ErrorCodeNormalClose = 1;
         public const int ErrorCodeForceClose = 2;
         public const int ErrorCodeIdleTimeout = 3;
-        public const int ErrorCodeInternalApplicationError = 4;
-        public const int ErrorCodeWindowGroupOverflow = 5;
-        public const int ErrorCodeOptionDecodingError = 6;
+        public const int ErrorCodeInternalError = 4;
+
+        // enquire link codes
+        public const int ErrorCodeSessionOk = 150;
+        public const int ErrorCodeSessionEnded = 151;
+
+        // data codes.
+        public const int ErrorCodeWindowGroupOverflow = 250;
+        public const int ErrorCodeOptionDecodingError = 251;
 
         // The following error codes are not meant to be used for network
         // communications. As such they are negative.
@@ -20,10 +27,51 @@ namespace ScalableIPC.Core
         public const int ErrorCodeShutdown = -2;
         public const int ErrorCodeSendTimeout = -3;
         public const int ErrorCodeOpenTimeout = -4;
+        public const int ErrorCodeApplicationError = -5;
 
-        public static string StringifyReason(bool causedByRemotePeer, int errorCode)
+        public static int FetchExpectedErrorCode(ProtocolDatagram datagram)
+        {
+            int? errorCode = datagram.Options?.ErrorCode;
+            switch (datagram.OpCode)
+            {
+                case ProtocolDatagram.OpCodeClose:
+                    if (errorCode == null || errorCode < 1 || errorCode >= 100)
+                    {
+                        return ErrorCodeNormalClose;
+                    }
+                    else
+                    {
+                        return errorCode.Value;
+                    }
+                case ProtocolDatagram.OpCodeEnquireLinkAck:
+                    if (errorCode == null || errorCode < 100 || errorCode >= 200)
+                    {
+                        return ErrorCodeSessionOk;
+                    }
+                    else
+                    {
+                        return errorCode.Value;
+                    }
+                case ProtocolDatagram.OpCodeDataAck:
+                    if (errorCode == null || errorCode < 200 || errorCode >= 300)
+                    {
+                        // no default in this case.
+                        return 0;
+                    }
+                    else
+                    {
+                        return errorCode.Value;
+                    }
+                default:
+                    break;
+            }
+            return int.MinValue;
+        }
+
+        public static string StringifyReason(int errorCode)
         {
             string reasonPhrase = FormatErrorCode(errorCode);
+            bool causedByRemotePeer = errorCode < 0;
             string suffix = "Caused by " + (causedByRemotePeer ? "remote" : "local") + " peer";
             return reasonPhrase + " " + suffix;
         }
@@ -42,8 +90,10 @@ namespace ScalableIPC.Core
                 return "SEND_TIMEOUT";
             else if (code == ErrorCodeForceClose)
                 return "FORCED CLOSE";
-            else if (code == ErrorCodeInternalApplicationError)
+            else if (code == ErrorCodeInternalError)
                 return "INTERNAL ERROR";
+            else if (code == ErrorCodeApplicationError)
+                return "APPLICATION ERROR";
             else if (code == ErrorCodeWindowGroupOverflow)
                 return "WINDOW GROUP OVERLFOW";
             else if (code == ErrorCodeRestart)
@@ -56,34 +106,29 @@ namespace ScalableIPC.Core
                 return $"UNKNOWN ({code})";
         }
 
-        public ProtocolOperationException(bool causedByRemotePeer, int errorCode):
-            base(StringifyReason(causedByRemotePeer, errorCode))
+        public ProtocolOperationException(int errorCode):
+            base(StringifyReason(errorCode))
         {
-            CausedByRemotePeer = causedByRemotePeer;
             ErrorCode = errorCode;
         }
 
         public ProtocolOperationException(Exception innerException):
-            this(false, ErrorCodeInternalApplicationError, StringifyReason(false, ErrorCodeInternalApplicationError),
+            this(ErrorCodeApplicationError, StringifyReason(ErrorCodeApplicationError),
                 innerException)
         { }
 
-        public ProtocolOperationException(bool causedByRemotePeer, int errorCode, Exception innerException) :
-            base(StringifyReason(false, ErrorCodeInternalApplicationError), innerException)
+        public ProtocolOperationException(int errorCode, Exception innerException) :
+            base(StringifyReason(errorCode), innerException)
         {
-            CausedByRemotePeer = causedByRemotePeer;
             ErrorCode = errorCode;
         }
 
-        public ProtocolOperationException(bool causedByRemotePeer, int errorCode, string message,
+        public ProtocolOperationException(int errorCode, string message,
                 Exception innerException):
             base(message, innerException)
         {
-            CausedByRemotePeer = causedByRemotePeer;
             ErrorCode = errorCode;
         }
-
-        public bool CausedByRemotePeer { get; }
 
         public int ErrorCode { get; }
     }

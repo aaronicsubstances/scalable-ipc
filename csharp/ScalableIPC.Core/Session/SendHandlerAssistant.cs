@@ -111,14 +111,14 @@ namespace ScalableIPC.Core.Session
             }
 
             // perhaps overflow detected? check.
-            if (ack.Options?.ErrorCode != null && ack.Options?.ErrorCode > 0)
+            int ackErrorCode = ProtocolOperationException.FetchExpectedErrorCode(ack);
+            if (ackErrorCode > 0)
             {
                 _sessionHandler.CancelAckTimeout();
 
                 _sessionHandler.IncrementNextWindowIdToSend();
                 Complete();
-                ErrorCallback.Invoke(new ProtocolOperationException(true,
-                    ack.Options.ErrorCode.Value));
+                ErrorCallback.Invoke(new ProtocolOperationException(ackErrorCode));
                 return;
             }
 

@@ -104,8 +104,7 @@ namespace ScalableIPC.Core.Session
             if (cumulativeLength > ProtocolDatagram.MaxDatagramSize)
             {
                 IsComplete = true;
-                processingError = new ProtocolOperationException(false,
-                    ProtocolOperationException.ErrorCodeWindowGroupOverflow);
+                processingError = new ProtocolOperationException(ProtocolOperationException.ErrorCodeWindowGroupOverflow);
             }
             else
             {
