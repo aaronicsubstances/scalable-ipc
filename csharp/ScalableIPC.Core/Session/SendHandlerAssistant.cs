@@ -191,7 +191,7 @@ namespace ScalableIPC.Core.Session
                 {
                     ContinueSending();
                 }
-            });
+            }, null);
         }
 
         private void HandleSendError(ProtocolDatagram datagram, Exception error)
@@ -214,7 +214,7 @@ namespace ScalableIPC.Core.Session
                 {
                     ErrorCallback.Invoke(new ProtocolOperationException(error));
                 }
-            });
+            }, null);
         }
 
         private void ProcessAckTimeout()

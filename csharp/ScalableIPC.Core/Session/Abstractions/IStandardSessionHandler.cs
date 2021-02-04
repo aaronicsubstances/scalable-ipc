@@ -33,6 +33,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         ProtocolDatagram LastAck { get; set; }
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();
+        void EnsureSendNotInProgress();
 
         int? RemoteIdleTimeout { get; set; }
         int? RemoteMaxWindowSize { get; set; } // non-positive means ignore it.
@@ -45,7 +46,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         void ContinueDispose(ProtocolOperationException cause);
 
         // event loop method for use by session state handlers
-        void PostEventLoopCallback(Action cb);
+        void PostEventLoopCallback(Action cb, PromiseCompletionSource<VoidType> promisesCb);
 
         // application layer interface.
         void OnDatagramDiscarded(ProtocolDatagram datagram);

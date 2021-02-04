@@ -142,6 +142,14 @@ namespace ScalableIPC.Core.Session
             return false;
         }
 
+        public void EnsureSendNotInProgress()
+        {
+            if (IsSendInProgress())
+            {
+                throw new Exception("Send is in progress");
+            }
+        }
+
         public AbstractPromise<VoidType> ProcessOpenAsync()
         {
             PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
@@ -150,13 +158,10 @@ namespace ScalableIPC.Core.Session
                 if (SessionState >= StateDisposeAwaiting)
                 {
                     promiseCb.CompleteExceptionally(_disposalCause);
-                }
-                else if (IsSendInProgress())
-                {
-                    promiseCb.CompleteExceptionally(new Exception("Send is in progress"));
-                }
+                }                
                 else
                 {
+                    EnsureSendNotInProgress();
                     ResetIdleTimeout();
                     ScheduleEnquireLinkEvent(true);
                     bool handled = false;
@@ -173,7 +178,7 @@ namespace ScalableIPC.Core.Session
                         promiseCb.CompleteExceptionally(new Exception("No state handler found to process open"));
                     }
                 }
-            });
+            }, promiseCb);
             return promiseCb.RelatedPromise;
         }
 
@@ -199,7 +204,7 @@ namespace ScalableIPC.Core.Session
                 {
                     OnDatagramDiscarded(datagram);
                 }
-            });
+            }, null);
             return NetworkApi.PromiseApi.CompletedPromise();
         }
 
@@ -212,12 +217,9 @@ namespace ScalableIPC.Core.Session
                 {
                     promiseCb.CompleteExceptionally(_disposalCause);
                 }
-                else if (IsSendInProgress())
-                {
-                    promiseCb.CompleteExceptionally(new Exception("Send is in progress"));
-                }
                 else
                 {
+                    EnsureSendNotInProgress();
                     ResetIdleTimeout();
                     ScheduleEnquireLinkEvent(true);
                     bool handled = false;
@@ -234,7 +236,7 @@ namespace ScalableIPC.Core.Session
                         promiseCb.CompleteExceptionally(new Exception("No state handler found to process send"));
                     }
                 }
-            });
+            }, promiseCb);
             return promiseCb.RelatedPromise;
         }
 
@@ -247,12 +249,9 @@ namespace ScalableIPC.Core.Session
                 {
                     promiseCb.CompleteExceptionally(_disposalCause);
                 }
-                else if (IsSendInProgress())
-                {
-                    promiseCb.CompleteExceptionally(new Exception("Send is in progress"));
-                }
                 else
                 {
+                    EnsureSendNotInProgress();
                     ResetIdleTimeout();
                     ScheduleEnquireLinkEvent(true);
                     bool handled = false;
@@ -269,8 +268,27 @@ namespace ScalableIPC.Core.Session
                         promiseCb.CompleteExceptionally(new Exception("No state handler found to process send without ack"));
                     }
                 }
-            });
+            }, WrapPromiseCbForEventLoopPost(promiseCb));
             return promiseCb.RelatedPromise;
+        }
+
+        /// <summary>
+        /// Work around reified generics by converting argument to one with VoidType
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="wrapped"></param>
+        /// <returns></returns>
+        private PromiseCompletionSource<VoidType> WrapPromiseCbForEventLoopPost<T>(PromiseCompletionSource<T> wrapped)
+        {
+            var promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(null);
+            promiseCb.RelatedPromise.CatchCompose(ex =>
+            {
+                wrapped.CompleteExceptionally(ex);
+                return NetworkApi.PromiseApi.CompletedPromise();
+            });
+            // prevent promise cb from hanging by completing it no matter what.
+            wrapped.RelatedPromise.Finally(() => promiseCb.CompleteSuccessfully(VoidType.Instance));
+            return promiseCb;
         }
 
         public AbstractPromise<VoidType> CloseAsync()
@@ -292,12 +310,12 @@ namespace ScalableIPC.Core.Session
                 {
                     _closeHandler.QueueCallback(promiseCb);
                 }
-                else if (closeGracefully && IsSendInProgress())
-                {
-                    promiseCb.CompleteExceptionally(new Exception("Send is in progress"));
-                }
                 else
                 {
+                    if (closeGracefully)
+                    {
+                        EnsureSendNotInProgress();
+                    }
                     ResetIdleTimeout();
                     ScheduleEnquireLinkEvent(true);
                     var cause = new ProtocolOperationException(false, errorCode);
@@ -310,7 +328,7 @@ namespace ScalableIPC.Core.Session
                         ContinueDispose(cause);
                     }
                 }
-            });
+            }, promiseCb);
             return promiseCb.RelatedPromise;
         }
 
@@ -506,12 +524,12 @@ namespace ScalableIPC.Core.Session
                     // pass on to application layer.
                     OnSessionDisposed(cause);
                 }
-            });
+            }, promiseCb);
             return promiseCb.RelatedPromise;
         }
 
         // event loop methods
-        public void PostEventLoopCallback(Action cb)
+        public void PostEventLoopCallback(Action cb, PromiseCompletionSource<VoidType> promiseCb)
         {
             _taskExecutor.PostCallback(() =>
             {
@@ -521,7 +539,14 @@ namespace ScalableIPC.Core.Session
                 }
                 catch (Exception ex)
                 {
-                    RecordEventLoopCallbackException("c67258ee-0014-4a96-b3d3-3d340486b0ba", ex);
+                    if (promiseCb != null)
+                    {
+                        promiseCb.CompleteExceptionally(ex);
+                    }
+                    else
+                    {
+                        RecordEventLoopCallbackException("c67258ee-0014-4a96-b3d3-3d340486b0ba", ex);
+                    }
                 }
             });
         }
@@ -566,7 +591,7 @@ namespace ScalableIPC.Core.Session
         {
             if (DatagramDiscardedHandler != null)
             {
-                PostEventLoopCallback(() => DatagramDiscardedHandler?.Invoke(this, datagram));
+                PostEventLoopCallback(() => DatagramDiscardedHandler?.Invoke(this, datagram), null);
             }
         }
 
@@ -575,7 +600,7 @@ namespace ScalableIPC.Core.Session
             SessionState = StateOpen;
             if (OpenSuccessHandler != null)
             {
-                PostEventLoopCallback(() => OpenSuccessHandler?.Invoke(this));
+                PostEventLoopCallback(() => OpenSuccessHandler?.Invoke(this), null);
             }
         }
 
@@ -583,7 +608,7 @@ namespace ScalableIPC.Core.Session
         {
             if (MessageReceivedHandler != null)
             {
-                PostEventLoopCallback(() => MessageReceivedHandler?.Invoke(this, message));
+                PostEventLoopCallback(() => MessageReceivedHandler?.Invoke(this, message), null);
             }
         }
 
@@ -591,7 +616,7 @@ namespace ScalableIPC.Core.Session
         {
             if (SessionDisposingHandler != null)
             {
-                PostEventLoopCallback(() => SessionDisposingHandler?.Invoke(this, cause));
+                PostEventLoopCallback(() => SessionDisposingHandler?.Invoke(this, cause), null);
             }
         }
 
@@ -599,7 +624,7 @@ namespace ScalableIPC.Core.Session
         {
             if (SessionDisposedHandler != null)
             {
-                PostEventLoopCallback(() => SessionDisposedHandler?.Invoke(this, cause));
+                PostEventLoopCallback(() => SessionDisposedHandler?.Invoke(this, cause), null);
             }
         }
 
@@ -607,7 +632,7 @@ namespace ScalableIPC.Core.Session
         {
             if (SendErrorHandler != null)
             {
-                PostEventLoopCallback(() => SendErrorHandler?.Invoke(this, cause));
+                PostEventLoopCallback(() => SendErrorHandler?.Invoke(this, cause), null);
             }
         }
 
@@ -615,7 +640,7 @@ namespace ScalableIPC.Core.Session
         {
             if (ReceiveErrorHandler != null)
             {
-                PostEventLoopCallback(() => ReceiveErrorHandler?.Invoke(this, cause));
+                PostEventLoopCallback(() => ReceiveErrorHandler?.Invoke(this, cause), null);
             }
         }
 
@@ -623,7 +648,7 @@ namespace ScalableIPC.Core.Session
         {
             if (EnquireLinkTimerFiredHandler != null)
             {
-                PostEventLoopCallback(() => EnquireLinkTimerFiredHandler?.Invoke(this, _enquireLinkCount));
+                PostEventLoopCallback(() => EnquireLinkTimerFiredHandler?.Invoke(this, _enquireLinkCount), null);
             }
         }
     }

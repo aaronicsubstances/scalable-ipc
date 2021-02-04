@@ -65,7 +65,7 @@ namespace ScalableIPC.Core.Session
                 IsComplete = true;
                 _sessionHandler.IncrementNextWindowIdToSend();
                 SuccessCallback.Invoke();
-            });
+            }, null);
         }
 
         private void HandleSendError(Exception error)
@@ -82,7 +82,7 @@ namespace ScalableIPC.Core.Session
                 IsComplete = true;
                 _sessionHandler.IncrementNextWindowIdToSend();
                 ErrorCallback.Invoke(new ProtocolOperationException(error));
-            });
+            }, null);
         }
     }
 }
