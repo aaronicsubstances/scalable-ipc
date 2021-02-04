@@ -22,6 +22,7 @@ namespace ScalableIPC.Core.Session
         public Action TimeoutCallback { get; set; }
         public object SendContext { get; private set; }
         public int SentCount { get; private set; }
+        public bool IsStarted { get; private set; }
         public bool IsComplete { get; private set; } = false;
 
         public void Complete()
@@ -44,7 +45,12 @@ namespace ScalableIPC.Core.Session
             {
                 throw new Exception("Cannot reuse cancelled handler");
             }
+            if (IsStarted)
+            {
+                return;
+            }
 
+            IsStarted = true;
             SentCount = 0;
             RestartSending();
         }

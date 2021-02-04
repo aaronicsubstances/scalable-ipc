@@ -10,6 +10,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         Action SuccessCallback { get; set; }
         Action<ProtocolOperationException> ErrorCallback { get; set; }
         bool IsComplete { get; }
+        bool IsStarted { get; }
         bool Sent { get; }
         void Start();
         void Cancel();

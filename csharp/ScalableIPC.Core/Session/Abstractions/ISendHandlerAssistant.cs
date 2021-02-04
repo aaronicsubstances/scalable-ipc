@@ -28,6 +28,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         Action<ProtocolOperationException> ErrorCallback { get; set; }
         Action<int> WindowFullCallback { get; set; }
         Action TimeoutCallback { get; set; }
+        bool IsStarted { get; }
         bool IsComplete { get; }
         int SentCount { get; }
         object SendContext { get; }

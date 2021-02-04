@@ -12,6 +12,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         Action<ProtocolOperationException> ErrorCallback { get; set; }
         int TotalSentCount { get; }
         int RetryCount { get; }
+        bool IsStarted { get; }
         bool IsComplete { get; }
         void Start();
         void OnAckReceived(ProtocolDatagram datagram);

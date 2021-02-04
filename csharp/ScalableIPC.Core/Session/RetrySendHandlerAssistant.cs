@@ -21,6 +21,7 @@ namespace ScalableIPC.Core.Session
         public Action<ProtocolOperationException> ErrorCallback { get; set; }
         public int RetryCount { get; private set; }
         public int TotalSentCount { get; private set; }
+        public bool IsStarted { get; private set; }
         public bool IsComplete { get; private set; } = false;
 
         public void Start()
@@ -29,7 +30,12 @@ namespace ScalableIPC.Core.Session
             {
                 throw new Exception("Cannot reuse cancelled handler");
             }
+            if (IsStarted)
+            {
+                return;
+            }
 
+            IsStarted = true;
             RetryCount = 0;
             TotalSentCount = 0;
 

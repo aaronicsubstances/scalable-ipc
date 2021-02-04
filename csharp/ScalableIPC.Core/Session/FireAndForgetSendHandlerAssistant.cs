@@ -17,6 +17,7 @@ namespace ScalableIPC.Core.Session
         public ProtocolDatagram MessageToSend { get; set; }
         public Action SuccessCallback { get; set; }
         public Action<ProtocolOperationException> ErrorCallback { get; set; }
+        public bool IsStarted { get; private set; }
         public bool IsComplete { get; private set; } = false;
         public bool Sent { get; private set; }
 
@@ -26,7 +27,12 @@ namespace ScalableIPC.Core.Session
             {
                 throw new Exception("Cannot reuse cancelled handler");
             }
+            if (IsStarted)
+            {
+                return;
+            }
 
+            IsStarted = true;
             Sent = false;
 
             MessageToSend.WindowId = _sessionHandler.NextWindowIdToSend;
