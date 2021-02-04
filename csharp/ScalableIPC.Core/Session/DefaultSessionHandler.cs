@@ -114,6 +114,7 @@ namespace ScalableIPC.Core.Session
 
         public int MaxWindowSize { get; set; }
         public int MaxRetryCount { get; set; }
+        public int OpenTimeout { get; set; }
         public int IdleTimeout { get; set; }
         public int MinRemoteIdleTimeout { get; set; }
         public int MaxRemoteIdleTimeout { get; set; }
@@ -322,13 +323,17 @@ namespace ScalableIPC.Core.Session
         {
             CancelIdleTimeout();
 
-            int effectiveIdleTimeout = IdleTimeout;
-            if (RemoteIdleTimeout.HasValue)
+            int effectiveIdleTimeout = OpenTimeout;
+            if (SessionState != StateOpening)
             {
-                // accept remote idle timeout only if it is within bounds of min and max.
-                if (RemoteIdleTimeout >= MinRemoteIdleTimeout && RemoteIdleTimeout <= MaxRemoteIdleTimeout)
+                effectiveIdleTimeout = IdleTimeout;
+                if (RemoteIdleTimeout.HasValue)
                 {
-                    effectiveIdleTimeout = RemoteIdleTimeout.Value;
+                    // accept remote idle timeout only if it is within bounds of min and max.
+                    if (RemoteIdleTimeout >= MinRemoteIdleTimeout && RemoteIdleTimeout <= MaxRemoteIdleTimeout)
+                    {
+                        effectiveIdleTimeout = RemoteIdleTimeout.Value;
+                    }
                 }
             }
 
@@ -402,7 +407,8 @@ namespace ScalableIPC.Core.Session
         private void ProcessIdleTimeout()
         {
             _lastIdleTimeoutId = null;
-            InitiateDispose(new ProtocolOperationException(false, 
+            InitiateDispose(new ProtocolOperationException(false, SessionState == StateOpening ?
+                ProtocolOperationException.ErrorCodeOpenTimeout :
                 ProtocolOperationException.ErrorCodeIdleTimeout), null);
         }
 

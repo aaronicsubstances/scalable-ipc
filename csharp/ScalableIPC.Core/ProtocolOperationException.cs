@@ -7,12 +7,13 @@ namespace ScalableIPC.Core
 {
     public class ProtocolOperationException: Exception
     {
-        public const int ErrorCodeNormalClose = 0;
-        public const int ErrorCodeIdleTimeout = 1;
+        public const int ErrorCodeNormalClose = 1;
         public const int ErrorCodeForceClose = 2;
-        public const int ErrorCodeInternalApplicationError = 3;
-        public const int ErrorCodeWindowGroupOverflow = 4;
-        public const int ErrorCodeOptionDecodingError = 5;
+        public const int ErrorCodeOpenTimeout = 3;
+        public const int ErrorCodeIdleTimeout = 4;
+        public const int ErrorCodeInternalApplicationError = 5;
+        public const int ErrorCodeWindowGroupOverflow = 6;
+        public const int ErrorCodeOptionDecodingError = 7;
 
         // The following error codes are not meant to be used for network
         // communications. As such they are negative.
@@ -29,6 +30,8 @@ namespace ScalableIPC.Core
 
         public static string FormatErrorCode(int code)
         {
+            if (code == 0)
+                return "NONE";
             if (code == ErrorCodeNormalClose)
                 return "NORMAL CLOSE";
             else if (code == ErrorCodeIdleTimeout)

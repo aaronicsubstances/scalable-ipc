@@ -1255,6 +1255,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public int MaxRemoteWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRetryCount { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRetryPeriod { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public int OpenTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int IdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MinRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
