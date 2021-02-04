@@ -58,7 +58,11 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessReceiveClose(ProtocolDatagram datagram)
         {
-            var recvdErrorCode = datagram.Options?.ErrorCode ?? ProtocolOperationException.ErrorCodeNormalClose;
+            var recvdErrorCode = ProtocolOperationException.ErrorCodeNormalClose;
+            if (datagram.Options?.ErrorCode != null && datagram.Options.ErrorCode > 0)
+            {
+                recvdErrorCode = datagram.Options.ErrorCode.Value;
+            }
             
             // if graceful close, then try and validate before proceeding with close.
             if (recvdErrorCode == ProtocolOperationException.ErrorCodeNormalClose)
@@ -114,6 +118,7 @@ namespace ScalableIPC.Core.Session
             _sendWindowHandler = _sessionHandler.CreateRetrySendHandlerAssistant();
             _sendWindowHandler.CurrentWindow = new List<ProtocolDatagram> { closeDatagram };
             _sendWindowHandler.SuccessCallback = () => OnSendSuccessOrError(cause);
+            _sendWindowHandler.TimeoutCallback = () => OnSendSuccessOrError(cause);
             _sendWindowHandler.ErrorCallback = _ => OnSendSuccessOrError(cause);
             _sendWindowHandler.Start();
 

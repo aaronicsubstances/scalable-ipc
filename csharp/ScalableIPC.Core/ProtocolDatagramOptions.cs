@@ -29,7 +29,7 @@ namespace ScalableIPC.Core
 
         // Known options.
         public int? IdleTimeout { get; set; }
-        public int? ErrorCode { get; set; }
+        public int? ErrorCode { get; set; } // ignore non-positive error codes.
         public bool? IsWindowFull { get; set; }
         public bool? IsLastInWindow { get; set; }
         public bool? IsLastInWindowGroup { get; set; }
@@ -105,10 +105,6 @@ namespace ScalableIPC.Core
                             break;
                         case OptionNameErrorCode:
                             ErrorCode = ParseOptionAsInt32(value);
-                            if (ErrorCode < 0)
-                            {
-                                throw new Exception("Received negative value: " + ErrorCode);
-                            }
                             break;
                         case OptionNameIsLastInWindow:
                             IsLastInWindow = ParseOptionAsBoolean(value);

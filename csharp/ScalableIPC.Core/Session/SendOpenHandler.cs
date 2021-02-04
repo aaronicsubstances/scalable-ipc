@@ -17,6 +17,8 @@ namespace ScalableIPC.Core.Session
 
             _sendWindowHandler = _sessionHandler.CreateRetrySendHandlerAssistant();
             _sendWindowHandler.SuccessCallback = OnSendSuccess;
+            _sendWindowHandler.TimeoutCallback = () => OnSendError(
+                new ProtocolOperationException(true, ProtocolOperationException.ErrorCodeOpenTimeout));
             _sendWindowHandler.ErrorCallback = OnSendError;
 
             var openDatagram = new ProtocolDatagram

@@ -237,10 +237,6 @@ namespace ScalableIPC.UnitTests.Core
             testData.Add(new object[] { instance });
 
             instance = new ProtocolDatagramOptions();
-            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "-1" });
-            testData.Add(new object[] { instance });
-
-            instance = new ProtocolDatagramOptions();
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "" });
             testData.Add(new object[] { instance });
 

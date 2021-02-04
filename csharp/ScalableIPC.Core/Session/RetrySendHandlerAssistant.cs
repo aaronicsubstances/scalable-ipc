@@ -17,6 +17,7 @@ namespace ScalableIPC.Core.Session
 
         public List<ProtocolDatagram> CurrentWindow { get; set; }
         public Action SuccessCallback { get; set; }
+        public Action TimeoutCallback { get; set; }
         public Action<ProtocolOperationException> ErrorCallback { get; set; }
         public int RetryCount { get; private set; }
         public int TotalSentCount { get; private set; }
@@ -71,8 +72,7 @@ namespace ScalableIPC.Core.Session
             {
                 // end retries and signal timeout to application layer.
                 IsComplete = true;
-                ErrorCallback.Invoke(new ProtocolOperationException(false,
-                    ProtocolOperationException.ErrorCodeSendTimeout));
+                TimeoutCallback.Invoke();
             }
         }
 

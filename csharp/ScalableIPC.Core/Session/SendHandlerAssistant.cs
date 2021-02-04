@@ -111,7 +111,7 @@ namespace ScalableIPC.Core.Session
             }
 
             // perhaps overflow detected? check.
-            if (ack.Options?.ErrorCode != null)
+            if (ack.Options?.ErrorCode != null && ack.Options?.ErrorCode > 0)
             {
                 _sessionHandler.CancelAckTimeout();
 

@@ -9,17 +9,17 @@ namespace ScalableIPC.Core
     {
         public const int ErrorCodeNormalClose = 1;
         public const int ErrorCodeForceClose = 2;
-        public const int ErrorCodeOpenTimeout = 3;
-        public const int ErrorCodeIdleTimeout = 4;
-        public const int ErrorCodeInternalApplicationError = 5;
-        public const int ErrorCodeWindowGroupOverflow = 6;
-        public const int ErrorCodeOptionDecodingError = 7;
+        public const int ErrorCodeIdleTimeout = 3;
+        public const int ErrorCodeInternalApplicationError = 4;
+        public const int ErrorCodeWindowGroupOverflow = 5;
+        public const int ErrorCodeOptionDecodingError = 6;
 
         // The following error codes are not meant to be used for network
         // communications. As such they are negative.
         public const int ErrorCodeRestart = -1;
         public const int ErrorCodeShutdown = -2;
         public const int ErrorCodeSendTimeout = -3;
+        public const int ErrorCodeOpenTimeout = -4;
 
         public static string StringifyReason(bool causedByRemotePeer, int errorCode)
         {
@@ -34,6 +34,8 @@ namespace ScalableIPC.Core
                 return "NONE";
             if (code == ErrorCodeNormalClose)
                 return "NORMAL CLOSE";
+            else if (code == ErrorCodeOpenTimeout)
+                return "OPEN_TIMEOUT";
             else if (code == ErrorCodeIdleTimeout)
                 return "IDLE_TIMEOUT";
             else if (code == ErrorCodeSendTimeout)
