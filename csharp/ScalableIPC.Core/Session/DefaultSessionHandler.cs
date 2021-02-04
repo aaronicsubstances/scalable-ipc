@@ -345,12 +345,6 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public AbstractPromise<VoidType> ResetEnquireLinkTimerAsync()
-        {
-            PostEventLoopCallback(() => ScheduleEnquireLinkEvent(true));
-            return NetworkApi.PromiseApi.CompletedPromise();
-        }
-
         public void ScheduleEnquireLinkEvent(bool reset)
         {
             CancelEnquireLinkTimer();

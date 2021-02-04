@@ -1289,11 +1289,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 }
                 return NetworkApi.PromiseApi.CompletedPromise();
             }
-            
-            public AbstractPromise<VoidType> ResetEnquireLinkTimerAsync()
-            {
-                throw new NotImplementedException();
-            }
 
             public AbstractPromise<VoidType> ProcessOpenAsync()
             {

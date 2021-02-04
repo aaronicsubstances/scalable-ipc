@@ -45,7 +45,6 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> CloseAsync();
         AbstractPromise<VoidType> CloseAsync(int errorCode);
         AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause);
-        AbstractPromise<VoidType> ResetEnquireLinkTimerAsync();
         int IdleTimeout { get; set; } // non-positive means disable idle timer 
         int MinRemoteIdleTimeout { get; set; }
         int MaxRemoteIdleTimeout { get; set; }
