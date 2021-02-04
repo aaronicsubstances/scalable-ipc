@@ -20,11 +20,6 @@ namespace ScalableIPC.Core.Session
 
         public bool SendInProgress => false;
 
-        public void PrepareForDispose(ProtocolOperationException cause)
-        {
-            Dispose(cause);
-        }
-
         public void Dispose(ProtocolOperationException cause)
         {
             _delegateHandler.Cancel();

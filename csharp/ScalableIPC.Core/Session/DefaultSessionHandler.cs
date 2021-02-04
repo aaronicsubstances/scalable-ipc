@@ -168,13 +168,13 @@ namespace ScalableIPC.Core.Session
                 }                
                 else
                 {
+                    if (_openHandler == null)
+                    {
+                        throw new Exception("Not configured to inititate opening of session");
+                    }
                     EnsureSendNotInProgress();
                     ResetIdleTimeout();
                     ScheduleEnquireLinkEvent(true);
-                    if (_openHandler == null)
-                    {
-                        throw new Exception("No state handler found to process open");
-                    }
                     _openHandler.ProcessOpen(promiseCb);
                 }
             }, promiseCb);
@@ -463,7 +463,12 @@ namespace ScalableIPC.Core.Session
             // cancel all data handling activities.
             foreach (ISessionStateHandler stateHandler in _stateHandlers)
             {
-                stateHandler.PrepareForDispose(cause);
+                if (stateHandler == _closeHandler)
+                {
+                    // skip until final disposal.
+                    continue;
+                }
+                stateHandler.Dispose(cause);
             }
 
             SessionState = StateDisposeAwaiting;
@@ -489,7 +494,7 @@ namespace ScalableIPC.Core.Session
                     CancelEnquireLinkTimer();
 
                     // just in case this method was called abruptly, e.g. in the
-                    // case of a shutdown, record dispose cause again.
+                    // case of a shutdown, record dispose cause and trigger disposal again.
                     _disposalCause = cause;
 
                     foreach (ISessionStateHandler stateHandler in _stateHandlers)

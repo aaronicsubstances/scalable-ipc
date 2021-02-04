@@ -23,11 +23,6 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void PrepareForDispose(ProtocolOperationException cause)
-        {
-            Dispose(cause);
-        }
-
         public void Dispose(ProtocolOperationException cause)
         {
             _currentWindowHandler?.Cancel();

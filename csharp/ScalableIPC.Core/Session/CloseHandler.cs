@@ -20,11 +20,6 @@ namespace ScalableIPC.Core.Session
 
         public bool SendInProgress { get; set; }
 
-        public void PrepareForDispose(ProtocolOperationException cause)
-        {
-            // nothing to do
-        }
-
         public void Dispose(ProtocolOperationException cause)
         {
             _sendWindowHandler?.Cancel();
@@ -39,11 +34,6 @@ namespace ScalableIPC.Core.Session
         public void QueueCallback(PromiseCompletionSource<VoidType> promiseCb)
         {
             _pendingPromiseCallbacks.Add(promiseCb);
-        }
-
-        public bool ProcessOpen(PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
         }
 
         public bool ProcessReceive(ProtocolDatagram datagram)
@@ -63,16 +53,6 @@ namespace ScalableIPC.Core.Session
                 ProcessReceiveClose(datagram);
                 return true;
             }
-            return false;
-        }
-
-        public bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
-        public bool ProcessSendWithoutAck(ProtocolMessage message, PromiseCompletionSource<bool> promiseCb)
-        {
             return false;
         }
 

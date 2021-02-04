@@ -22,11 +22,6 @@ namespace ScalableIPC.Core.Session
         internal int SentDatagramCountInCurrentWindowGroup { get; private set; }
         public bool SendInProgress { get; set; }
 
-        public void PrepareForDispose(ProtocolOperationException cause)
-        {
-            Dispose(cause);
-        }
-
         public void Dispose(ProtocolOperationException cause)
         {
             _sendWindowHandler?.Cancel();
