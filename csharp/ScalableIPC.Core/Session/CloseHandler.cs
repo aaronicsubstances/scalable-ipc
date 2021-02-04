@@ -64,9 +64,13 @@ namespace ScalableIPC.Core.Session
         private void ProcessEnquireLink(ProtocolDatagram datagram)
         {
             int enquireLinkErrorCode = ProtocolOperationException.FetchExpectedErrorCode(datagram);
-            if (enquireLinkErrorCode == 0)
+            if (enquireLinkErrorCode < 0)
             {
-                _sessionHandler.OnEnquireLinkSuccess();
+                _sessionHandler.OnDatagramDiscarded(datagram);
+            }
+            else if (enquireLinkErrorCode == 0)
+            {
+                _sessionHandler.OnEnquireLinkSuccess(datagram);
             }
             else
             {
@@ -77,7 +81,12 @@ namespace ScalableIPC.Core.Session
         private void ProcessReceiveClose(ProtocolDatagram datagram)
         {
             var recvdErrorCode = ProtocolOperationException.FetchExpectedErrorCode(datagram);
-            
+            if (recvdErrorCode < 0)
+            {
+                _sessionHandler.OnDatagramDiscarded(datagram);
+                return;
+            }
+
             // if graceful close, then try and validate before proceeding with close.
             if (recvdErrorCode == ProtocolOperationException.ErrorCodeNormalClose)
             {

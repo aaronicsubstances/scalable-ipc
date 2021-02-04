@@ -57,6 +57,6 @@ namespace ScalableIPC.Core.Session.Abstractions
         void OnSendError(ProtocolOperationException error);
         void OnReceiveError(ProtocolOperationException error);
         void OnEnquireLinkTimerFired();
-        void OnEnquireLinkSuccess();
+        void OnEnquireLinkSuccess(ProtocolDatagram datagram);
     }
 }

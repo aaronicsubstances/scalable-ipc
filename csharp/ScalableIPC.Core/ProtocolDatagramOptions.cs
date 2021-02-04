@@ -30,7 +30,7 @@ namespace ScalableIPC.Core
         // Known options.
         public int? IdleTimeout { get; set; }
 
-        // for error codes replace non-positive error codes with opcode default, or 0 if opcode doesn't specify one.
+        // for error codes validate on a case by case basis depending on op code.
         public int? ErrorCode { get; set; } 
         public bool? IsWindowFull { get; set; }
         public bool? IsLastInWindow { get; set; }

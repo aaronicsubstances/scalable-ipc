@@ -571,7 +571,7 @@ namespace ScalableIPC.Core.Session
         public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
         public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get; set; }
-        public Action<ISessionHandler> EnquireLinkSuccessHandler { get; set; }
+        public Action<ISessionHandler, ProtocolDatagram> EnquireLinkSuccessHandler { get; set; }
 
         public void OnDatagramDiscarded(ProtocolDatagram datagram)
         {
@@ -638,11 +638,11 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void OnEnquireLinkSuccess()
+        public void OnEnquireLinkSuccess(ProtocolDatagram datagram)
         {
             if (EnquireLinkSuccessHandler != null)
             {
-                PostEventLoopCallback(() => EnquireLinkSuccessHandler?.Invoke(this), null);
+                PostEventLoopCallback(() => EnquireLinkSuccessHandler?.Invoke(this, datagram), null);
             }
         }
     }

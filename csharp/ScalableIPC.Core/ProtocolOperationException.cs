@@ -14,8 +14,7 @@ namespace ScalableIPC.Core
         public const int ErrorCodeInternalError = 4;
 
         // enquire link codes
-        public const int ErrorCodeSessionOk = 150;
-        public const int ErrorCodeSessionEnded = 151;
+        public const int ErrorCodeSessionEnded = 150;
 
         // data codes.
         public const int ErrorCodeWindowGroupOverflow = 250;
@@ -35,28 +34,42 @@ namespace ScalableIPC.Core
             switch (datagram.OpCode)
             {
                 case ProtocolDatagram.OpCodeClose:
-                    if (errorCode == null || errorCode < 1 || errorCode >= 100)
+                    if (errorCode == null || errorCode == 0)
                     {
+                        // use default value.
                         return ErrorCodeNormalClose;
+                    }
+                    else if (errorCode < 0 || errorCode >= 100)
+                    {
+                        return -1;
                     }
                     else
                     {
                         return errorCode.Value;
                     }
                 case ProtocolDatagram.OpCodeEnquireLinkAck:
-                    if (errorCode == null || errorCode < 100 || errorCode >= 200)
+                    if (errorCode == null || errorCode == 0)
                     {
-                        return ErrorCodeSessionOk;
+                        // return 0 as success in this case.
+                        return 0;
+                    }
+                    else if (errorCode < 100 || errorCode >= 200)
+                    {
+                        return -1;
                     }
                     else
                     {
                         return errorCode.Value;
                     }
                 case ProtocolDatagram.OpCodeDataAck:
-                    if (errorCode == null || errorCode < 200 || errorCode >= 300)
+                    if (errorCode == null || errorCode == 0)
                     {
-                        // no default in this case.
+                        // ignore in this case.
                         return 0;
+                    }
+                    else if (errorCode < 200 || errorCode >= 300)
+                    {
+                        return -1;
                     }
                     else
                     {
