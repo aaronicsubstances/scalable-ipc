@@ -49,7 +49,7 @@ namespace ScalableIPC.Core.Session.Abstractions
 
         // application layer interface.
         void OnDatagramDiscarded(ProtocolDatagram datagram);
-        void OnOpenReceived();
+        void OnOpenSuccess();
         void OnMessageReceived(ProtocolMessage message);
         void OnSessionDisposing(ProtocolOperationException cause);
         void OnSessionDisposed(ProtocolOperationException cause);

@@ -105,6 +105,8 @@ namespace ScalableIPC.Core.Session
             // complete pending promise.
             _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);
             _pendingPromiseCallback = null;
+
+            _sessionHandler.OnOpenSuccess();
         }
 
         private void OnSendError(ProtocolOperationException error)

@@ -68,7 +68,7 @@ namespace ScalableIPC.Core.Session
 
             // ready to pass on to application layer.
             ProcessOpenRequestOptions(openRequest.Options);
-            _sessionHandler.OnOpenReceived();
+            _sessionHandler.OnOpenSuccess();
         }
 
         private void ProcessOpenRequestOptions(ProtocolDatagramOptions openRequestOptions)

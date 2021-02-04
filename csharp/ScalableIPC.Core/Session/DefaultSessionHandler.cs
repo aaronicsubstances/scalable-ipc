@@ -25,10 +25,11 @@ namespace ScalableIPC.Core.Session
     /// </remarks>
     public class DefaultSessionHandler : IStandardSessionHandler
     {
-        public static readonly int StateOpen = 1;
-        public static readonly int StateClosing = 2;
-        public static readonly int StateDisposeAwaiting = 3;
-        public static readonly int StateDisposed = 4;
+        public static readonly int StateOpening = 1;
+        public static readonly int StateOpen = 3;
+        public static readonly int StateClosing = 5;
+        public static readonly int StateDisposeAwaiting = 7;
+        public static readonly int StateDisposed = 9;
 
         private AbstractEventLoopApi _taskExecutor;
         private List<ISessionStateHandler> _stateHandlers;
@@ -103,7 +104,7 @@ namespace ScalableIPC.Core.Session
         public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
         public string SessionId { get; private set; }
         public bool ConfiguredForSendOpen { get; private set; }
-        public int SessionState { get; set; } = StateOpen;
+        public int SessionState { get; set; } = StateOpening;
 
         public int MaxWindowSize { get; set; }
         public int MaxRetryCount { get; set; }
@@ -424,6 +425,12 @@ namespace ScalableIPC.Core.Session
 
         private void ProcessEnquireLinkTimerEvent()
         {
+            if (SessionState != StateOpen)
+            {
+                // stop timer.
+                return;
+            }
+
             OnEnquireLinkTimerFired();
 
             var enquireLinkDatagram = new ProtocolDatagram
@@ -547,7 +554,7 @@ namespace ScalableIPC.Core.Session
         // hence these once invoked, should continue execution outside event loop if possible, but after current
         // event in event loop has been processed.
         public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
-        public Action<ISessionHandler> OpenReceivedHandler { get; set; }
+        public Action<ISessionHandler> OpenSuccessHandler { get; set; }
         public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
@@ -563,11 +570,12 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void OnOpenReceived()
+        public void OnOpenSuccess()
         {
-            if (OpenReceivedHandler != null)
+            SessionState = StateOpen;
+            if (OpenSuccessHandler != null)
             {
-                PostEventLoopCallback(() => OpenReceivedHandler?.Invoke(this));
+                PostEventLoopCallback(() => OpenSuccessHandler?.Invoke(this));
             }
         }
 
