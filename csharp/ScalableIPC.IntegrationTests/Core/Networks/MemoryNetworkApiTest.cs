@@ -19,7 +19,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
     [Collection("SequentialTests")]
     public class MemoryNetworkApiTest
     {
-        internal static readonly string LogDataKeyConfiguredForSend = "configuredForSend";
+        internal static readonly string LogDataKeyConfiguredForSendOpen = "configuredForSend";
         internal static readonly string LogDataKeySendException = "sendException";
         internal static readonly string LogDataKeySerializedDatagram = "serializedDatagram";
         internal static readonly string LogDataKeyDatagramHashCode = "datagramHashCode";
@@ -180,7 +180,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.Null(record);
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
-            Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSend]);
+            Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSendOpen]);
             // Test that ProcessOpen is called.
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
@@ -214,7 +214,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
             var sessionId2 = sessionHandler2.SessionId;
             Assert.NotNull(sessionId2);
-            Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSend]);
+            Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSendOpen]);
             // Test that ProcessOpen is called.
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
@@ -411,7 +411,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
                         receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
                     Assert.NotNull(result);
-                    var actualConfiguredForSend = (bool)result.ParsedProperties[LogDataKeyConfiguredForSend];
+                    var actualConfiguredForSend = (bool)result.ParsedProperties[LogDataKeyConfiguredForSendOpen];
                     Assert.False(actualConfiguredForSend);
                 }
                 result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
@@ -1229,7 +1229,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                         "f8f6c939-09e2-4f8d-9b2b-fd25ee4ead9e"));
             }
 
-            public void CompleteInit(string sessionId, bool configureForInitialSend,
+            public void CompleteInit(string sessionId, bool configureForSendOpen,
                 AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint)
             {
                 CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "CompleteInit() called")
@@ -1237,10 +1237,11 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                         "3f4f66e2-dafc-4c79-aa42-6f988a337d78")
                     .AddProperty(CustomLogEvent.LogDataKeyCurrentLogicalThreadId,
                         networkApi.PromiseApi.CurrentLogicalThreadId)
-                    .AddProperty(LogDataKeyConfiguredForSend, configureForInitialSend));
+                    .AddProperty(LogDataKeyConfiguredForSendOpen, configureForSendOpen));
                 NetworkApi = networkApi;
                 RemoteEndpoint = remoteEndpoint;
                 SessionId = sessionId;
+                ConfiguredForSendOpen = configureForSendOpen;
             }
 
             public AbstractNetworkApi NetworkApi { get; private set; }
@@ -1248,6 +1249,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
 
             public string SessionId { get; private set; }
+            public bool ConfiguredForSendOpen { get; private set; }
 
             public int MaxWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }

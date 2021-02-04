@@ -32,11 +32,12 @@ namespace ScalableIPC.Core.Abstractions
     /// </remarks>
     public interface ISessionHandler
     {
-        void CompleteInit(string sessionId, bool configureForInitialSend,
+        void CompleteInit(string sessionId, bool configureForSendOpen,
             AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint);
         AbstractNetworkApi NetworkApi { get; }
         GenericNetworkIdentifier RemoteEndpoint { get; }
         string SessionId { get; }
+        bool ConfiguredForSendOpen { get; }
 
         AbstractPromise<VoidType> ProcessOpenAsync();
         AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram);

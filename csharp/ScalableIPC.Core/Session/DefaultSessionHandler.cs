@@ -43,12 +43,13 @@ namespace ScalableIPC.Core.Session
         public DefaultSessionHandler()
         { }
 
-        public void CompleteInit(string sessionId, bool configureForInitialSend,
+        public void CompleteInit(string sessionId, bool configureForSendOpen,
             AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint)
         {
             NetworkApi = networkApi;
             RemoteEndpoint = remoteEndpoint;
             SessionId = sessionId;
+            ConfiguredForSendOpen = configureForSendOpen;
 
             _taskExecutor = CreateEventLoop();
 
@@ -58,7 +59,7 @@ namespace ScalableIPC.Core.Session
             _stateHandlers.Add(new SendDataWithoutAckHandler(this));
             _closeHandler = new CloseHandler(this);
             _stateHandlers.Add(_closeHandler);
-            if (configureForInitialSend)
+            if (configureForSendOpen)
             {
                 _stateHandlers.Add(new SendOpenHandler(this));
             }
@@ -101,7 +102,7 @@ namespace ScalableIPC.Core.Session
         public AbstractNetworkApi NetworkApi { get; private set; }
         public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
         public string SessionId { get; private set; }
-
+        public bool ConfiguredForSendOpen { get; private set; }
         public int SessionState { get; set; } = StateOpen;
 
         public int MaxWindowSize { get; set; }
