@@ -46,12 +46,6 @@ namespace ScalableIPC.Core.Session
             _pendingPromiseCallback = null;
         }
 
-        public bool ProcessOpen(PromiseCompletionSource<VoidType> promiseCb)
-        {
-            ProcessOpenRequest(promiseCb);
-            return true;
-        }
-
         public bool ProcessReceive(ProtocolDatagram datagram)
         {
             if (datagram.OpCode != ProtocolDatagram.OpCodeOpenAck)
@@ -70,17 +64,7 @@ namespace ScalableIPC.Core.Session
             return true;
         }
 
-        public bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
-        public bool ProcessSendWithoutAck(ProtocolMessage message, PromiseCompletionSource<bool> promiseCb)
-        {
-            return false;
-        }
-
-        private void ProcessOpenRequest(PromiseCompletionSource<VoidType> promiseCb)
+        public void ProcessOpen(PromiseCompletionSource<VoidType> promiseCb)
         {
             if (_sessionHandler.NextWindowIdToSend != 0)
             {

@@ -37,11 +37,6 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public bool ProcessOpen(PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
         public bool ProcessReceive(ProtocolDatagram datagram)
         {
             if (datagram.OpCode != ProtocolDatagram.OpCodeDataAck)
@@ -61,18 +56,7 @@ namespace ScalableIPC.Core.Session
             return true;
         }
 
-        public bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
-        public bool ProcessSendWithoutAck(ProtocolMessage message, PromiseCompletionSource<bool> promiseCb)
-        {
-            ProcessSendWithoutAckRequest(message, promiseCb);
-            return true;
-        }
-
-        private void ProcessSendWithoutAckRequest(ProtocolMessage message,
+        public void ProcessSendWithoutAck(ProtocolMessage message,
            PromiseCompletionSource<bool> promiseCb)
         {
             // ensure minimum of 512 and maximum = datagram max length

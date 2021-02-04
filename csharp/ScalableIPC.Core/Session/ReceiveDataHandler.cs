@@ -34,11 +34,6 @@ namespace ScalableIPC.Core.Session
             _currentWindowHandler = null;
         }
 
-        public bool ProcessOpen(PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
         public bool ProcessReceive(ProtocolDatagram datagram)
         {
             // check opcode.
@@ -49,16 +44,6 @@ namespace ScalableIPC.Core.Session
 
             OnReceiveRequest(datagram);
             return true;
-        }
-
-        public bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
-        public bool ProcessSendWithoutAck(ProtocolMessage message, PromiseCompletionSource<bool> promiseCb)
-        {
-            return false;
         }
 
         private void OnReceiveRequest(ProtocolDatagram datagram)

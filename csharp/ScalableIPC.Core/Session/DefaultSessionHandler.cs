@@ -33,6 +33,9 @@ namespace ScalableIPC.Core.Session
 
         private AbstractEventLoopApi _taskExecutor;
         private List<ISessionStateHandler> _stateHandlers;
+        private SendOpenHandler _openHandler;
+        private SendDataHandler _sendHandler;
+        private SendDataWithoutAckHandler _sendWithoutAckHandler;
         private CloseHandler _closeHandler;
 
         private object _lastIdleTimeoutId;
@@ -53,16 +56,19 @@ namespace ScalableIPC.Core.Session
             ConfiguredForSendOpen = configureForSendOpen;
 
             _taskExecutor = CreateEventLoop();
+            _sendHandler = new SendDataHandler(this);
+            _sendWithoutAckHandler = new SendDataWithoutAckHandler(this);
+            _closeHandler = new CloseHandler(this);
 
             _stateHandlers = new List<ISessionStateHandler>();
             _stateHandlers.Add(new ReceiveDataHandler(this));
-            _stateHandlers.Add(new SendDataHandler(this));
-            _stateHandlers.Add(new SendDataWithoutAckHandler(this));
-            _closeHandler = new CloseHandler(this);
+            _stateHandlers.Add(_sendHandler);
+            _stateHandlers.Add(_sendWithoutAckHandler);
             _stateHandlers.Add(_closeHandler);
             if (configureForSendOpen)
             {
-                _stateHandlers.Add(new SendOpenHandler(this));
+                _openHandler = new SendOpenHandler(this);
+                _stateHandlers.Add(_openHandler);
             }
             else
             {
@@ -164,19 +170,11 @@ namespace ScalableIPC.Core.Session
                     EnsureSendNotInProgress();
                     ResetIdleTimeout();
                     ScheduleEnquireLinkEvent(true);
-                    bool handled = false;
-                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
+                    if (_openHandler == null)
                     {
-                        handled = stateHandler.ProcessOpen(promiseCb);
-                        if (handled)
-                        {
-                            break;
-                        }
+                        throw new Exception("No state handler found to process open");
                     }
-                    if (!handled)
-                    {
-                        promiseCb.CompleteExceptionally(new Exception("No state handler found to process open"));
-                    }
+                    _openHandler.ProcessOpen(promiseCb);
                 }
             }, promiseCb);
             return promiseCb.RelatedPromise;
@@ -222,19 +220,7 @@ namespace ScalableIPC.Core.Session
                     EnsureSendNotInProgress();
                     ResetIdleTimeout();
                     ScheduleEnquireLinkEvent(true);
-                    bool handled = false;
-                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
-                    {
-                        handled = stateHandler.ProcessSend(message, promiseCb);
-                        if (handled)
-                        {
-                            break;
-                        }
-                    }
-                    if (!handled)
-                    {
-                        promiseCb.CompleteExceptionally(new Exception("No state handler found to process send"));
-                    }
+                    _sendHandler.ProcessSend(message, promiseCb);
                 }
             }, promiseCb);
             return promiseCb.RelatedPromise;
@@ -254,26 +240,14 @@ namespace ScalableIPC.Core.Session
                     EnsureSendNotInProgress();
                     ResetIdleTimeout();
                     ScheduleEnquireLinkEvent(true);
-                    bool handled = false;
-                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
-                    {
-                        handled = stateHandler.ProcessSendWithoutAck(message, promiseCb);
-                        if (handled)
-                        {
-                            break;
-                        }
-                    }
-                    if (!handled)
-                    {
-                        promiseCb.CompleteExceptionally(new Exception("No state handler found to process send without ack"));
-                    }
+                    _sendWithoutAckHandler.ProcessSendWithoutAck(message, promiseCb);
                 }
             }, WrapPromiseCbForEventLoopPost(promiseCb));
             return promiseCb.RelatedPromise;
         }
 
         /// <summary>
-        /// Work around reified generics by converting argument to one with VoidType
+        /// Work around reified generics by converting argument to one of VoidType
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="wrapped"></param>

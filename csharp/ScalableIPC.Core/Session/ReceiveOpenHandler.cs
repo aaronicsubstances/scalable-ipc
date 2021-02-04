@@ -30,11 +30,6 @@ namespace ScalableIPC.Core.Session
             _delegateHandler.Cancel();
         }
 
-        public bool ProcessOpen(PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
         public bool ProcessReceive(ProtocolDatagram datagram)
         {
             if (datagram.OpCode != ProtocolDatagram.OpCodeOpen)
@@ -44,16 +39,6 @@ namespace ScalableIPC.Core.Session
 
             ProcessReceiveOpen(datagram);
             return true;
-        }
-
-        public bool ProcessSend(ProtocolMessage message, PromiseCompletionSource<VoidType> promiseCb)
-        {
-            return false;
-        }
-
-        public bool ProcessSendWithoutAck(ProtocolMessage message, PromiseCompletionSource<bool> promiseCb)
-        {
-            return false;
         }
 
         private void ProcessReceiveOpen(ProtocolDatagram datagram)
