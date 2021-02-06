@@ -96,7 +96,7 @@ namespace ScalableIPC.Core.Session
         public Func<int, int> EnquireLinkIntervalAlgorithm { get; set; }
 
         public long NextWindowIdToSend { get; set; }
-        public long LastWindowIdReceived { get; set; }
+        public long LastWindowIdReceived { get; set; } = -1; // so 0 can be accepted as initial valid window id. 
 
         public ProtocolDatagram LastAck { get; set; }
         public int? RemoteIdleTimeout { get; set; }
