@@ -74,7 +74,7 @@ namespace ScalableIPC.Core.Session
             }
             else
             {
-                _sessionHandler.InitiateDisposeBypassingSendClose(new ProtocolOperationException(enquireLinkErrorCode));
+                _sessionHandler.InitiateDispose(new ProtocolOperationException(enquireLinkErrorCode));
             }
         }
 
@@ -119,7 +119,7 @@ namespace ScalableIPC.Core.Session
                 _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null, null);
             }
 
-            _sessionHandler.InitiateDisposeBypassingSendClose(cause);
+            _sessionHandler.InitiateDispose(cause);
         }
 
         public void ProcessSendClose(ProtocolOperationException cause)
@@ -153,7 +153,7 @@ namespace ScalableIPC.Core.Session
         private void OnSendSuccessOrError(ProtocolOperationException cause)
         {
             SendInProgress = false;
-            _sessionHandler.InitiateDisposeBypassingSendClose(cause);
+            _sessionHandler.InitiateDispose(cause);
         }
     }
 }

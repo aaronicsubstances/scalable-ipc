@@ -16,6 +16,7 @@ namespace ScalableIPC.Core
         public const string OptionNameMaxWindowSize = KnownOptionPrefix + "20";
         public const string OptionNameIsLastInWindow = KnownOptionPrefix + "01";
         public const string OptionNameIsLastInWindowGroup = KnownOptionPrefix + "02";
+        public const string OptionNameIsFirstInWindowGroup = KnownOptionPrefix + "00";
         public const string OptionNameTraceId = KnownOptionPrefix + "traceId";
 
         public ProtocolDatagramOptions()
@@ -37,7 +38,8 @@ namespace ScalableIPC.Core
         public bool? IsLastInWindowGroup { get; set; }
         public string TraceId { get; set; }
         public int? MaxWindowSize { get; set; }
-        
+        public bool? IsFirstInWindowGroup { get; set; }
+
         public override string ToString()
         {
             var sb = new StringBuilder();
@@ -55,6 +57,8 @@ namespace ScalableIPC.Core
             sb.Append(nameof(TraceId)).Append("=").Append(TraceId);
             sb.Append(", ");
             sb.Append(nameof(MaxWindowSize)).Append("=").Append(MaxWindowSize);
+            sb.Append(", ");
+            sb.Append(nameof(IsFirstInWindowGroup)).Append("=").Append(IsFirstInWindowGroup);
             sb.Append(", ");
             sb.Append(nameof(AllOptions)).Append("=").Append(StringUtilities.StringifyOptions(AllOptions));
             sb.Append("}");
@@ -87,6 +91,7 @@ namespace ScalableIPC.Core
             IsLastInWindowGroup = null;
             TraceId = null;
             MaxWindowSize = null;
+            IsFirstInWindowGroup = null;
 
             // Now identify and validate known options.
             // In case of repetition, last one wins.
@@ -122,6 +127,9 @@ namespace ScalableIPC.Core
                             break;
                         case OptionNameMaxWindowSize:
                             MaxWindowSize = ParseOptionAsInt32(value);
+                            break;
+                        case OptionNameIsFirstInWindowGroup:
+                            IsFirstInWindowGroup = ParseOptionAsBoolean(value);
                             break;
                         default:
                             break;
@@ -188,7 +196,7 @@ namespace ScalableIPC.Core
                     else
                     {
                         if (kvp.Key == OptionNameIsLastInWindow || kvp.Key == OptionNameIsLastInWindowGroup ||
-                            kvp.Key == OptionNameIsWindowFull)
+                            kvp.Key == OptionNameIsWindowFull || kvp.Key == OptionNameIsFirstInWindowGroup)
                         {
                             isDefinedDifferently = !lastValue.Equals(overridingValue, StringComparison.OrdinalIgnoreCase);
                         }
@@ -248,6 +256,10 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameMaxWindowSize, MaxWindowSize.ToString());
             }
+            if (IsFirstInWindowGroup != null)
+            {
+                knownOptions.Add(OptionNameIsFirstInWindowGroup, IsFirstInWindowGroup.ToString());
+            }
             return knownOptions;
         }
 
@@ -280,6 +292,10 @@ namespace ScalableIPC.Core
             if (MaxWindowSize != null)
             {
                 destOptions.MaxWindowSize = MaxWindowSize;
+            }
+            if (IsFirstInWindowGroup != null)
+            {
+                destOptions.IsFirstInWindowGroup = IsFirstInWindowGroup;
             }
         }
     }

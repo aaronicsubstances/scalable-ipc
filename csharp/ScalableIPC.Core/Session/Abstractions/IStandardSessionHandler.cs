@@ -15,9 +15,8 @@ namespace ScalableIPC.Core.Session.Abstractions
         AbstractEventLoopApi CreateEventLoop();
         ISendHandlerAssistant CreateSendHandlerAssistant();
         IRetrySendHandlerAssistant CreateRetrySendHandlerAssistant();
-        IReceiveHandlerAssistant CreateReceiveHandlerAssistant();
 
-        int SessionState { get; set; }
+        int State { get; set; }
 
         // Rules for window id changes are:
         //  - Receiver usually accepts only next ids larger than last received window id.
@@ -28,6 +27,9 @@ namespace ScalableIPC.Core.Session.Abstractions
         long NextWindowIdToSend { get; set; }
         long LastWindowIdReceived { get; set; }
         ProtocolDatagram LastAck { get; set; }
+        bool OpenedForSend { get; set; }
+        bool OpenedForReceive { get; set; }
+        bool OpenSuccessHandlerCalled { get; set; }
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();
         void EnsureSendNotInProgress();
@@ -35,12 +37,13 @@ namespace ScalableIPC.Core.Session.Abstractions
         int? RemoteIdleTimeout { get; set; }
         int? RemoteMaxWindowSize { get; set; } // non-positive means ignore it.
 
+        void CancelOpenTimeout();
         void ResetIdleTimeout();
         void ScheduleEnquireLinkEvent(bool reset);
         void ResetAckTimeout(int timeout, Action cb);
         void CancelAckTimeout();
-        void InitiateDispose(ProtocolOperationException cause, PromiseCompletionSource<VoidType> promiseCb);
-        void InitiateDisposeBypassingSendClose(ProtocolOperationException cause);
+        void InitiateDisposeGracefully(ProtocolOperationException cause, PromiseCompletionSource<VoidType> promiseCb);
+        void InitiateDispose(ProtocolOperationException cause);
 
         // event loop method for use by session state handlers
         void PostEventLoopCallback(Action cb, PromiseCompletionSource<VoidType> promisesCb);
