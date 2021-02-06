@@ -33,9 +33,7 @@ namespace ScalableIPC.Core.Session
 
         private AbstractEventLoopApi _taskExecutor;
         private List<ISessionStateHandler> _stateHandlers;
-        private SendOpenHandler _openHandler;
         private SendDataHandler _sendHandler;
-        private SendDataWithoutAckHandler _sendWithoutAckHandler;
         private CloseHandler _closeHandler;
 
         private object _lastIdleTimeoutId;
@@ -47,33 +45,20 @@ namespace ScalableIPC.Core.Session
         public DefaultSessionHandler()
         { }
 
-        public void CompleteInit(string sessionId, bool configureForSendOpen,
-            AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint)
+        public void CompleteInit(string sessionId, AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint)
         {
             NetworkApi = networkApi;
             RemoteEndpoint = remoteEndpoint;
             SessionId = sessionId;
-            ConfiguredForSendOpen = configureForSendOpen;
 
             _taskExecutor = CreateEventLoop();
             _sendHandler = new SendDataHandler(this);
-            _sendWithoutAckHandler = new SendDataWithoutAckHandler(this);
             _closeHandler = new CloseHandler(this);
 
             _stateHandlers = new List<ISessionStateHandler>();
             _stateHandlers.Add(new ReceiveDataHandler(this));
             _stateHandlers.Add(_sendHandler);
-            _stateHandlers.Add(_sendWithoutAckHandler);
             _stateHandlers.Add(_closeHandler);
-            if (configureForSendOpen)
-            {
-                _openHandler = new SendOpenHandler(this);
-                _stateHandlers.Add(_openHandler);
-            }
-            else
-            {
-                _stateHandlers.Add(new ReceiveOpenHandler(this));
-            }
         }
 
         public AbstractEventLoopApi CreateEventLoop()
@@ -96,20 +81,9 @@ namespace ScalableIPC.Core.Session
             return new ReceiveHandlerAssistant(this);
         }
 
-        public IReceiveOpenHandlerAssistant CreateReceiveOpenHandlerAssistant()
-        {
-            return new ReceiveOpenHandlerAssistant(this);
-        }
-
-        public IFireAndForgetSendHandlerAssistant CreateFireAndForgetSendHandlerAssistant()
-        {
-            return new FireAndForgetSendHandlerAssistant(this);
-        }
-
         public AbstractNetworkApi NetworkApi { get; private set; }
         public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
         public string SessionId { get; private set; }
-        public bool ConfiguredForSendOpen { get; private set; }
         public int SessionState { get; set; } = StateOpening;
 
         public int MaxWindowSize { get; set; }
@@ -118,15 +92,11 @@ namespace ScalableIPC.Core.Session
         public int IdleTimeout { get; set; }
         public int MinRemoteIdleTimeout { get; set; }
         public int MaxRemoteIdleTimeout { get; set; }
-        public double FireAndForgetSendProbability { get; set; }
         public int EnquireLinkInterval { get; set; }
         public Func<int, int> EnquireLinkIntervalAlgorithm { get; set; }
 
-        // Protocol requires initial value for window id to be 0,
-        // and hence last window id should be negative to trigger
-        // validation logic to expect 0.
-        public long NextWindowIdToSend { get; set; } = 0;
-        public long LastWindowIdReceived { get; set; } = -1;
+        public long NextWindowIdToSend { get; set; }
+        public long LastWindowIdReceived { get; set; }
 
         public ProtocolDatagram LastAck { get; set; }
         public int? RemoteIdleTimeout { get; set; }
@@ -155,30 +125,6 @@ namespace ScalableIPC.Core.Session
             {
                 throw new Exception("Send is in progress");
             }
-        }
-
-        public AbstractPromise<VoidType> ProcessOpenAsync()
-        {
-            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
-            PostEventLoopCallback(() =>
-            {
-                if (SessionState >= StateDisposeAwaiting)
-                {
-                    promiseCb.CompleteExceptionally(_disposalCause);
-                }                
-                else
-                {
-                    if (_openHandler == null)
-                    {
-                        throw new Exception("Not configured to inititate opening of session");
-                    }
-                    EnsureSendNotInProgress();
-                    ResetIdleTimeout();
-                    ScheduleEnquireLinkEvent(true);
-                    _openHandler.ProcessOpen(promiseCb);
-                }
-            }, promiseCb);
-            return promiseCb.RelatedPromise;
         }
 
         public AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram)
@@ -225,45 +171,6 @@ namespace ScalableIPC.Core.Session
                 }
             }, promiseCb);
             return promiseCb.RelatedPromise;
-        }
-
-        public AbstractPromise<bool> SendWithoutAckAsync(ProtocolMessage message)
-        {
-            PromiseCompletionSource<bool> promiseCb = NetworkApi.PromiseApi.CreateCallback<bool>(_taskExecutor);
-            PostEventLoopCallback(() =>
-            {
-                if (SessionState >= StateDisposeAwaiting)
-                {
-                    promiseCb.CompleteExceptionally(_disposalCause);
-                }
-                else
-                {
-                    EnsureSendNotInProgress();
-                    ResetIdleTimeout();
-                    ScheduleEnquireLinkEvent(true);
-                    _sendWithoutAckHandler.ProcessSendWithoutAck(message, promiseCb);
-                }
-            }, WrapPromiseCbForEventLoopPost(promiseCb));
-            return promiseCb.RelatedPromise;
-        }
-
-        /// <summary>
-        /// Work around reified generics by converting argument to one of VoidType
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="wrapped"></param>
-        /// <returns></returns>
-        private PromiseCompletionSource<VoidType> WrapPromiseCbForEventLoopPost<T>(PromiseCompletionSource<T> wrapped)
-        {
-            var promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(null);
-            promiseCb.RelatedPromise.CatchCompose(ex =>
-            {
-                wrapped.CompleteExceptionally(ex);
-                return NetworkApi.PromiseApi.CompletedPromise();
-            });
-            // prevent promise cb from hanging by completing it no matter what.
-            wrapped.RelatedPromise.Finally(() => promiseCb.CompleteSuccessfully(VoidType.Instance));
-            return promiseCb;
         }
 
         public AbstractPromise<VoidType> CloseAsync()

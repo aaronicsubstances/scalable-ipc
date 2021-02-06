@@ -18,8 +18,8 @@ namespace ScalableIPC.Core.Session
             _sessionHandler = sessionHandler;
         }
         
-        internal List<ProtocolDatagram> CurrentWindowGroup { get; private set; }
-        internal int SentDatagramCountInCurrentWindowGroup { get; private set; }
+        public List<ProtocolDatagram> CurrentWindowGroup { get; private set; }
+        public int SentDatagramCountInCurrentWindowGroup { get; private set; }
         public bool SendInProgress { get; set; }
 
         public void Dispose(ProtocolOperationException cause)

@@ -19,7 +19,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
     [Collection("SequentialTests")]
     public class MemoryNetworkApiTest
     {
-        internal static readonly string LogDataKeyConfiguredForSendOpen = "configuredForSend";
         internal static readonly string LogDataKeySendException = "sendException";
         internal static readonly string LogDataKeySerializedDatagram = "serializedDatagram";
         internal static readonly string LogDataKeyDatagramHashCode = "datagramHashCode";
@@ -180,10 +179,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.Null(record);
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
-            Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSendOpen]);
-            // Test that ProcessOpen is called.
-            record = logNavigator.Next(
-                rec => rec.Properties.Contains("12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
             Assert.NotNull(record);
 
             // test that session id can't be reused. 
@@ -212,13 +207,9 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.NotNull(record);
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
+            Assert.NotNull(record);
             var sessionId2 = sessionHandler2.SessionId;
             Assert.NotNull(sessionId2);
-            Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSendOpen]);
-            // Test that ProcessOpen is called.
-            record = logNavigator.Next(
-                rec => rec.Properties.Contains("12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
-            Assert.NotNull(record);
 
             // test that session id can't be reused. 
             await Assert.ThrowsAnyAsync<Exception>(() =>
@@ -411,8 +402,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
                         receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
                     Assert.NotNull(result);
-                    var actualConfiguredForSend = (bool)result.ParsedProperties[LogDataKeyConfiguredForSendOpen];
-                    Assert.False(actualConfiguredForSend);
                 }
                 result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
                     receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
@@ -1229,19 +1218,17 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                         "f8f6c939-09e2-4f8d-9b2b-fd25ee4ead9e"));
             }
 
-            public void CompleteInit(string sessionId, bool configureForSendOpen,
-                AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint)
+            public void CompleteInit(string sessionId, AbstractNetworkApi networkApi, 
+                GenericNetworkIdentifier remoteEndpoint)
             {
                 CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "CompleteInit() called")
                     .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
                         "3f4f66e2-dafc-4c79-aa42-6f988a337d78")
                     .AddProperty(CustomLogEvent.LogDataKeyCurrentLogicalThreadId,
-                        networkApi.PromiseApi.CurrentLogicalThreadId)
-                    .AddProperty(LogDataKeyConfiguredForSendOpen, configureForSendOpen));
+                        networkApi.PromiseApi.CurrentLogicalThreadId));
                 NetworkApi = networkApi;
                 RemoteEndpoint = remoteEndpoint;
                 SessionId = sessionId;
-                ConfiguredForSendOpen = configureForSendOpen;
             }
 
             public AbstractNetworkApi NetworkApi { get; private set; }
@@ -1249,7 +1236,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
 
             public string SessionId { get; private set; }
-            public bool ConfiguredForSendOpen { get; private set; }
 
             public int MaxWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
@@ -1259,7 +1245,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public int IdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MinRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public double FireAndForgetSendProbability { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int EnquireLinkInterval { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Func<int, int> EnquireLinkIntervalAlgorithm { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
@@ -1294,14 +1279,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 return NetworkApi.PromiseApi.CompletedPromise();
             }
 
-            public AbstractPromise<VoidType> ProcessOpenAsync()
-            {
-                CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "ProcessOpenAsync() called")
-                        .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
-                           "12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
-                return NetworkApi.PromiseApi.CompletedPromise();
-            }
-
             public AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram)
             {
                 var datagramBytes = datagram.ToRawDatagram();
@@ -1326,11 +1303,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             }
 
             public AbstractPromise<VoidType> SendAsync(ProtocolMessage message)
-            {
-                throw new NotImplementedException();
-            }
-
-            public AbstractPromise<bool> SendWithoutAckAsync(ProtocolMessage message)
             {
                 throw new NotImplementedException();
             }

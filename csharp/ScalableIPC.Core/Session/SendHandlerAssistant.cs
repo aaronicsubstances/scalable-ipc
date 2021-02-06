@@ -59,10 +59,7 @@ namespace ScalableIPC.Core.Session
         {
             object previousSendContext = SendContext;
             SendContext = _sessionHandler.NetworkApi.CreateSendContext(RetryCount, previousSendContext);
-            if (previousSendContext != null)
-            {
-                _sessionHandler.NetworkApi.DisposeSendContext(previousSendContext);
-            }
+            _sessionHandler.NetworkApi.DisposeSendContext(previousSendContext);
             ContinueSending();
         }
 
@@ -93,6 +90,10 @@ namespace ScalableIPC.Core.Session
             if (IsComplete)
             {
                 throw new Exception("Cannot reuse cancelled handler");
+            }
+            if (!IsStarted)
+            {
+                throw new Exception("handler has not been started");
             }
 
             if (_sessionHandler.NextWindowIdToSend != ack.WindowId)

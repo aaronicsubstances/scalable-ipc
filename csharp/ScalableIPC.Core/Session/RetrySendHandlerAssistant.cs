@@ -48,6 +48,10 @@ namespace ScalableIPC.Core.Session
             {
                 throw new Exception("Cannot reuse cancelled handler");
             }
+            if (!IsStarted)
+            {
+                throw new Exception("handler has not been started");
+            }
 
             _currentWindowHandler?.OnAckReceived(datagram);
         }

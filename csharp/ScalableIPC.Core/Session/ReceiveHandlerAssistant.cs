@@ -8,12 +8,10 @@ namespace ScalableIPC.Core.Session
     public class ReceiveHandlerAssistant: IReceiveHandlerAssistant
     {
         private readonly IStandardSessionHandler _sessionHandler;
-        private readonly List<long> _groupedWindowIds;
 
         public ReceiveHandlerAssistant(IStandardSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
-            _groupedWindowIds = new List<long>();
         }
 
         public List<ProtocolDatagram> CurrentWindow { get; } = new List<ProtocolDatagram>();
@@ -35,21 +33,23 @@ namespace ScalableIPC.Core.Session
                 throw new Exception("Cannot reuse cancelled handler");
             }
 
-            if (datagram.WindowId == _sessionHandler.LastWindowIdReceived)
-            {
-                // already received and passed to application layer.
-                // just send back repeat acknowledgement.
-
-                /* fire and forget */
-                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, 
-                    _sessionHandler.LastAck, null, null);
-                return;
-            }
-
             // Reject unexpected window id
             if (!ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId, _sessionHandler.LastWindowIdReceived))
             {
-               _sessionHandler.OnDatagramDiscarded(datagram);
+                // before rejecting very important: check if datagram is for last processed window.
+                if (_sessionHandler.LastAck != null && datagram.WindowId == _sessionHandler.LastAck.WindowId)
+                {
+                    // already received and passed to application layer.
+                    // just send back repeat acknowledgement.
+
+                    /* fire and forget */
+                    _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint,
+                        _sessionHandler.LastAck, null, null);
+                }
+                else
+                {
+                    _sessionHandler.OnDatagramDiscarded(datagram);
+                }
                 return;
             }
 
@@ -61,6 +61,7 @@ namespace ScalableIPC.Core.Session
             }
 
             // Successful received datagram into window.
+            _sessionHandler.LastWindowIdReceived = datagram.WindowId;
 
             // determine size of sliding window
             var lastEffectiveSeqNr = GetLastPositionInSlidingWindow(CurrentWindow);
@@ -133,9 +134,7 @@ namespace ScalableIPC.Core.Session
             }
 
             // Reset last window bounds and current window.
-            _sessionHandler.LastWindowIdReceived = CurrentWindow[0].WindowId;
             CurrentWindow.Clear();
-            _groupedWindowIds.Add(_sessionHandler.LastWindowIdReceived);
 
             // finally send ack response for full window
             // ignore any send ack errors.

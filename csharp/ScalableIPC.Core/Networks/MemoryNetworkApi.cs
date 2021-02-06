@@ -133,13 +133,9 @@ namespace ScalableIPC.Core.Networks
                 {
                     _sessionHandlerStore.Add(remoteEndpoint, sessionId,
                         new SessionHandlerWrapper(sessionHandler));
-                    sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
+                    sessionHandler.CompleteInit(sessionId, this, remoteEndpoint);
                 }
-                return sessionHandler.ProcessOpenAsync()
-                    .Then(_ =>
-                    {
-                        return sessionHandler;
-                    });
+                return PromiseApi.Resolve(sessionHandler);
             }
             catch (Exception ex)
             {
@@ -344,7 +340,7 @@ namespace ScalableIPC.Core.Networks
                     }
                     _sessionHandlerStore.Add(remoteEndpoint, datagram.SessionId,
                         new SessionHandlerWrapper(sessionHandler));
-                    sessionHandler.CompleteInit(datagram.SessionId, false, this, remoteEndpoint);
+                    sessionHandler.CompleteInit(datagram.SessionId, this, remoteEndpoint);
                 }
             }
             return sessionHandler.ProcessReceiveAsync(datagram);

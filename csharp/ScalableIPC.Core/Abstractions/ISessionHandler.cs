@@ -32,17 +32,12 @@ namespace ScalableIPC.Core.Abstractions
     /// </remarks>
     public interface ISessionHandler
     {
-        void CompleteInit(string sessionId, bool configureForSendOpen,
-            AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint);
+        void CompleteInit(string sessionId, AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint);
         AbstractNetworkApi NetworkApi { get; }
         GenericNetworkIdentifier RemoteEndpoint { get; }
         string SessionId { get; }
-        bool ConfiguredForSendOpen { get; }
-
-        AbstractPromise<VoidType> ProcessOpenAsync();
         AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram);
         AbstractPromise<VoidType> SendAsync(ProtocolMessage message);
-        AbstractPromise<bool> SendWithoutAckAsync(ProtocolMessage message);
         AbstractPromise<VoidType> CloseAsync();
         AbstractPromise<VoidType> CloseAsync(int errorCode);
         AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause);
@@ -52,10 +47,6 @@ namespace ScalableIPC.Core.Abstractions
         int MaxRemoteIdleTimeout { get; set; }
         int MaxWindowSize { get; set; } // non-positive means use 1.
         int MaxRetryCount { get; set; } // negative means use 0.
-                                        
-        // ranges from 0 to 1. non-positive means always ignore. 
-        // 1 or more means always send.
-        double FireAndForgetSendProbability { get; set; }
         int EnquireLinkInterval { get; set; } // non-positive means disable enquire link timer
         Func<int, int> EnquireLinkIntervalAlgorithm { get; set; }
 
