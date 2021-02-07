@@ -91,9 +91,8 @@ namespace ScalableIPC.Core.Session
         public long LastWindowIdReceived { get; set; } = -1; // so 0 can be accepted as an initial valid window id. 
 
         public ProtocolDatagram LastAck { get; set; }
-        public bool OpenedForSend { get; set; }
-        public bool OpenedForReceive { get; set; }
-        public bool OpenSuccessHandlerCalled { get; set; }
+        public bool OpenSuccessHandlerCalledOnReceive { get; set; }
+        public bool OpenSuccessHandlerCalledOnSend { get; set; }
         public int? RemoteIdleTimeout { get; set; }
         public int? RemoteMaxWindowSize { get; set; }
 
@@ -320,7 +319,7 @@ namespace ScalableIPC.Core.Session
         private void ProcessOpenTimeout()
         {
             _lastOpenTimeoutId = null;
-            InitiateDisposeGracefully(new ProtocolOperationException(ProtocolOperationException.ErrorCodeOpenTimeout), null);
+            InitiateDispose(new ProtocolOperationException(ProtocolOperationException.ErrorCodeOpenTimeout));
         }
 
         private void ProcessIdleTimeout()
@@ -487,7 +486,7 @@ namespace ScalableIPC.Core.Session
         // hence these once invoked, should continue execution outside event loop if possible, but after current
         // event in event loop has been processed.
         public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
-        public Action<ISessionHandler> OpenSuccessHandler { get; set; }
+        public Action<ISessionHandler, bool> OpenSuccessHandler { get; set; }
         public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
@@ -504,11 +503,11 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void OnOpenSuccess()
+        public void OnOpenSuccess(bool onReceive)
         {
             if (OpenSuccessHandler != null)
             {
-                PostEventLoopCallback(() => OpenSuccessHandler?.Invoke(this), null);
+                PostEventLoopCallback(() => OpenSuccessHandler?.Invoke(this, onReceive), null);
             }
         }
 

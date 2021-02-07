@@ -27,9 +27,8 @@ namespace ScalableIPC.Core.Session.Abstractions
         long NextWindowIdToSend { get; set; }
         long LastWindowIdReceived { get; set; }
         ProtocolDatagram LastAck { get; set; }
-        bool OpenedForSend { get; set; }
-        bool OpenedForReceive { get; set; }
-        bool OpenSuccessHandlerCalled { get; set; }
+        bool OpenSuccessHandlerCalledOnReceive { get; set; }
+        bool OpenSuccessHandlerCalledOnSend { get; set; }
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();
         void EnsureSendNotInProgress();
@@ -50,7 +49,7 @@ namespace ScalableIPC.Core.Session.Abstractions
 
         // application layer interface.
         void OnDatagramDiscarded(ProtocolDatagram datagram);
-        void OnOpenSuccess();
+        void OnOpenSuccess(bool onReceive);
         void OnMessageReceived(ProtocolMessage message);
         void OnSessionDisposing(ProtocolOperationException cause);
         void OnSessionDisposed(ProtocolOperationException cause);

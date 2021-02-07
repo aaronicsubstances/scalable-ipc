@@ -7,9 +7,9 @@ namespace ScalableIPC.Core.Session
     public static class SessionState
     {
         public static readonly int Opening = 1;
-        public static readonly int Opened = 3;
-        public static readonly int Closing = 5;
-        public static readonly int DisposeAwaiting = 7;
-        public static readonly int Disposed = 9;
+        public static readonly int Opened = 2;
+        public static readonly int Closing = 3;
+        public static readonly int DisposeAwaiting = 4;
+        public static readonly int Disposed = 5;
     }
 }

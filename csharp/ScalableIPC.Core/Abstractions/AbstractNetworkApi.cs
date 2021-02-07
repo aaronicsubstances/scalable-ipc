@@ -29,6 +29,7 @@ namespace ScalableIPC.Core.Abstractions
         object CreateSendContext(int retryCount, object previousSendContext);
         void DisposeSendContext(object sendContext);
         int DetermineAckTimeout(object sendContext);
+        void SetSessionState(object sendContext, int state);
         AbstractPromise<VoidType> StartAsync();
 
         AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,

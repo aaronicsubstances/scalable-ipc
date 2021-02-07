@@ -52,7 +52,7 @@ namespace ScalableIPC.Core.Abstractions
 
         // application layer interface. contract here is that these should be scheduled on event loop.
         Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
-        Action<ISessionHandler> OpenSuccessHandler { get; set; }
+        Action<ISessionHandler, bool> OpenSuccessHandler { get; set; }
         Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }

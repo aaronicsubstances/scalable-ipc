@@ -28,7 +28,7 @@ namespace ScalableIPC.Core.Session
 
         public bool ProcessReceive(ProtocolDatagram datagram)
         {
-            if (datagram.OpCode != ProtocolDatagram.OpCodeOpen && datagram.OpCode != ProtocolDatagram.OpCodeData)
+            if (datagram.OpCode != ProtocolDatagram.OpCodeData)
             {
                 return false;
             }
@@ -62,37 +62,9 @@ namespace ScalableIPC.Core.Session
             // validate session state in which PDU has been received.
             // but after validating window id, so that acks can be repeatedly returned
             // for incoming PDUs which have already been processed, regardless of state.
-            if (_sessionHandler.State == SessionState.Opening)
-            {
-                if (datagram.OpCode != ProtocolDatagram.OpCodeOpen)
-                {
-                    _sessionHandler.OnDatagramDiscarded(datagram);
-                    return;
-                }
-            }
-            else if (_sessionHandler.State == SessionState.Opened)
-            {
-                if (_sessionHandler.OpenedForReceive)
-                {
-                    if (datagram.OpCode != ProtocolDatagram.OpCodeData)
-                    {
-                        _sessionHandler.OnDatagramDiscarded(datagram);
-                        return;
-                    }
-                }
-                else
-                {
-                    if (datagram.OpCode != ProtocolDatagram.OpCodeOpen)
-                    {
-                        _sessionHandler.OnDatagramDiscarded(datagram);
-                        return;
-                    }
-                }
-            }
-            else
+            if (_sessionHandler.State >= SessionState.Closing)
             {
                 _sessionHandler.OnDatagramDiscarded(datagram);
-                return;
             }
 
             // save datagram into current window or reject unexpected sequence number.
@@ -130,7 +102,7 @@ namespace ScalableIPC.Core.Session
             var ack = new ProtocolDatagram
             {
                 SessionId = datagram.SessionId,
-                OpCode = datagram.OpCode == ProtocolDatagram.OpCodeOpen ? ProtocolDatagram.OpCodeOpenAck : ProtocolDatagram.OpCodeDataAck,
+                OpCode = ProtocolDatagram.OpCodeDataAck,
                 WindowId = datagram.WindowId,
                 SequenceNumber = lastEffectiveSeqNr
             };
@@ -142,32 +114,51 @@ namespace ScalableIPC.Core.Session
         {
             // Window is full
 
-            // Update window group.
-            CurrentWindowGroup.AddRange(CurrentWindow.GetRange(0, lastEffectiveSeqNr + 1));
-            var lastDatagramInWindowGroup = CurrentWindowGroup[CurrentWindowGroup.Count - 1];
+            var lastDatagramInWindow = CurrentWindow[lastEffectiveSeqNr];
 
             ProtocolOperationException processingError = null;
 
-            // Check if window group is becoming too large, and fail if it is too much
-            // for max datagram size.
-            int cumulativeLength = CurrentWindowGroup.Sum(t => t.ExpectedDatagramLength);
-            if (cumulativeLength > ProtocolDatagram.MaxDatagramSize)
-            {
-                processingError = new ProtocolOperationException(ProtocolOperationException.ErrorCodeWindowGroupOverflow);
-                _sessionHandler.OnReceiveError(processingError);
+            // Prevent a window group from being received in opening state. 
+            // This enables networks to abort any sessions in opening state if necessary, without
+            // fear of leaving application layer side effects around.
 
-                // reset current window group.
-                CurrentWindowGroup.Clear();
-            }
-            else
+            // NB: IsLastInWindowGroup option only applies if IsLastInWindow was set.
+            // IsLastInWindow may not be set if the remote's window size is larger than
+            // the local window size.
+
+            if (lastDatagramInWindow.Options?.IsLastInWindow == true &&
+                lastDatagramInWindow.Options?.IsLastInWindowGroup == true &&
+                _sessionHandler.State == SessionState.Opening)
             {
-                // Only pass up if last datagram in window group has been seen
-                // Only consider IsLastInWindowGroup option if op code is data and IsLastInWindow was set.
-                if (lastDatagramInWindowGroup.OpCode == ProtocolDatagram.OpCodeData &&
-                    lastDatagramInWindowGroup.Options?.IsLastInWindow == true &&
-                    lastDatagramInWindowGroup.Options?.IsLastInWindowGroup == true)
+                processingError = new ProtocolOperationException(ProtocolOperationException.ErrorCodeWindowGroupNotReceivableInOpeningState);
+            }
+
+            // Only pass up if last datagram in window group has been seen
+            if (processingError == null)
+            {
+                // Update window group.
+                CurrentWindowGroup.AddRange(CurrentWindow.GetRange(0, lastEffectiveSeqNr + 1));
+
+                // Check if window group is becoming too large, and fail if it is too much
+                // for max datagram size.
+                int cumulativeLength = CurrentWindowGroup.Sum(t => t.ExpectedDatagramLength);
+                if (cumulativeLength > ProtocolDatagram.MaxDatagramSize)
                 {
-                    // Window group is full
+                    processingError = new ProtocolOperationException(ProtocolOperationException.ErrorCodeWindowGroupOverflow);
+                    _sessionHandler.OnReceiveError(processingError);
+
+                    // reset current window group.
+                    CurrentWindowGroup.Clear();
+                }
+            }
+
+            if (processingError == null)
+            {
+                if (lastDatagramInWindow.Options?.IsLastInWindow == true &&
+                    lastDatagramInWindow.Options?.IsLastInWindowGroup == true)
+                {
+                    // Window group is full.
+
                     try
                     {
                         ProcessAndPassCurrentWindowGroupToApplicationLayer();
@@ -200,7 +191,6 @@ namespace ScalableIPC.Core.Session
             // transition to open state if no errors occured.
             if (processingError == null)
             {
-                _sessionHandler.OpenedForReceive = true;
                 if (_sessionHandler.State == SessionState.Opening)
                 {
                     _sessionHandler.State = SessionState.Opened;
@@ -216,9 +206,9 @@ namespace ScalableIPC.Core.Session
             // ignore any send ack errors.
             _sessionHandler.LastAck = new ProtocolDatagram
             {
-                SessionId = lastDatagramInWindowGroup.SessionId,
+                SessionId = lastDatagramInWindow.SessionId,
                 OpCode = ProtocolDatagram.OpCodeDataAck,
-                WindowId = lastDatagramInWindowGroup.WindowId,
+                WindowId = lastDatagramInWindow.WindowId,
                 SequenceNumber = lastEffectiveSeqNr,
                 Options = new ProtocolDatagramOptions
                 {
@@ -270,10 +260,10 @@ namespace ScalableIPC.Core.Session
 
             // ready to pass on to application layer.
             ProcessCurrentWindowOptions(windowGroupAsMessage.Options);
-            if (!_sessionHandler.OpenSuccessHandlerCalled)
+            if (!_sessionHandler.OpenSuccessHandlerCalledOnReceive)
             {
-                _sessionHandler.OnOpenSuccess();
-                _sessionHandler.OpenSuccessHandlerCalled = true;
+                _sessionHandler.OnOpenSuccess(true);
+                _sessionHandler.OpenSuccessHandlerCalledOnReceive = true;
             }
             _sessionHandler.OnMessageReceived(messageForApp);
         }

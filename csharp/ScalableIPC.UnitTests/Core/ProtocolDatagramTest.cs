@@ -370,7 +370,7 @@ namespace ScalableIPC.UnitTests.Core
             sessionId = "".PadLeft(64, '0');
             instance = new ProtocolDatagram
             {
-                OpCode = ProtocolDatagram.OpCodeClose,
+                OpCode = ProtocolDatagram.OpCodeEnquireLink,
                 ExpectedDatagramLength = 57,
                 SessionId = sessionId,
                 WindowId = int.MaxValue + 1L
@@ -401,7 +401,7 @@ namespace ScalableIPC.UnitTests.Core
             {
                 SessionId = sessionId,
                 WindowId = 3_290_342_720_000_601_258,
-                OpCode = ProtocolDatagram.OpCodeOpen,
+                OpCode = ProtocolDatagram.OpCodeData,
                 SequenceNumber = 1_895_425_975,
                 Options = new ProtocolDatagramOptions
                 {
@@ -442,7 +442,7 @@ namespace ScalableIPC.UnitTests.Core
                 ExpectedDatagramLength = 90,
                 SessionId = sessionId,
                 WindowId = 720_000_601,
-                OpCode = ProtocolDatagram.OpCodeOpenAck,
+                OpCode = ProtocolDatagram.OpCodeDataAck,
                 SequenceNumber = 1_000,
                 Options = new ProtocolDatagramOptions
                 {
@@ -492,7 +492,7 @@ namespace ScalableIPC.UnitTests.Core
             {
                 SessionId = sessionId,
                 WindowId = 1,
-                OpCode = ProtocolDatagram.OpCodeData,
+                OpCode = ProtocolDatagram.OpCodeClose,
                 SequenceNumber = 1,
                 Options = new ProtocolDatagramOptions
                 {
@@ -768,7 +768,7 @@ namespace ScalableIPC.UnitTests.Core
                 ExpectedDatagramLength = 78,
                 SessionId = sessionId,
                 WindowId = 3_290_342_720_000_601_258,
-                OpCode = ProtocolDatagram.OpCodeDataAck,
+                OpCode = ProtocolDatagram.OpCodeCloseAck,
                 SequenceNumber = 1_895_425_975,
                 Options = new ProtocolDatagramOptions
                 {
@@ -820,7 +820,7 @@ namespace ScalableIPC.UnitTests.Core
                 ExpectedDatagramLength = 90,
                 SessionId = sessionId,
                 WindowId = 720_000_601,
-                OpCode = ProtocolDatagram.OpCodeOpenAck,
+                OpCode = ProtocolDatagram.OpCodeDataAck,
                 SequenceNumber = 1_000,
                 Options = new ProtocolDatagramOptions
                 {
@@ -870,7 +870,7 @@ namespace ScalableIPC.UnitTests.Core
                 ExpectedDatagramLength = 74,
                 SessionId = sessionId,
                 WindowId = 1,
-                OpCode = ProtocolDatagram.OpCodeData,
+                OpCode = ProtocolDatagram.OpCodeClose,
                 SequenceNumber = 1,
                 Options = new ProtocolDatagramOptions
                 {

@@ -19,6 +19,7 @@ namespace ScalableIPC.Core
         // data codes.
         public const int ErrorCodeWindowGroupOverflow = 250;
         public const int ErrorCodeOptionDecodingError = 251;
+        public const int ErrorCodeWindowGroupNotReceivableInOpeningState = 252;
 
         // The following error codes are not meant to be used for network
         // communications. As such they are negative.
@@ -109,6 +110,8 @@ namespace ScalableIPC.Core
                 return "APPLICATION ERROR";
             else if (code == ErrorCodeWindowGroupOverflow)
                 return "WINDOW GROUP OVERLFOW";
+            else if (code == ErrorCodeWindowGroupNotReceivableInOpeningState)
+                return "WINDOW GROUP NOT RECEIVABLE IN OPENING STATE";
             else if (code == ErrorCodeRestart)
                 return "RESTART";
             else if (code == ErrorCodeShutdown)
