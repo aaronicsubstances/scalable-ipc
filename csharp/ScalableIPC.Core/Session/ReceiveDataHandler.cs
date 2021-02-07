@@ -260,10 +260,10 @@ namespace ScalableIPC.Core.Session
 
             // ready to pass on to application layer.
             ProcessCurrentWindowOptions(windowGroupAsMessage.Options);
-            if (!_sessionHandler.OpenSuccessHandlerCalledOnReceive)
+            if (!_sessionHandler.OpenSuccessHandlerCalled)
             {
                 _sessionHandler.OnOpenSuccess(true);
-                _sessionHandler.OpenSuccessHandlerCalledOnReceive = true;
+                _sessionHandler.OpenSuccessHandlerCalled = true;
             }
             _sessionHandler.OnMessageReceived(messageForApp);
         }

@@ -10,7 +10,7 @@ namespace ScalableIPC.Core.Session
     {
         private readonly IStandardSessionHandler _sessionHandler;
         private readonly List<PromiseCompletionSource<VoidType>> _pendingPromiseCallbacks;
-        private IRetrySendHandlerAssistant _sendWindowHandler;
+        private ISendHandlerAssistant _sendWindowHandler;
 
         public CloseHandler(IStandardSessionHandler sessionHandler)
         {
@@ -140,8 +140,8 @@ namespace ScalableIPC.Core.Session
                     ErrorCode = errorCodeToSend
                 }
             };
-            _sendWindowHandler = _sessionHandler.CreateRetrySendHandlerAssistant();
-            _sendWindowHandler.CurrentWindow = new List<ProtocolDatagram> { closeDatagram };
+            _sendWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
+            _sendWindowHandler.ProspectiveWindowToSend = new List<ProtocolDatagram> { closeDatagram };
             _sendWindowHandler.SuccessCallback = () => OnSendSuccessOrError(cause);
             _sendWindowHandler.TimeoutCallback = () => OnSendSuccessOrError(cause);
             _sendWindowHandler.ErrorCallback = _ => OnSendSuccessOrError(cause);

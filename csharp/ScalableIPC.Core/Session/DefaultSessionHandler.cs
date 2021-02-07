@@ -63,14 +63,14 @@ namespace ScalableIPC.Core.Session
             return new DefaultEventLoopApi(NetworkApi.SessionTaskExecutorGroup);
         }
 
+        public ISendWindowAssistant CreateSendWindowAssistant()
+        {
+            return new SendWindowAssistant(this);
+        }
+
         public ISendHandlerAssistant CreateSendHandlerAssistant()
         {
             return new SendHandlerAssistant(this);
-        }
-
-        public IRetrySendHandlerAssistant CreateRetrySendHandlerAssistant()
-        {
-            return new RetrySendHandlerAssistant(this);
         }
 
         public AbstractNetworkApi NetworkApi { get; private set; }
@@ -91,8 +91,8 @@ namespace ScalableIPC.Core.Session
         public long LastWindowIdReceived { get; set; } = -1; // so 0 can be accepted as an initial valid window id. 
 
         public ProtocolDatagram LastAck { get; set; }
-        public bool OpenSuccessHandlerCalledOnReceive { get; set; }
-        public bool OpenSuccessHandlerCalledOnSend { get; set; }
+        public bool OpenSuccessHandlerCalled { get; set; }
+        public bool OpenedStateConfirmedForSend { get; set; }
         public int? RemoteIdleTimeout { get; set; }
         public int? RemoteMaxWindowSize { get; set; }
 

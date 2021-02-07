@@ -1,43 +1,31 @@
 ﻿using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 
 namespace ScalableIPC.Core.Session
 {
     public class SendHandlerAssistant: ISendHandlerAssistant
     {
         private readonly IStandardSessionHandler _sessionHandler;
+        private ISendWindowAssistant _currentWindowHandler;
 
         public SendHandlerAssistant(IStandardSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }
 
-        public List<ProtocolDatagram> CurrentWindow { get; set; }
-        public bool StopAndWait { get; set; }
-        public int RetryCount { get; set; }
+        public List<ProtocolDatagram> ProspectiveWindowToSend { get; set; }
         public Action SuccessCallback { get; set; }
-        public Action<ProtocolOperationException> ErrorCallback { get; set; }
-        public Action<int> WindowFullCallback { get; set; }
         public Action TimeoutCallback { get; set; }
-        public object SendContext { get; private set; }
-        public int SentCount { get; private set; }
+        public Action<ProtocolOperationException> ErrorCallback { get; set; }
+        public List<int> ActualSentWindowRanges { get; private set; }
+        public List<ProtocolDatagram> CurrentWindow { get; private set; }
+        public int RetryCount { get; private set; }
+        public int TotalSentCount { get; private set; }
         public bool IsStarted { get; private set; }
         public bool IsComplete { get; private set; } = false;
-
-        public void Complete()
-        {
-            if (!IsComplete)
-            {
-                IsComplete = true;
-                _sessionHandler.NetworkApi.DisposeSendContext(SendContext);
-            }
-        }
-
-        public void Cancel()
-        {
-            Complete();
-        }
 
         public void Start()
         {
@@ -50,42 +38,12 @@ namespace ScalableIPC.Core.Session
                 return;
             }
 
+            ActualSentWindowRanges = new List<int>();
             IsStarted = true;
-            SentCount = 0;
-            RestartSending();
+            ContinueSend();
         }
 
-        private void RestartSending()
-        {
-            object previousSendContext = SendContext;
-            SendContext = _sessionHandler.NetworkApi.CreateSendContext(RetryCount, previousSendContext);
-            _sessionHandler.NetworkApi.DisposeSendContext(previousSendContext);
-            ContinueSending();
-        }
-
-        private void ContinueSending()
-        {
-            var nextDatagram = CurrentWindow[SentCount];
-            nextDatagram.WindowId = _sessionHandler.NextWindowIdToSend;
-            nextDatagram.SequenceNumber = SentCount;
-
-            _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, nextDatagram, SendContext, e =>
-            {
-                if (e == null)
-                {
-                    HandleSendSuccess(nextDatagram);
-                }
-                else
-                {
-                    HandleSendError(nextDatagram, e);
-                }
-            });
-            // regardless of send outcome, mark datagram as sent. In that case any ack unexpectedly
-            // received before send outcome will still be accepted.
-            SentCount++;
-        }
-
-        public void OnAckReceived(ProtocolDatagram ack)
+        public void OnAckReceived(ProtocolDatagram datagram)
         {
             if (IsComplete)
             {
@@ -96,141 +54,85 @@ namespace ScalableIPC.Core.Session
                 throw new Exception("handler has not been started");
             }
 
-            if (_sessionHandler.NextWindowIdToSend != ack.WindowId)
+            _currentWindowHandler?.OnAckReceived(datagram);
+        }
+
+        public void Cancel()
+        {
+            IsComplete = true;
+            _currentWindowHandler?.Cancel();
+        }
+
+        private void ContinueSend()
+        {
+            _currentWindowHandler?.Cancel();
+            int effectivePendingWindowCount = ProspectiveWindowToSend.Count - TotalSentCount;
+            // use current remote window size to limit pending window count.
+            if (_sessionHandler.RemoteMaxWindowSize.HasValue &&
+                _sessionHandler.RemoteMaxWindowSize.Value > 0)
             {
-                _sessionHandler.OnDatagramDiscarded(ack);
-                return;
+                effectivePendingWindowCount = Math.Min(effectivePendingWindowCount,
+                    _sessionHandler.RemoteMaxWindowSize.Value);
             }
+            CurrentWindow = ProspectiveWindowToSend.GetRange(TotalSentCount, effectivePendingWindowCount);
 
-            // Receipt of an ack is interpreted as reception of datagram with ack's sequence number,
-            // and all preceding datagrams in window as well.
-            var receiveCount = ack.SequenceNumber + 1;
-            
-            var minExpectedReceiveCount = StopAndWait ? SentCount: 1;
-            var maxExpectedReceiveCount = StopAndWait ? CurrentWindow.Count : SentCount;
-            
-            // validate ack. NB: ignore op code and just assume caller has already validated that.
-            if (receiveCount < minExpectedReceiveCount || receiveCount > maxExpectedReceiveCount)
+            // check if we are done sending (or empty to start with).
+            if (CurrentWindow.Count == 0)
             {
-                // reject.
-                _sessionHandler.OnDatagramDiscarded(ack);
-                return;
-            }
-
-            // perhaps overflow detected? check.
-            int ackErrorCode = ProtocolOperationException.FetchExpectedErrorCode(ack);
-            if (ackErrorCode > 0)
-            {
-                _sessionHandler.CancelAckTimeout();
-
-                _sessionHandler.IncrementNextWindowIdToSend();
-                Complete();
-                ErrorCallback.Invoke(new ProtocolOperationException(ackErrorCode));
-                return;
-            }
-
-            if (receiveCount == CurrentWindow.Count)
-            {
-                // All datagrams in window have been successfully sent and confirmed
-                _sessionHandler.CancelAckTimeout();
-
-                _sessionHandler.IncrementNextWindowIdToSend();
-                Complete();
+                IsComplete = true;
                 SuccessCallback.Invoke();
+                return;
             }
-            else if (ack.Options?.IsWindowFull == true)
-            {
-                // Overflow detected in receiver window
-                _sessionHandler.CancelAckTimeout();
 
-                _sessionHandler.IncrementNextWindowIdToSend();
-                Complete();
-
-                // Look for window size at remote peer and use it for
-                // subsequent send operations.
-                // don't require it.
-                _sessionHandler.RemoteMaxWindowSize = ack.Options?.MaxWindowSize;
-
-                WindowFullCallback.Invoke(receiveCount);
-            }
-            else if (StopAndWait)
-            {
-                // Ack received for stop and wait mode to continue
-                _sessionHandler.CancelAckTimeout();
-
-                // continue stop and wait.
-                SentCount = receiveCount;
-                RestartSending();
-            }
-            else if (receiveCount == SentCount)
-            {
-                // This means network api replied with ack when send callback has not been invoked.
-                // Not the normal behaviour, but is acceptable to cater for wide range of network api 
-                // characteristics.
-                _sessionHandler.CancelAckTimeout();
-                RestartSending();
-            }
-            else
-            {
-                // Ack is not needed. Ignore.
-                _sessionHandler.OnDatagramDiscarded(ack);
-            }
+            RetryCount = 0;
+            _currentWindowHandler = _sessionHandler.CreateSendWindowAssistant();
+            _currentWindowHandler.CurrentWindow = CurrentWindow;
+            _currentWindowHandler.WindowFullCallback = OnWindowFull;
+            _currentWindowHandler.TimeoutCallback = OnWindowSendTimeout;
+            _currentWindowHandler.ErrorCallback = OnWindowSendError;
+            _currentWindowHandler.Start();
         }
 
-        private void HandleSendSuccess(ProtocolDatagram datagram)
+        private void OnWindowFull(int sentCount)
         {
-            _sessionHandler.PostEventLoopCallback(() =>
+            _sessionHandler.OpenedStateConfirmedForSend = true;
+            if (_sessionHandler.State == SessionState.Opening)
             {
-                // check if not needed or arriving too late.
-                if (IsComplete || SentCount != datagram.SequenceNumber + 1)
-                {
-                    // send success callback received too late
-                    return;
-                }
-
-                // send success callback received in time
-                if (StopAndWait || SentCount >= CurrentWindow.Count)
-                {
-                    int ackTimeout = _sessionHandler.NetworkApi.DetermineAckTimeout(SendContext);
-                    _sessionHandler.ResetAckTimeout(ackTimeout, ProcessAckTimeout);
-                }
-                else
-                {
-                    ContinueSending();
-                }
-            }, null);
+                _sessionHandler.State = SessionState.Opened;
+                _sessionHandler.CancelOpenTimeout();
+                _sessionHandler.ScheduleEnquireLinkEvent(true);
+            }
+            ActualSentWindowRanges.Add(sentCount);
+            TotalSentCount += sentCount;
+            ContinueSend();
         }
 
-        private void HandleSendError(ProtocolDatagram datagram, Exception error)
+        private void OnWindowSendError(ProtocolOperationException error)
         {
-            _sessionHandler.PostEventLoopCallback(() =>
-            {
-                // check if not needed or arriving too late.
-                if (IsComplete || SentCount != datagram.SequenceNumber + 1)
-                {
-                    // send error callback received too late
-                    return;
-                }
-
-                Complete();
-                if (error is ProtocolOperationException protEr)
-                {
-                    ErrorCallback.Invoke(protEr);
-                }
-                else
-                {
-                    ErrorCallback.Invoke(new ProtocolOperationException(error));
-                }
-            }, null);
+            IsComplete = true;
+            ErrorCallback.Invoke(error);
         }
 
-        private void ProcessAckTimeout()
+        private void OnWindowSendTimeout()
         {
-            if (!IsComplete)
+            if (RetryCount >= _sessionHandler.MaxRetryCount)
             {
-                Complete();
+                // maximum retry count reached.
+                // end retries and signal timeout to application layer.
+                IsComplete = true;
                 TimeoutCallback.Invoke();
+                return;
             }
+
+            RetryCount++;
+            _currentWindowHandler = _sessionHandler.CreateSendWindowAssistant();
+            _currentWindowHandler.SendOneAtATime = true;
+            _currentWindowHandler.CurrentWindow = CurrentWindow;
+            _currentWindowHandler.WindowFullCallback = OnWindowFull;
+            _currentWindowHandler.TimeoutCallback = OnWindowSendTimeout;
+            _currentWindowHandler.ErrorCallback = OnWindowSendError;
+            _currentWindowHandler.RetryCount = RetryCount;
+            _currentWindowHandler.Start();
         }
     }
 }

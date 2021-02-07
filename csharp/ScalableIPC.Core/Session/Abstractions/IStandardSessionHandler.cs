@@ -13,8 +13,8 @@ namespace ScalableIPC.Core.Session.Abstractions
     {
         // Intended to enable testing. Maps to similarly-named classes (w/o 'I' prefix) in production usage.
         AbstractEventLoopApi CreateEventLoop();
+        ISendWindowAssistant CreateSendWindowAssistant();
         ISendHandlerAssistant CreateSendHandlerAssistant();
-        IRetrySendHandlerAssistant CreateRetrySendHandlerAssistant();
 
         int State { get; set; }
 
@@ -27,8 +27,8 @@ namespace ScalableIPC.Core.Session.Abstractions
         long NextWindowIdToSend { get; set; }
         long LastWindowIdReceived { get; set; }
         ProtocolDatagram LastAck { get; set; }
-        bool OpenSuccessHandlerCalledOnReceive { get; set; }
-        bool OpenSuccessHandlerCalledOnSend { get; set; }
+        bool OpenSuccessHandlerCalled { get; set; }
+        bool OpenedStateConfirmedForSend { get; set; }
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();
         void EnsureSendNotInProgress();
