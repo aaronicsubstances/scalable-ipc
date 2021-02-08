@@ -12,11 +12,12 @@ namespace ScalableIPC.Core
 
         public const string OptionNameIdleTimeout = KnownOptionPrefix + "idle_timeout";
         public const string OptionNameErrorCode = KnownOptionPrefix + "error_code";
-        public const string OptionNameIsWindowFull = KnownOptionPrefix + "10";
-        public const string OptionNameMaxWindowSize = KnownOptionPrefix + "20";
+        public const string OptionNameAbortCode = KnownOptionPrefix + "abort_code";
+        public const string OptionNameIsFirstInWindowGroup = KnownOptionPrefix + "00";
         public const string OptionNameIsLastInWindow = KnownOptionPrefix + "01";
         public const string OptionNameIsLastInWindowGroup = KnownOptionPrefix + "02";
-        public const string OptionNameIsFirstInWindowGroup = KnownOptionPrefix + "00";
+        public const string OptionNameIsWindowFull = KnownOptionPrefix + "10";
+        public const string OptionNameMaxWindowSize = KnownOptionPrefix + "20";
         public const string OptionNameTraceId = KnownOptionPrefix + "traceId";
 
         public ProtocolDatagramOptions()
@@ -32,7 +33,8 @@ namespace ScalableIPC.Core
         public int? IdleTimeout { get; set; }
 
         // for error codes validate on a case by case basis depending on op code.
-        public int? ErrorCode { get; set; } 
+        public int? ErrorCode { get; set; }
+        public int? AbortCode { get; set; }
         public bool? IsWindowFull { get; set; }
         public bool? IsLastInWindow { get; set; }
         public bool? IsLastInWindowGroup { get; set; }
@@ -47,6 +49,8 @@ namespace ScalableIPC.Core
             sb.Append(nameof(IdleTimeout)).Append("=").Append(IdleTimeout);
             sb.Append(", ");
             sb.Append(nameof(ErrorCode)).Append("=").Append(ErrorCode);
+            sb.Append(", ");
+            sb.Append(nameof(AbortCode)).Append("=").Append(AbortCode);
             sb.Append(", ");
             sb.Append(nameof(IsWindowFull)).Append("=").Append(IsWindowFull);
             sb.Append(", ");
@@ -86,6 +90,7 @@ namespace ScalableIPC.Core
             // So reset before parsing.
             IdleTimeout = null;
             ErrorCode = null;
+            AbortCode = null;
             IsLastInWindow = null;
             IsWindowFull = null;
             IsLastInWindowGroup = null;
@@ -112,6 +117,9 @@ namespace ScalableIPC.Core
                             break;
                         case OptionNameErrorCode:
                             ErrorCode = ParseOptionAsInt32(value);
+                            break;
+                        case OptionNameAbortCode:
+                            AbortCode = ParseOptionAsInt32(value);
                             break;
                         case OptionNameIsLastInWindow:
                             IsLastInWindow = ParseOptionAsBoolean(value);
@@ -231,6 +239,10 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameErrorCode, ErrorCode.ToString());
             }
+            if (AbortCode != null)
+            {
+                knownOptions.Add(OptionNameAbortCode, AbortCode.ToString());
+            }
             if (IdleTimeout != null)
             {
                 knownOptions.Add(OptionNameIdleTimeout, IdleTimeout.ToString());
@@ -272,6 +284,10 @@ namespace ScalableIPC.Core
             if (ErrorCode != null)
             {
                 destOptions.ErrorCode = ErrorCode;
+            }
+            if (AbortCode != null)
+            {
+                destOptions.AbortCode = AbortCode;
             }
             if (IsLastInWindow != null)
             {

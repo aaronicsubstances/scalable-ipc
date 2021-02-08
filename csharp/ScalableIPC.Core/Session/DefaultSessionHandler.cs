@@ -54,6 +54,7 @@ namespace ScalableIPC.Core.Session
             _stateHandlers.Add(new ReceiveDataHandler(this));
             _stateHandlers.Add(_sendHandler);
             _stateHandlers.Add(_closeHandler);
+            _stateHandlers.Add(new EnquireLinkHandler(this));
 
             ScheduleOpenTimeout();
         }

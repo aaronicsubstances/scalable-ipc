@@ -34,20 +34,6 @@ namespace ScalableIPC.Core
             int? errorCode = datagram.Options?.ErrorCode;
             switch (datagram.OpCode)
             {
-                case ProtocolDatagram.OpCodeClose:
-                    if (errorCode == null || errorCode == 0)
-                    {
-                        // use default value.
-                        return ErrorCodeNormalClose;
-                    }
-                    else if (errorCode < 0 || errorCode >= 100)
-                    {
-                        return -1;
-                    }
-                    else
-                    {
-                        return errorCode.Value;
-                    }
                 case ProtocolDatagram.OpCodeEnquireLinkAck:
                     if (errorCode == null || errorCode == 0)
                     {
@@ -75,6 +61,31 @@ namespace ScalableIPC.Core
                     else
                     {
                         return errorCode.Value;
+                    }
+                default:
+                    break;
+            }
+            return int.MinValue;
+        }
+
+        public static int FetchExpectedAbortCode(ProtocolDatagram datagram)
+        {
+            int? abortCode = datagram.Options?.AbortCode;
+            switch (datagram.OpCode)
+            {
+                case ProtocolDatagram.OpCodeClose:
+                    if (abortCode == null || abortCode == 0)
+                    {
+                        // use default value.
+                        return ErrorCodeNormalClose;
+                    }
+                    else if (abortCode < 0 || abortCode >= 100)
+                    {
+                        return -1;
+                    }
+                    else
+                    {
+                        return abortCode.Value;
                     }
                 default:
                     break;

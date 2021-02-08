@@ -53,34 +53,12 @@ namespace ScalableIPC.Core.Session
                 ProcessReceiveClose(datagram);
                 return true;
             }
-            else if (datagram.OpCode == ProtocolDatagram.OpCodeEnquireLinkAck)
-            {
-                ProcessEnquireLink(datagram);
-                return true;
-            }
             return false;
-        }
-
-        private void ProcessEnquireLink(ProtocolDatagram datagram)
-        {
-            int enquireLinkErrorCode = ProtocolOperationException.FetchExpectedErrorCode(datagram);
-            if (enquireLinkErrorCode < 0)
-            {
-                _sessionHandler.OnDatagramDiscarded(datagram);
-            }
-            else if (enquireLinkErrorCode == 0)
-            {
-                _sessionHandler.OnEnquireLinkSuccess(datagram);
-            }
-            else
-            {
-                _sessionHandler.InitiateDispose(new ProtocolOperationException(enquireLinkErrorCode));
-            }
         }
 
         private void ProcessReceiveClose(ProtocolDatagram datagram)
         {
-            var recvdErrorCode = ProtocolOperationException.FetchExpectedErrorCode(datagram);
+            var recvdErrorCode = ProtocolOperationException.FetchExpectedAbortCode(datagram);
             if (recvdErrorCode < 0)
             {
                 _sessionHandler.OnDatagramDiscarded(datagram);
