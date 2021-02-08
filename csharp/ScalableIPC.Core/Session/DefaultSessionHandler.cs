@@ -83,6 +83,7 @@ namespace ScalableIPC.Core.Session
         public int MaxRetryCount { get; set; }
         public int OpenTimeout { get; set; }
         public int IdleTimeout { get; set; }
+        public int AckTimeout { get; set; }
         public int MinRemoteIdleTimeout { get; set; }
         public int MaxRemoteIdleTimeout { get; set; }
         public int EnquireLinkInterval { get; set; }

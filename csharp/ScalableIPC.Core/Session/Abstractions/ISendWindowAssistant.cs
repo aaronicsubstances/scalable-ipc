@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ScalableIPC.Core.Abstractions;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -26,7 +27,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         bool IsStarted { get; }
         bool IsComplete { get; }
         int SentCount { get; }
-        object SendContext { get; }
+        INetworkSendContext SendContext { get; }
 
         void Start();
         void OnAckReceived(ProtocolDatagram ack);

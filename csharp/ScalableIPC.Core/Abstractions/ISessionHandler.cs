@@ -42,7 +42,8 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> CloseAsync(int errorCode);
         AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause);
         int OpenTimeout { get; set; } // equivalent to idle timeout prior to successful opening of session.
-        int IdleTimeout { get; set; } // non-positive means disable idle timer 
+        int IdleTimeout { get; set; } // non-positive means disable idle timer
+        int AckTimeout { get; set; }
         int MinRemoteIdleTimeout { get; set; }
         int MaxRemoteIdleTimeout { get; set; }
         int MaxWindowSize { get; set; } // non-positive means use 1.

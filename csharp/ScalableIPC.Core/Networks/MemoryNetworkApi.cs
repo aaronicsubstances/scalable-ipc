@@ -73,27 +73,11 @@ namespace ScalableIPC.Core.Networks
 
         public ITransmissionBehaviour TransmissionBehaviour { get; set; }
 
-        public int AckTimeout { get; set; }
-
         public int MaximumTransferUnitSize { get; set; }
         
-        public object CreateSendContext(int retryCount, object previousSendContext)
+        public INetworkSendContext CreateSendContext()
         {
             return null;
-        }
-
-        public void DisposeSendContext(object sendContext)
-        {
-            // nothing to do.   
-        }
-
-        public int DetermineAckTimeout(object sendContext)
-        {
-            return AckTimeout;
-        }
-
-        public void SetSessionState(object sendContext, int state)
-        {
         }
 
         public AbstractPromise<VoidType> StartAsync()
@@ -147,8 +131,8 @@ namespace ScalableIPC.Core.Networks
             }
         }
 
-        public Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, 
-            object sendContext, Action<Exception> cb)
+        public Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message,
+            INetworkSendContext sendContext, Action<Exception> cb)
         {
             // Start sending in separate thread of control.
             var newLogicalThreadId = GenerateAndRecordLogicalThreadId(null);

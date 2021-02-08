@@ -1243,6 +1243,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public int MaxRetryPeriod { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int OpenTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int IdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public int AckTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MinRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int EnquireLinkInterval { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }

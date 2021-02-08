@@ -1,4 +1,5 @@
-﻿using ScalableIPC.Core.Session.Abstractions;
+﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;
 
@@ -19,7 +20,7 @@ namespace ScalableIPC.Core.Session
         public Action<ProtocolOperationException> ErrorCallback { get; set; }
         public Action<int> WindowFullCallback { get; set; }
         public Action TimeoutCallback { get; set; }
-        public object SendContext { get; private set; }
+        public INetworkSendContext SendContext { get; private set; }
         public int SentCount { get; private set; }
         public bool IsStarted { get; private set; }
         public bool IsComplete { get; private set; } = false;
@@ -29,7 +30,7 @@ namespace ScalableIPC.Core.Session
             if (!IsComplete)
             {
                 IsComplete = true;
-                _sessionHandler.NetworkApi.DisposeSendContext(SendContext);
+                SendContext?.Dispose();
             }
         }
 
@@ -56,10 +57,13 @@ namespace ScalableIPC.Core.Session
 
         private void RestartSending()
         {
-            object previousSendContext = SendContext;
-            SendContext = _sessionHandler.NetworkApi.CreateSendContext(RetryCount, previousSendContext);
-            _sessionHandler.NetworkApi.DisposeSendContext(previousSendContext);
-            _sessionHandler.NetworkApi.SetSessionState(SendContext, _sessionHandler.State);
+            SendContext?.Dispose();
+            SendContext = _sessionHandler.NetworkApi.CreateSendContext();
+            if (SendContext != null)
+            {
+                SendContext.RetryCount = RetryCount;
+                SendContext.SessionState = _sessionHandler.State;
+            }
             ContinueSending();
         }
 
@@ -182,7 +186,7 @@ namespace ScalableIPC.Core.Session
                 // send success callback received in time
                 if (SendOneAtATime || SentCount >= CurrentWindow.Count)
                 {
-                    int ackTimeout = _sessionHandler.NetworkApi.DetermineAckTimeout(SendContext);
+                    int ackTimeout = SendContext?.DetermineAckTimeout() ?? _sessionHandler.AckTimeout;
                     _sessionHandler.ResetAckTimeout(ackTimeout, ProcessAckTimeout);
                 }
                 else
