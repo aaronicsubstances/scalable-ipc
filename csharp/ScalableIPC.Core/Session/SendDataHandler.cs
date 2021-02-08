@@ -114,15 +114,21 @@ namespace ScalableIPC.Core.Session
         {
             if (!haveSentBefore)
             {
-                CurrentWindowGroup = _datagramFragmenter.Next();
-                if (CurrentWindowGroup.Count == 0)
+                int minReqd = 1;
+                if (_sessionHandler.State == SessionState.Opening && !_skipDataExchangeProhibitions)
                 {
-                    throw new Exception("Wrong fragmentation algorithm. At least one datagram must be returned");
+                    minReqd = 2;
+                }
+                CurrentWindowGroup = _datagramFragmenter.Next(minReqd);
+                if (CurrentWindowGroup.Count < minReqd)
+                {
+                    throw new Exception($"Wrong fragmentation algorithm. At least {minReqd} datagram(s) must be returned, " +
+                        $"but received {CurrentWindowGroup.Count}");
                 }
             }
             else if (SentDatagramCountInCurrentWindowGroup >= CurrentWindowGroup.Count)
             {
-                CurrentWindowGroup = _datagramFragmenter.Next();
+                CurrentWindowGroup = _datagramFragmenter.Next(0);
                 if (CurrentWindowGroup.Count == 0)
                 {
                     // No more datagrams found for send window.
@@ -134,6 +140,10 @@ namespace ScalableIPC.Core.Session
             // try and fetch remainder in current window group, but respect constraint of max send window size.
             // ensure minimum of 1 for max send window size.
             int maxSendWindowSize = Math.Max(1, _sessionHandler.MaxWindowSize);
+            if (_sessionHandler.State == SessionState.Opening && !haveSentBefore && !_skipDataExchangeProhibitions)
+            {
+                maxSendWindowSize = 1;
+            }
             var nextWindow = CurrentWindowGroup.GetRange(SentDatagramCountInCurrentWindowGroup, Math.Min(maxSendWindowSize,
                 CurrentWindowGroup.Count - SentDatagramCountInCurrentWindowGroup));
             SentDatagramCountInCurrentWindowGroup += nextWindow.Count;
@@ -219,6 +229,12 @@ namespace ScalableIPC.Core.Session
 
             // notify application layer.
             _sessionHandler.OnSendError(error);
+
+            // revert receive prohibition
+            if (_sessionHandler.State == SessionState.Opening)
+            {
+                _sessionHandler.ReceiveDataForbiddenDuringOpeningState = false;
+            }
         }
     }
 }

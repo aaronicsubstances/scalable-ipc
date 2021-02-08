@@ -191,8 +191,6 @@ namespace ScalableIPC.UnitTests.Core
         {
             var emptyMessage = new ProtocolMessage();
             var instance = new ProtocolDatagramFragmenter(emptyMessage, 110, null);
-            Assert.Equal(new List<ProtocolDatagram> { new ProtocolDatagram() }, instance.Next(), 
-                ProtocolDatagramComparer.Default);
             Assert.Equal(new List<ProtocolDatagram>(), instance.Next());
         }
 
@@ -256,10 +254,6 @@ namespace ScalableIPC.UnitTests.Core
             int maxFragmentBatchSize = 200;
             List<List<ProtocolDatagram>> expected = new List<List<ProtocolDatagram>>
             {
-                new List<ProtocolDatagram>
-                {
-                    new ProtocolDatagram()
-                },
                 new List<ProtocolDatagram>()
             };
 

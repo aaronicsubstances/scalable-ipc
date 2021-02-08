@@ -14,10 +14,13 @@ namespace ScalableIPC.Core
         {
             ProtocolDatagramOptions.OptionNameIsLastInWindow, ProtocolDatagramOptions.OptionNameIsWindowFull,
             ProtocolDatagramOptions.OptionNameErrorCode, ProtocolDatagramOptions.OptionNameIsLastInWindowGroup,
-            EncodedOptionNamePrefix, ProtocolDatagramOptions.OptionNameMaxWindowSize
+            EncodedOptionNamePrefix, ProtocolDatagramOptions.OptionNameMaxWindowSize,
+            ProtocolDatagramOptions.OptionNameAbortCode, ProtocolDatagramOptions.OptionNameIsFirstInWindowGroup,
+            ProtocolDatagramOptions.OptionNameSkipDataExchangeProhibitionsInOpeningState
         };
 
-        // reserve space to cover minimum datagram size, the last in window and last in window group options.
+        // reserve space to cover minimum datagram size, the last in window, last in window group,
+        // and SkipDataExchangeProhibitionsDueToOpeningState options.
         private static readonly int DefaultReservedSpace = 100;
 
         private static readonly int OptionOverhead = 5; // for option length indicators and null terminator.
@@ -53,12 +56,15 @@ namespace ScalableIPC.Core
             _done = false;
         }
 
-        public List<ProtocolDatagram> Next()
+        public List<ProtocolDatagram> Next(int minReqdCount = 0)
         {
             if (_done)
             {
                 return new List<ProtocolDatagram>();
             }
+
+            var reservedSpaceForMinReqdCount = Math.Max(0, minReqdCount * DefaultReservedSpace);
+            var effectiveMaxFragmentBatchSize = _maxFragmentBatchSize - reservedSpaceForMinReqdCount;
 
             // The requirement of the fragmentation algorithm is to include the attributes of a message
             // in each window group returned from this method.
@@ -75,7 +81,7 @@ namespace ScalableIPC.Core
 
             var nextFragments = DuplicateFragmentsFromOptions();
             int bytesNeeded = nextFragments.Sum(x => x.ExpectedDatagramLength);
-            if (bytesNeeded > _maxFragmentBatchSize)
+            if (bytesNeeded > effectiveMaxFragmentBatchSize)
             {
                 throw new Exception("84017b75-4533-4e40-8541-85f12e9410d3: options too large to fit into max datagram size");
             }
@@ -96,12 +102,12 @@ namespace ScalableIPC.Core
                 {
                     break;
                 }
-                if (bytesNeeded >= _maxFragmentBatchSize)
+                if (bytesNeeded >= effectiveMaxFragmentBatchSize)
                 {
                     break;
                 }
                 int extraSpace = Math.Min(Math.Min(_message.DataLength - _usedDataLength,
-                    _maxFragmentBatchSize - bytesNeeded),
+                    effectiveMaxFragmentBatchSize - bytesNeeded),
                     _maxFragmentSize - nextFragment.ExpectedDatagramLength);
                 if (extraSpace <= 0)
                 {
@@ -115,10 +121,10 @@ namespace ScalableIPC.Core
             }
 
             // next phase: add new fragments till window is filled up or data is used up.
-            while (_usedDataLength < _message.DataLength && bytesNeeded < _maxFragmentBatchSize)
+            while (_usedDataLength < _message.DataLength && bytesNeeded < effectiveMaxFragmentBatchSize)
             {
                 int spaceForData = Math.Min(Math.Min(_message.DataLength - _usedDataLength,
-                    _maxFragmentBatchSize - bytesNeeded),
+                    effectiveMaxFragmentBatchSize - bytesNeeded),
                     _maxFragmentSize);
                 bytesNeeded += spaceForData;
                 var nextFragment = new ProtocolDatagram();
@@ -129,29 +135,36 @@ namespace ScalableIPC.Core
                 _usedDataLength += spaceForData;
             }
 
-            // for case of empty input, create a corresponding empty datagram.
+            _done = _usedDataLength >= _message.DataLength;
+
+            // for case of empty input, assert nothing created.
             if (_message.DataLength == 0 && _optionsTemplate.Count == 0)
             {
                 if (nextFragments.Count > 0)
                 {
                     throw new Exception("Wrong algorithm. Unexpected fragments created for empty input");
                 }
-                nextFragments.Add(new ProtocolDatagram());
             }
-
-            _done = _usedDataLength >= _message.DataLength;
-
-            // Ensure progress has been made.
-            if (nextFragments.Count == 0 || (!_done && _usedDataLength <= prevUsedDataLength))
+            else
             {
-                throw new Exception("122cc165-f7df-4985-8167-bc84fd25752d: " +
-                    "options so large that no space is left for data");
+                // Ensure progress has been made.
+                if ((nextFragments.Count == 0) || (!_done && _usedDataLength <= prevUsedDataLength))
+                {
+                    throw new Exception("122cc165-f7df-4985-8167-bc84fd25752d: " +
+                        "options so large that no space is left for data");
+                }
             }
 
             // clear out to eliminate false expectations.
             foreach (var nextFragment in nextFragments)
             {
                 nextFragment.ExpectedDatagramLength = 0;
+            }
+
+            // ensure minimum requirement.
+            while (nextFragments.Count < minReqdCount)
+            {
+                nextFragments.Add(new ProtocolDatagram());
             }
 
             return nextFragments;
