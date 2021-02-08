@@ -2,6 +2,7 @@
 using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace ScalableIPC.Core.Session
@@ -12,6 +13,7 @@ namespace ScalableIPC.Core.Session
         private ProtocolDatagramFragmenter _datagramFragmenter;
         private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
         private ISendHandlerAssistant _sendWindowHandler;
+        private bool _skipDataExchangeProhibitions;
 
         public SendDataHandler(IStandardSessionHandler sessionHandler)
         {
@@ -20,7 +22,7 @@ namespace ScalableIPC.Core.Session
         
         public List<ProtocolDatagram> CurrentWindowGroup { get; private set; }
         public int SentDatagramCountInCurrentWindowGroup { get; private set; }
-        public int TotalActualWindowSentCount { get; private set; }
+
         public bool SendInProgress { get; set; }
 
         public void Dispose(ProtocolOperationException cause)
@@ -56,8 +58,6 @@ namespace ScalableIPC.Core.Session
         public void ProcessSend(ProtocolMessage message,
            PromiseCompletionSource<VoidType> promiseCb)
         {
-            _pendingPromiseCallback = promiseCb;
-
             // ensure minimum of 512 and maximum = datagram max length
             int mtu = Math.Min(Math.Max(ProtocolDatagram.MinimumTransferUnitSize, 
                 _sessionHandler.NetworkApi.MaximumTransferUnitSize), ProtocolDatagram.MaxDatagramSize);
@@ -65,10 +65,49 @@ namespace ScalableIPC.Core.Session
 
             // reset fields used for continuation.
             SentDatagramCountInCurrentWindowGroup = 0;
-            TotalActualWindowSentCount = 0;
 
+            _skipDataExchangeProhibitions = false;
+            if (message.Attributes != null && message.Attributes.ContainsKey(
+                ProtocolDatagramOptions.OptionNameSkipDataExchangeProhibitionsInOpeningState))
+            {
+                string lastValStr = message.Attributes[
+                    ProtocolDatagramOptions.OptionNameSkipDataExchangeProhibitionsInOpeningState].LastOrDefault();
+                if (lastValStr != null)
+                {
+                    _skipDataExchangeProhibitions = ProtocolDatagramOptions.ParseOptionAsBoolean(lastValStr);
+                }
+            }
+            if (_sessionHandler.State == SessionState.Opening)
+            {
+                if (_skipDataExchangeProhibitions)
+                {
+                    TransitionToOpenState();
+                }
+                else
+                {
+                    _sessionHandler.ReceiveDataForbiddenDuringOpeningState = true;
+                }
+            }
+            else
+            {
+                if (!_skipDataExchangeProhibitions && _sessionHandler.OpenedByReceive)
+                {
+                    throw new Exception("Cannot honour data exchange prohibitions since session is already opened at receive end");
+                }
+            }
+
+            _pendingPromiseCallback = promiseCb;
             ContinueWindowSend(false);
             SendInProgress = true;
+        }
+
+        private void TransitionToOpenState()
+        {
+            _sessionHandler.State = SessionState.Opened;
+            _sessionHandler.OpenedBySend = true;
+            _sessionHandler.CancelOpenTimeout();
+            _sessionHandler.ScheduleEnquireLinkEvent(true);
+            _sessionHandler.OnOpenSuccess(false);
         }
 
         private bool ContinueWindowSend(bool haveSentBefore)
@@ -84,17 +123,6 @@ namespace ScalableIPC.Core.Session
             else if (SentDatagramCountInCurrentWindowGroup >= CurrentWindowGroup.Count)
             {
                 CurrentWindowGroup = _datagramFragmenter.Next();
-                if (CurrentWindowGroup.Count == 0)
-                {
-                    // check whether entire message has to be ended with a last_in_window_group.
-                    if (!_sessionHandler.OpenedStateConfirmedForSend && TotalActualWindowSentCount == 1)
-                    {
-                        CurrentWindowGroup = new List<ProtocolDatagram>
-                        {
-                            new ProtocolDatagram()
-                        };
-                    }
-                }
                 if (CurrentWindowGroup.Count == 0)
                 {
                     // No more datagrams found for send window.
@@ -127,23 +155,28 @@ namespace ScalableIPC.Core.Session
             lastMsgInNextWindow.Options.IsLastInWindow = true;
             if (SentDatagramCountInCurrentWindowGroup >= CurrentWindowGroup.Count)
             {
-                if (_sessionHandler.OpenedStateConfirmedForSend || TotalActualWindowSentCount > 0)
-                {
-                    lastMsgInNextWindow.Options.IsLastInWindowGroup = true;
-                }
+                lastMsgInNextWindow.Options.IsLastInWindowGroup = true;
             }
 
             foreach (var datagram in nextWindow)
             {
                 datagram.OpCode = ProtocolDatagram.OpCodeData;
                 datagram.SessionId = _sessionHandler.SessionId;
+
+                // apply to all datagrams in window if set since they
+                // may arrive at different ordering at receiver, and it is
+                // the first which will have an impact.
+                if (_skipDataExchangeProhibitions)
+                {
+                    if (datagram.Options == null)
+                    {
+                        datagram.Options = new ProtocolDatagramOptions();
+                    }
+                    datagram.Options.SkipDataExchangeProhibitionsDueToOpeningState = true;
+                }
                 // the rest will be set by assistant handlers
             }
 
-            if (_sendWindowHandler != null)
-            {
-                TotalActualWindowSentCount += _sendWindowHandler.ActualSentWindowRanges.Count;
-            }
             _sendWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
             _sendWindowHandler.ProspectiveWindowToSend = nextWindow;
             _sendWindowHandler.SuccessCallback = OnWindowSendSuccess;
@@ -167,12 +200,6 @@ namespace ScalableIPC.Core.Session
             // send data succeeded.
 
             SendInProgress = false;
-
-            if (!_sessionHandler.OpenSuccessHandlerCalled)
-            {
-                _sessionHandler.OnOpenSuccess(false);
-                _sessionHandler.OpenSuccessHandlerCalled = true;
-            }
 
             // complete pending promise.
             _pendingPromiseCallback.CompleteSuccessfully(VoidType.Instance);

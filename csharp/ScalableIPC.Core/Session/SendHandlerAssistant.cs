@@ -95,16 +95,22 @@ namespace ScalableIPC.Core.Session
 
         private void OnWindowFull(int sentCount)
         {
-            _sessionHandler.OpenedStateConfirmedForSend = true;
             if (_sessionHandler.State == SessionState.Opening)
             {
-                _sessionHandler.State = SessionState.Opened;
-                _sessionHandler.CancelOpenTimeout();
-                _sessionHandler.ScheduleEnquireLinkEvent(true);
+                TransitionToOpenState();
             }
             ActualSentWindowRanges.Add(sentCount);
             TotalSentCount += sentCount;
             ContinueSend();
+        }
+
+        private void TransitionToOpenState()
+        {
+            _sessionHandler.State = SessionState.Opened;
+            _sessionHandler.OpenedBySend = true;
+            _sessionHandler.CancelOpenTimeout();
+            _sessionHandler.ScheduleEnquireLinkEvent(true);
+            _sessionHandler.OnOpenSuccess(false);
         }
 
         private void OnWindowSendError(ProtocolOperationException error)

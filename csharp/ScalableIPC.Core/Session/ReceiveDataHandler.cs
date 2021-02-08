@@ -19,7 +19,7 @@ namespace ScalableIPC.Core.Session
 
         public List<ProtocolDatagram> CurrentWindow { get; } = new List<ProtocolDatagram>();
         public List<ProtocolDatagram> CurrentWindowGroup { get; } = new List<ProtocolDatagram>();
-        public bool OpenSuccessHandlerCalled { get; set; }
+        public bool AutomaticTransitionToOpenStateBlocked { get; set; }
 
         public void Dispose(ProtocolOperationException cause)
         {
@@ -39,6 +39,27 @@ namespace ScalableIPC.Core.Session
 
         private void OnReceiveRequest(ProtocolDatagram datagram)
         {
+            // reject quickly if forbidden to receive in opening state.
+            if (_sessionHandler.State == SessionState.Opening &&
+                _sessionHandler.ReceiveDataForbiddenDuringOpeningState)
+            {
+                // ignore any send ack errors.
+                var rejectionAck = new ProtocolDatagram
+                {
+                    SessionId = datagram.SessionId,
+                    OpCode = ProtocolDatagram.OpCodeDataAck,
+                    WindowId = datagram.WindowId,
+                    SequenceNumber = datagram.SequenceNumber,
+                    Options = new ProtocolDatagramOptions
+                    {
+                        ErrorCode = ProtocolOperationException.ErrorCodeReceiveForbiddenInOpeningState
+                    }
+                };
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint,
+                    rejectionAck, null, null);
+                return;
+            }
+
             // Reject unexpected window id
             if (!ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId, _sessionHandler.LastWindowIdReceived))
             {
@@ -65,6 +86,7 @@ namespace ScalableIPC.Core.Session
             if (_sessionHandler.State >= SessionState.Closing)
             {
                 _sessionHandler.OnDatagramDiscarded(datagram);
+                return;
             }
 
             // save datagram into current window or reject unexpected sequence number.
@@ -76,6 +98,24 @@ namespace ScalableIPC.Core.Session
 
             // Successfully received datagram into window.
             _sessionHandler.LastWindowIdReceived = datagram.WindowId;
+
+            // determine whether to transition to opened state automatically.
+            if (_sessionHandler.State == SessionState.Opening)
+            {
+                if (!AutomaticTransitionToOpenStateBlocked)
+                {
+                    // fetch special send datagram option, and determine whether to
+                    // proceed or skip transition to open state.
+                    if (datagram.Options?.SkipDataExchangeProhibitionsDueToOpeningState == true)
+                    {
+                        TransitionToOpenState();
+                    }
+                    else
+                    {
+                        AutomaticTransitionToOpenStateBlocked = true;
+                    }
+                }
+            }
 
             // reset current window if requested.
             if (datagram.Options?.IsFirstInWindowGroup == true)
@@ -110,6 +150,15 @@ namespace ScalableIPC.Core.Session
             _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, ack, null, null);
         }
 
+        private void TransitionToOpenState()
+        {
+            _sessionHandler.State = SessionState.Opened;
+            _sessionHandler.OpenedByReceive = true;
+            _sessionHandler.CancelOpenTimeout();
+            _sessionHandler.ScheduleEnquireLinkEvent(true);
+            _sessionHandler.OnOpenSuccess(true);
+        }
+
         private void UpdateWindowGroup(int lastEffectiveSeqNr)
         {
             // Window is full
@@ -126,9 +175,10 @@ namespace ScalableIPC.Core.Session
             // IsLastInWindow may not be set if the remote's window size is larger than
             // the local window size.
 
-            if (lastDatagramInWindow.Options?.IsLastInWindow == true &&
-                lastDatagramInWindow.Options?.IsLastInWindowGroup == true &&
-                _sessionHandler.State == SessionState.Opening)
+            // Ensure that window group cannot be received in opening state.
+            if (_sessionHandler.State == SessionState.Opening &&
+                lastDatagramInWindow.Options?.IsLastInWindow == true &&
+                lastDatagramInWindow.Options?.IsLastInWindowGroup == true)
             {
                 processingError = new ProtocolOperationException(ProtocolOperationException.ErrorCodeWindowGroupNotReceivableInOpeningState);
             }
@@ -189,13 +239,17 @@ namespace ScalableIPC.Core.Session
             }
 
             // transition to open state if no errors occured.
-            if (processingError == null)
+            if (_sessionHandler.State == SessionState.Opening)
             {
-                if (_sessionHandler.State == SessionState.Opening)
+                if (processingError == null)
                 {
-                    _sessionHandler.State = SessionState.Opened;
-                    _sessionHandler.CancelOpenTimeout();
-                    _sessionHandler.ScheduleEnquireLinkEvent(true);
+                    TransitionToOpenState();
+                }
+                else
+                {
+                    // reset so as to determine decision to transition afresh
+                    // for next window.
+                    AutomaticTransitionToOpenStateBlocked = false;
                 }
             }
 
@@ -212,11 +266,14 @@ namespace ScalableIPC.Core.Session
                 SequenceNumber = lastEffectiveSeqNr,
                 Options = new ProtocolDatagramOptions
                 {
-                    IsWindowFull = true,
-                    MaxWindowSize = _sessionHandler.MaxWindowSize,
                     ErrorCode = processingError?.ErrorCode
                 }
             };
+            if (processingError == null)
+            {
+                _sessionHandler.LastAck.Options.IsWindowFull = true;
+                _sessionHandler.LastAck.Options.MaxWindowSize = _sessionHandler.MaxWindowSize;
+            }
             _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint,
                 _sessionHandler.LastAck, null, null);
         }
@@ -260,11 +317,6 @@ namespace ScalableIPC.Core.Session
 
             // ready to pass on to application layer.
             ProcessCurrentWindowOptions(windowGroupAsMessage.Options);
-            if (!_sessionHandler.OpenSuccessHandlerCalled)
-            {
-                _sessionHandler.OnOpenSuccess(true);
-                _sessionHandler.OpenSuccessHandlerCalled = true;
-            }
             _sessionHandler.OnMessageReceived(messageForApp);
         }
 

@@ -16,6 +16,7 @@ namespace ScalableIPC.Core
         public const string OptionNameIsFirstInWindowGroup = KnownOptionPrefix + "00";
         public const string OptionNameIsLastInWindow = KnownOptionPrefix + "01";
         public const string OptionNameIsLastInWindowGroup = KnownOptionPrefix + "02";
+        public const string OptionNameSkipDataExchangeProhibitionsInOpeningState = KnownOptionPrefix + "03";
         public const string OptionNameIsWindowFull = KnownOptionPrefix + "10";
         public const string OptionNameMaxWindowSize = KnownOptionPrefix + "20";
         public const string OptionNameTraceId = KnownOptionPrefix + "traceId";
@@ -41,6 +42,7 @@ namespace ScalableIPC.Core
         public string TraceId { get; set; }
         public int? MaxWindowSize { get; set; }
         public bool? IsFirstInWindowGroup { get; set; }
+        public bool SkipDataExchangeProhibitionsDueToOpeningState { get; set; }
 
         public override string ToString()
         {
