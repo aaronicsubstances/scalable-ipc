@@ -175,10 +175,11 @@ namespace ScalableIPC.Core.Session
             // IsLastInWindow may not be set if the remote's window size is larger than
             // the local window size.
 
-            // Ensure that window group cannot be received in opening state.
+            // Ensure that window group contains more than 1 window in opening state.
             if (_sessionHandler.State == SessionState.Opening &&
                 lastDatagramInWindow.Options?.IsLastInWindow == true &&
-                lastDatagramInWindow.Options?.IsLastInWindowGroup == true)
+                lastDatagramInWindow.Options?.IsLastInWindowGroup == true &&
+                CurrentWindowGroup.Count == 0)
             {
                 processingError = new ProtocolOperationException(ProtocolOperationException.ErrorCodeWindowGroupNotReceivableInOpeningState);
             }
@@ -238,19 +239,11 @@ namespace ScalableIPC.Core.Session
                 }
             }
 
-            // transition to open state if no errors occured.
-            if (_sessionHandler.State == SessionState.Opening)
+            // reset blocked state on error, so as to determine decision to transition afresh
+            // for next window.
+            if (_sessionHandler.State == SessionState.Opening && processingError != null)
             {
-                if (processingError == null)
-                {
-                    TransitionToOpenState();
-                }
-                else
-                {
-                    // reset so as to determine decision to transition afresh
-                    // for next window.
-                    AutomaticTransitionToOpenStateBlocked = false;
-                }
+                AutomaticTransitionToOpenStateBlocked = false;
             }
 
             // Reset current window.
@@ -317,6 +310,13 @@ namespace ScalableIPC.Core.Session
 
             // ready to pass on to application layer.
             ProcessCurrentWindowOptions(windowGroupAsMessage.Options);
+
+            // transition to open state if no errors occured in keeping with rule
+            // that first received window group ends opening state.
+            if (_sessionHandler.State == SessionState.Opening)
+            {
+                TransitionToOpenState();
+            }
             _sessionHandler.OnMessageReceived(messageForApp);
         }
 
