@@ -103,10 +103,10 @@ namespace ScalableIPC.Core.Session
         public void ProcessSendClose(ProtocolOperationException cause)
         {
             // send but ignore errors.
-            var errorCodeToSend = ProtocolOperationException.ErrorCodeInternalError;
+            var abortCodeToSend = ProtocolOperationException.ErrorCodeInternalError;
             if (cause.ErrorCode > 0)
             {
-                errorCodeToSend = cause.ErrorCode;
+                abortCodeToSend = cause.ErrorCode;
             }
             var closeDatagram = new ProtocolDatagram
             {
@@ -115,7 +115,7 @@ namespace ScalableIPC.Core.Session
                 WindowId = _sessionHandler.NextWindowIdToSend,
                 Options = new ProtocolDatagramOptions
                 {
-                    ErrorCode = errorCodeToSend
+                    AbortCode = abortCodeToSend
                 }
             };
             _sendWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
