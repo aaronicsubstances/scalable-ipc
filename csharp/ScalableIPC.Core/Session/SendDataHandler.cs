@@ -13,7 +13,7 @@ namespace ScalableIPC.Core.Session
         private ProtocolDatagramFragmenter _datagramFragmenter;
         private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
         private ISendHandlerAssistant _sendWindowHandler;
-        private bool _skipDataExchangeProhibitions;
+        private bool _skipDataExchangeRestrictions;
 
         public SendDataHandler(IStandardSessionHandler sessionHandler)
         {
@@ -66,7 +66,7 @@ namespace ScalableIPC.Core.Session
             // reset fields used for continuation.
             SentDatagramCountInCurrentWindowGroup = 0;
 
-            _skipDataExchangeProhibitions = false;
+            _skipDataExchangeRestrictions = false;
             if (message.Attributes != null && message.Attributes.ContainsKey(
                 ProtocolDatagramOptions.OptionNameSkipDataExchangeProhibitionsInOpeningState))
             {
@@ -74,12 +74,12 @@ namespace ScalableIPC.Core.Session
                     ProtocolDatagramOptions.OptionNameSkipDataExchangeProhibitionsInOpeningState].LastOrDefault();
                 if (lastValStr != null)
                 {
-                    _skipDataExchangeProhibitions = ProtocolDatagramOptions.ParseOptionAsBoolean(lastValStr);
+                    _skipDataExchangeRestrictions = ProtocolDatagramOptions.ParseOptionAsBoolean(lastValStr);
                 }
             }
             if (_sessionHandler.State == SessionState.Opening)
             {
-                if (_skipDataExchangeProhibitions)
+                if (_skipDataExchangeRestrictions)
                 {
                     TransitionToOpenState();
                 }
@@ -90,7 +90,7 @@ namespace ScalableIPC.Core.Session
             }
             else
             {
-                if (!_skipDataExchangeProhibitions && _sessionHandler.OpenedByReceive)
+                if (!_skipDataExchangeRestrictions && _sessionHandler.OpenedByReceive)
                 {
                     throw new Exception("Cannot honour data exchange prohibitions since session is already opened at receive end");
                 }
@@ -115,7 +115,7 @@ namespace ScalableIPC.Core.Session
             if (!haveSentBefore)
             {
                 int minReqd = 1;
-                if (_sessionHandler.State == SessionState.Opening && !_skipDataExchangeProhibitions)
+                if (_sessionHandler.State == SessionState.Opening && !_skipDataExchangeRestrictions)
                 {
                     minReqd = 2;
                 }
@@ -140,7 +140,7 @@ namespace ScalableIPC.Core.Session
             // try and fetch remainder in current window group, but respect constraint of max send window size.
             // ensure minimum of 1 for max send window size.
             int maxSendWindowSize = Math.Max(1, _sessionHandler.MaxWindowSize);
-            if (_sessionHandler.State == SessionState.Opening && !haveSentBefore && !_skipDataExchangeProhibitions)
+            if (_sessionHandler.State == SessionState.Opening && !haveSentBefore && !_skipDataExchangeRestrictions)
             {
                 maxSendWindowSize = 1;
             }
@@ -148,7 +148,7 @@ namespace ScalableIPC.Core.Session
                 CurrentWindowGroup.Count - SentDatagramCountInCurrentWindowGroup));
             SentDatagramCountInCurrentWindowGroup += nextWindow.Count;
 
-            if (!haveSentBefore)
+            if (SentDatagramCountInCurrentWindowGroup == 0)
             {
                 var firstMsgInNextWindow = nextWindow[0];
                 if (firstMsgInNextWindow.Options == null)
@@ -176,13 +176,13 @@ namespace ScalableIPC.Core.Session
                 // apply to all datagrams in window if set since they
                 // may arrive at different ordering at receiver, and it is
                 // the first which will have an impact.
-                if (_skipDataExchangeProhibitions)
+                if (_sessionHandler.State == SessionState.Opening && _skipDataExchangeRestrictions)
                 {
                     if (datagram.Options == null)
                     {
                         datagram.Options = new ProtocolDatagramOptions();
                     }
-                    datagram.Options.SkipDataExchangeProhibitionsDueToOpeningState = true;
+                    datagram.Options.SkipDataExchangeRestrictionsDueToOpeningState = true;
                 }
                 // the rest will be set by assistant handlers
             }

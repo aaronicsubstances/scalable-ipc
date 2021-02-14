@@ -42,7 +42,7 @@ namespace ScalableIPC.Core
         public string TraceId { get; set; }
         public int? MaxWindowSize { get; set; }
         public bool? IsFirstInWindowGroup { get; set; }
-        public bool SkipDataExchangeProhibitionsDueToOpeningState { get; set; }
+        public bool SkipDataExchangeRestrictionsDueToOpeningState { get; set; }
 
         public override string ToString()
         {

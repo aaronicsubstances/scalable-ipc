@@ -1,0 +1,38 @@
+digraph finite_state_machine {
+	//rankdir=LR;
+	//size="8,5"
+	node [shape = point]; start_state;
+	node [shape = doublecircle ] Disposed;
+	node [shape = circle];
+	start_state -> Opening;
+	Opening -> Opened [ label=<
+		1. Successful send data window<br/>
+		2. Successful receive data window group<br/>
+		3. Prescence of skip_data_exchange_restrictions option during sending or receiving data<br/>(regardless of whether actual send or receive succeeds).
+	>];
+	Opened -> Closing [ label = <
+		1. Idle timeout<br/>
+		2. Gracious close requested
+	>];
+	Closing -> Closing [ label = "Gracious close requested" ];
+	Closing -> Awaiting_Disposal [label = <
+		1. Force close requested<br/>
+		2. Send close aftermath<br/>
+		3. Enquire link nack<br/>
+		4. Received close PDU
+	>];
+	Opened -> Awaiting_Disposal [ label = <
+		1. Force close requested<br/>
+		2. Received close PDU<br/>
+		3. Enquire link nack		
+	>];
+	Opening -> Awaiting_Disposal [ label = <
+		1. Open Timeout<br/>
+		2. Any close requested
+	>];
+	Awaiting_Disposal -> Awaiting_Disposal [ label = "Any close requested" ];
+	Opening -> Disposed [ label = "Final Session Dispose" ];
+	Opened -> Disposed [ label = "Final Session Dispose" ];
+	Closing -> Disposed [ label = "Final Session Dispose" ];
+	Awaiting_Disposal -> Disposed [ label = "Final Session Dispose" ];
+}

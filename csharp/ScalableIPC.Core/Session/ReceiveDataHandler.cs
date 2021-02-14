@@ -106,7 +106,7 @@ namespace ScalableIPC.Core.Session
                 {
                     // fetch special send datagram option, and determine whether to
                     // proceed or skip transition to open state.
-                    if (datagram.Options?.SkipDataExchangeProhibitionsDueToOpeningState == true)
+                    if (datagram.Options?.SkipDataExchangeRestrictionsDueToOpeningState == true)
                     {
                         TransitionToOpenState();
                     }

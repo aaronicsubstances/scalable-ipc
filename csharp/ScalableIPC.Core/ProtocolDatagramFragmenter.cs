@@ -63,9 +63,6 @@ namespace ScalableIPC.Core
                 return new List<ProtocolDatagram>();
             }
 
-            var reservedSpaceForMinReqdCount = Math.Max(0, minReqdCount * DefaultReservedSpace);
-            var effectiveMaxFragmentBatchSize = _maxFragmentBatchSize - reservedSpaceForMinReqdCount;
-
             // The requirement of the fragmentation algorithm is to include the attributes of a message
             // in each window group returned from this method.
             // As such create and validate the options once, ensuring that it fits into max datagram size,
@@ -78,6 +75,14 @@ namespace ScalableIPC.Core
                     _maxFragmentSize, _maxFragmentOptionsSize,
                     _optionsToSkip);
             }
+
+            // reserve space beyond options template.
+            var reservedSpaceForMinReqdCount = 0;
+            if (_optionsTemplate.Count < minReqdCount)
+            {
+                reservedSpaceForMinReqdCount = (minReqdCount - _optionsTemplate.Count) * DefaultReservedSpace;
+            }
+            var effectiveMaxFragmentBatchSize = _maxFragmentBatchSize - reservedSpaceForMinReqdCount;
 
             var nextFragments = DuplicateFragmentsFromOptions();
             int bytesNeeded = nextFragments.Sum(x => x.ExpectedDatagramLength);

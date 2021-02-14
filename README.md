@@ -24,6 +24,22 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
   * Designed to make maximum utilisation of "long fat networks", ie internal networks with large bandwidth-delay products.
 
+## Protocol State Machine
+
+![protocol state machine](psm.png)
+
+**NB:**
+
+   - calling ISessionHandler.CompleteInit launches the opening state.
+
+   - in opening state only data pdus are processed; all others are ignored.
+
+   - in opened state, data pdus are processed normally. enquire link pdus are processed by sending back enquire link acks.
+
+      - Also enquire link pdus are sent out periodically without waiting for reply or even network send aftermath.
+
+   - beyond opened state (ie when session handler is disposing), data or enquire link pdus are processed by sending back enquire link NACKs. close pdus are ignored (except in closing state).
+
 ## Roadmap
 
  * C#.NET Core implementation is currently underway as the initial implementation.
