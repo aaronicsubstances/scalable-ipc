@@ -72,19 +72,19 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
       1. if current window buffer fills up before receipt of a last_in_window option (e.g. because receiver's buffer size is smaller than that of sender), set *is_window_full* option to true on ack reply. Also use *max_window_size* option in ack reply to communicate buffer size for use by sender in the future. Current window buffer is emptied into window group buffer if filled up for any reason.
 
-      1.  any processing error of a window or window group should be communicated in ack reply with the *error_code* option indicating kind of processing error. Some processing errors are (a) window group option decoding error (b) window group exceeding 65500 max (c) receiving window group with only 1 window in opening state.
+      1.  any processing error of a window or window group should be communicated in ack reply with the *error_code* option indicating kind of processing error. Some processing errors are (a) window group option decoding error (b) window group exceeding 65500 max byte limit (c) receiving window group with only 1 window in opening state.
 
       1. if a pdu is deemed valid, its window id becomes the minimum window id which will be accepted from remote peers. In any case once a window is processed whether successfully or not, its window id will not be accepted again.
 
-      1. a pdu is invalid if its window id or seq_nr is negative. It is also invalid if its window id is less than the current minimum, or if its window id exceeds the current minimum by a difference of more than 1000. If seq_nr is too large as indicated by current window buffer size, again pdu is invalid.
+      1. a pdu is invalid if its window id or seq_nr is negative. It is also invalid if its window id is less than the current minimum, or if its window id exceeds the current minimum by a difference of more than 100. If seq_nr is too large as indicated by current window buffer size, again pdu is invalid.
  
-      1.  The very first window id must be 1000 or less, and the maximum possible value is 9E18. After that limit, window ids wrap around to 1000 or less.
+      1.  The very first window id must be 100 or less, and the maximum possible value is 9E15 (chosen to be representable exactly as a double precision floating point number). After that limit, window ids wrap around to 100 or less.
 
       1. window id validations apply across pdu op code variations and session state changes.
 
       1. if at any time an invalid window id is received, but happens to be equal to the last processed window id, *then the same ack which was sent as reply for that window must be sent again, regardless of the state the session is currently in.*
 
-   1. With regards to sending data, protocol presumes the sending of bytes of data and associated attributes - key value pairs. Protocol also presumes bytes of data is divided into window groups, and each window group is in turn divided into prospective windows. Prospective windows are arrays of pdus. A current window group and a current prospective window exist as the focus of send operation at any given time.
+   1. With regards to sending data, protocol presumes the sending of bytes of data and associated attributes - key value pairs. Protocol also presumes bytes of data is divided into window groups, and each window group is in turn divided into prospective windows. A prospective window is an array of pdus which may or may not be received fully at remote peer in 1 window. A current window group and a current prospective window exist as the focus of send operation at any given time.
 
       1.  Only 1 send operation can be ongoing at a time across data exchanges and gracious close requests. "fire and forget" sends however can always be made.
 
@@ -94,7 +94,7 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
       1. A window group must not exceed 65500 byte limit (chosen to be close to theoretical max UDP payload size).
 
-      1. Attributes will be attached as pdu options to all window groups being sent.
+      1. Attributes will be attached as pdu options to each window group being sent.
 
       1. Some send outcomes are (a) network send error (b) ack error code (c) eventual ack timeout (d) eventual success
 
@@ -102,9 +102,9 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
       1. retry sending one at a time (i.e. send one pdu, wait for ack with is_window_full option before sending next) from the beginning of the current prospective window if ack timeout occurs. Do not use received acks to assume certain seq_nrs have been received in between retries. Network implementations can depend on this "retry from beginning on timeout" feature.
 
-      1. However, once the very first pdu in prospective window has been sent during retrying, definitely use received acks to determine what has been received, and jump around in current prospective window to what needs to be sent next.
+      1. However, once the very first pdu in prospective window has been sent during retrying, definitely use received acks to determine what has been received, and skip ahead in current prospective window to what needs to be sent next.
 
-      1. If starting a prospective window send for the first time, then send all in succession before waiting for ack with is_window_full option for last pdu in window (rather than one at a time). Reject acks received for pdus which have not been sent. However, if an ack is received while waiting for a network send aftermath for a pdu, then use ack, disregard the network send outcome, and restart sending from where the ack's seq_nr indicates. Network implementations can depend on this "ack can be sent before network send response" feature.
+      1. If starting a prospective window send for the first time, then send all in succession before waiting for ack with is_window_full option for last pdu in window (rather than one at a time). Reject acks received for pdus which have not been sent or have already been processed. However, if an ack is received while waiting for a network send aftermath for a pdu, then use ack, disregard the network send outcome, and restart sending from where the ack's seq_nr indicates. Network implementations can depend on this "ack can be sent before network send response" feature.
 
       1. if is_window_full option is received in an ack pdu, use the ack's seq_nr to partition current prospective window into two. The first part joins the actual sent windows for the current window group being sent, and the second part takes over as the new current prospective window. Assign a new window id to it and send it as a new window with no retry history. If the current prospective window becomes empty, then the original prospective window is deemed successfully sent through one or more actual sent windows, and the next prospective window from the current or next window group can be sent. If there is no longer any prospective window to send, then send operation ends with an eventual success.
 
