@@ -12,19 +12,17 @@ digraph finite_state_machine {
 	>];
 	Opened -> Closing [ label = <
 		1. Idle timeout<br/>
-		2. Gracious close requested
+		2. Any close requested
 	>];
-	Closing -> Closing [ label = "Gracious close requested" ];
+	Closing -> Closing [ label = "Any close requested" ];
 	Closing -> Awaiting_Disposal [label = <
-		1. Force close requested<br/>
-		2. Send close aftermath<br/>
-		3. Enquire link nack<br/>
-		4. Received close PDU
+		1. Send close aftermath<br/>
+		2. Received close PDU<br/>
+		3. Enquire link nack
 	>];
 	Opened -> Awaiting_Disposal [ label = <
-		1. Force close requested<br/>
-		2. Received close PDU<br/>
-		3. Enquire link nack		
+		1. Received close PDU<br/>
+		2. Enquire link nack
 	>];
 	Opening -> Awaiting_Disposal [ label = <
 		1. Open Timeout<br/>

@@ -32,13 +32,21 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
    - calling ISessionHandler.CompleteInit launches the opening state.
 
-   - in opening state only data pdus are processed; all others are ignored.
+   - in opening state only data pdus are processed; all others are ignored. Time spent in this state determines open timeout.
 
-   - in opened state, data pdus are processed normally. enquire link pdus are processed by sending back enquire link acks.
+   - in opened state,
 
-      - Also enquire link pdus are sent out periodically without waiting for reply or even network send aftermath.
+      - data pdus are processed normally, and the activity here determines idle timeout.
 
-   - beyond opened state (ie when session handler is disposing), data or enquire link pdus are processed by sending back enquire link NACKs. close pdus are ignored (except in closing state).
+      - enquire link pdus are sent out periodically without waiting for reply or even network send aftermath.
+
+      - enquire link pdus are processed by sending back enquire link acks.
+
+   - in closing state, close pdu is sent before transitioning to Awaiting_Disposal state. If gracious close was requested, then attempt is made to wait for ack pdu. Else for force close, only network send aftermath is awaited.
+
+   - beyond opened state (i.e. when session handler is disposing), data and enquire link pdus are ignored.
+
+   - beyond closing state, close pdus are ignored.
 
 ## Roadmap
 
