@@ -13,8 +13,8 @@ namespace ScalableIPC.Core
     ///    by combining random uuid, current timestamp, and auto incrementing integer.
     /// 2. use of 32-bit sequence number separate from window id, allows a maximum bandwidth of 512 * 2G = 1TB (1024 GB), 
     ///    more than enough for networks with large bandwidth-delay product (assuming packet size of 512 bytes).
-    /// 3. use of 64-bit window id is for ensuring that by the time 64-bit numbers are exhausted in max increments of 1000,
-    ///    at a speed of 512 terabytes per second (ie 2^49 bytes/s), it will take 34 minutes (ie 2^11 seconds)
+    /// 3. use of 64-bit window id is for ensuring that, by the time 0-9e15 range is exhausted in max increments of 100,
+    ///    at a speed of 8 terabytes per second (ie 2^43 bytes/s), it will take about 17 minutes
     ///    to exhaust ids and wrap around. That's more than enough for networks to discard traces of any lingering packet.
     /// </summary>
     public class ProtocolDatagram
@@ -32,8 +32,8 @@ namespace ScalableIPC.Core
 
         public const int SessionIdLength = 32;
 
-        public const long MinWindowIdCrossOverLimit = 1_000;
-        public const long MaxWindowIdCrossOverLimit = 9_000_000_000_000_000_000L;
+        public const long MinWindowIdCrossOverLimit = 1_00;
+        public const long MaxWindowIdCrossOverLimit = 9_000_000_000_000_000L;
 
         // the expected length, sessionId, sessionId prefix,  opCode, window id, 
         // sequence number, null terminators are always present.

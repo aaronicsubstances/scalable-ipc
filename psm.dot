@@ -8,13 +8,13 @@ digraph finite_state_machine {
 	Opening -> Opened [ label=<
 		1. Successful send data window<br/>
 		2. Successful receive data window group<br/>
-		3. Prescence of skip_data_exchange_restrictions option during sending or receiving data<br/>(regardless of whether actual send or receive succeeds).
+		3. Prescence of skip_data_exchange_restrictions option during sending or receiving data
 	>];
 	Opened -> Closing [ label = <
 		1. Idle timeout<br/>
-		2. Any close requested
+		2. Close requested
 	>];
-	Closing -> Closing [ label = "Any close requested" ];
+	Closing -> Closing [ label = "Close requested" ];
 	Closing -> Awaiting_Disposal [label = <
 		1. Send close aftermath<br/>
 		2. Received close PDU<br/>
@@ -26,9 +26,9 @@ digraph finite_state_machine {
 	>];
 	Opening -> Awaiting_Disposal [ label = <
 		1. Open Timeout<br/>
-		2. Any close requested
+		2. Close requested
 	>];
-	Awaiting_Disposal -> Awaiting_Disposal [ label = "Any close requested" ];
+	Awaiting_Disposal -> Awaiting_Disposal [ label = "Close requested" ];
 	Opening -> Disposed [ label = "Final Session Dispose" ];
 	Opened -> Disposed [ label = "Final Session Dispose" ];
 	Closing -> Disposed [ label = "Final Session Dispose" ];
