@@ -19,7 +19,6 @@ namespace ScalableIPC.Core.Session
 
         public List<ProtocolDatagram> CurrentWindow { get; } = new List<ProtocolDatagram>();
         public List<ProtocolDatagram> CurrentWindowGroup { get; } = new List<ProtocolDatagram>();
-        public bool AutomaticTransitionToOpenStateBlocked { get; set; }
 
         public void Dispose(ProtocolOperationException cause)
         {
@@ -39,9 +38,9 @@ namespace ScalableIPC.Core.Session
 
         private void OnReceiveRequest(ProtocolDatagram datagram)
         {
-            // reject quickly if forbidden to receive in opening state.
+            // reject quickly data exchange is already occuring by sending in opening state.
             if (_sessionHandler.State == SessionState.Opening &&
-                _sessionHandler.ReceiveDataForbiddenDuringOpeningState)
+                _sessionHandler.OpeningBySending)
             {
                 // ignore any send ack errors.
                 var rejectionAck = new ProtocolDatagram
@@ -52,7 +51,7 @@ namespace ScalableIPC.Core.Session
                     SequenceNumber = datagram.SequenceNumber,
                     Options = new ProtocolDatagramOptions
                     {
-                        ErrorCode = ProtocolOperationException.ErrorCodeReceiveForbiddenInOpeningState
+                        ErrorCode = ProtocolOperationException.ErrorCodeTwoWayDataExchangeForbiddenInOpeningState
                     }
                 };
                 _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint,
@@ -102,7 +101,7 @@ namespace ScalableIPC.Core.Session
             // determine whether to transition to opened state automatically.
             if (_sessionHandler.State == SessionState.Opening)
             {
-                if (!AutomaticTransitionToOpenStateBlocked)
+                if (!_sessionHandler.OpeningByReceiving)
                 {
                     // fetch special send datagram option, and determine whether to
                     // proceed or skip transition to open state.
@@ -112,7 +111,7 @@ namespace ScalableIPC.Core.Session
                     }
                     else
                     {
-                        AutomaticTransitionToOpenStateBlocked = true;
+                        _sessionHandler.OpeningByReceiving = true;
                     }
                 }
             }
@@ -153,7 +152,6 @@ namespace ScalableIPC.Core.Session
         private void TransitionToOpenState()
         {
             _sessionHandler.State = SessionState.Opened;
-            _sessionHandler.OpenedByReceive = true;
             _sessionHandler.CancelOpenTimeout();
             _sessionHandler.ScheduleEnquireLinkEvent(true);
             _sessionHandler.OnOpenSuccess(true);
@@ -181,7 +179,7 @@ namespace ScalableIPC.Core.Session
                 lastDatagramInWindow.Options?.IsLastInWindowGroup == true &&
                 CurrentWindowGroup.Count == 0)
             {
-                processingError = new ProtocolOperationException(ProtocolOperationException.ErrorCodeWindowGroupNotReceivableInOpeningState);
+                processingError = new ProtocolOperationException(ProtocolOperationException.ErrorCodeSingleWindowAsGroupNotReceivableInOpeningState);
             }
 
             // Only pass up if last datagram in window group has been seen
@@ -243,7 +241,7 @@ namespace ScalableIPC.Core.Session
             // for next window.
             if (_sessionHandler.State == SessionState.Opening && processingError != null)
             {
-                AutomaticTransitionToOpenStateBlocked = false;
+                   _sessionHandler.OpeningByReceiving = false;
             }
 
             // Reset current window.

@@ -93,9 +93,8 @@ namespace ScalableIPC.Core.Session
         public long LastWindowIdReceived { get; set; } = -1; // so 0 can be accepted as an initial valid window id. 
 
         public ProtocolDatagram LastAck { get; set; }
-        public bool OpenedByReceive { get; set; }
-        public bool OpenedBySend { get; set; }
-        public bool ReceiveDataForbiddenDuringOpeningState { get; set; }
+        public bool OpeningByReceiving { get; set; }
+        public bool OpeningBySending { get; set; }
         public int? RemoteIdleTimeout { get; set; }
         public int? RemoteMaxWindowSize { get; set; }
 

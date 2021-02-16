@@ -107,7 +107,6 @@ namespace ScalableIPC.Core.Session
         private void TransitionToOpenState()
         {
             _sessionHandler.State = SessionState.Opened;
-            _sessionHandler.OpenedBySend = true;
             _sessionHandler.CancelOpenTimeout();
             _sessionHandler.ScheduleEnquireLinkEvent(true);
             _sessionHandler.OnOpenSuccess(false);

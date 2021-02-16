@@ -27,9 +27,8 @@ namespace ScalableIPC.Core.Session.Abstractions
         long NextWindowIdToSend { get; set; }
         long LastWindowIdReceived { get; set; }
         ProtocolDatagram LastAck { get; set; }
-        bool OpenedByReceive { get; set; }
-        bool OpenedBySend { get; set; }
-        bool ReceiveDataForbiddenDuringOpeningState { get; set; }
+        bool OpeningByReceiving { get; set; }
+        bool OpeningBySending { get; set; }
         void IncrementNextWindowIdToSend();
         bool IsSendInProgress();
         void EnsureSendNotInProgress();

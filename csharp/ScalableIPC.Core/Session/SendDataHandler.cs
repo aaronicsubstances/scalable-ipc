@@ -58,6 +58,13 @@ namespace ScalableIPC.Core.Session
         public void ProcessSend(ProtocolMessage message,
            PromiseCompletionSource<VoidType> promiseCb)
         {
+            // reject quickly data exchange is already occuring by receiving in opening state.
+            if (_sessionHandler.State == SessionState.Opening &&
+                _sessionHandler.OpeningByReceiving)
+            {
+                throw new Exception("Cannot send while receiving data in opening state");
+            }
+            
             // ensure minimum of 512 and maximum = datagram max length
             int mtu = Math.Min(Math.Max(ProtocolDatagram.MinimumTransferUnitSize, 
                 _sessionHandler.NetworkApi.MaximumTransferUnitSize), ProtocolDatagram.MaxDatagramSize);
@@ -85,14 +92,7 @@ namespace ScalableIPC.Core.Session
                 }
                 else
                 {
-                    _sessionHandler.ReceiveDataForbiddenDuringOpeningState = true;
-                }
-            }
-            else
-            {
-                if (!_skipDataExchangeRestrictions && _sessionHandler.OpenedByReceive)
-                {
-                    throw new Exception("Cannot honour data exchange prohibitions since session is already opened at receive end");
+                    _sessionHandler.OpeningBySending = true;
                 }
             }
 
@@ -104,7 +104,6 @@ namespace ScalableIPC.Core.Session
         private void TransitionToOpenState()
         {
             _sessionHandler.State = SessionState.Opened;
-            _sessionHandler.OpenedBySend = true;
             _sessionHandler.CancelOpenTimeout();
             _sessionHandler.ScheduleEnquireLinkEvent(true);
             _sessionHandler.OnOpenSuccess(false);
@@ -233,7 +232,7 @@ namespace ScalableIPC.Core.Session
             // revert receive prohibition
             if (_sessionHandler.State == SessionState.Opening)
             {
-                _sessionHandler.ReceiveDataForbiddenDuringOpeningState = false;
+                _sessionHandler.OpeningBySending = false;
             }
         }
     }
