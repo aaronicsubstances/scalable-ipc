@@ -26,8 +26,8 @@ namespace ScalableIPC.Core.Abstractions
         // this method is used during sending to give network api implementations total
         // control in determininig ack timeouts.
         INetworkSendContext CreateSendContext();
-        AbstractPromise<VoidType> StartAsync();
 
+        AbstractPromise<VoidType> StartAsync();
         AbstractPromise<ISessionHandler> OpenSessionAsync(GenericNetworkIdentifier remoteEndpoint, string sessionId,
             ISessionHandler sessionHandler);
 

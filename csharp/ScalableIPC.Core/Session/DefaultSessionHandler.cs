@@ -17,10 +17,10 @@ namespace ScalableIPC.Core.Session
     /// </para>
     /// <list type="number">
     /// <item>Limited non-extensible number of states.</item>
-    /// <item>The only opcodes around are open, data, close, enquire link and their acks.</item>
-    /// <item>constant default idle timeout value throughout its operation. Can handle overrides
-    ///    from remote peer.</item>
-    /// <item>constant max retry count throughout its operation.</item>
+    /// <item>The only opcodes around are data, close, enquire link and their acks.</item>
+    /// <item>max window size, various timeouts, enquire link interval and algorithm, max retry count,
+    /// initial NextWindowIdToSend value, NextWindowIdToSendAlgorithm,
+    /// are set during initialization, and not modified afterwards.</item>
     /// </list>
     /// </remarks>
     public class DefaultSessionHandler : IStandardSessionHandler
@@ -56,6 +56,18 @@ namespace ScalableIPC.Core.Session
             _stateHandlers.Add(_closeHandler);
             _stateHandlers.Add(new EnquireLinkHandler(this));
 
+            // initialize window ids
+            NextWindowIdToSend = 0;
+            if (NextWindowIdToSendAlgorithm != null)
+            {
+                NextWindowIdToSend = NextWindowIdToSendAlgorithm.Invoke(-1);
+            }
+            else
+            {
+                NextWindowIdToSend = 0;
+            }
+            LastWindowIdReceived = -1; // so 0 can be accepted as an initial valid window id.
+
             ScheduleOpenTimeout();
         }
 
@@ -88,9 +100,10 @@ namespace ScalableIPC.Core.Session
         public int MaxRemoteIdleTimeout { get; set; }
         public int EnquireLinkInterval { get; set; }
         public Func<int, int> EnquireLinkIntervalAlgorithm { get; set; }
+        public Func<long, long > NextWindowIdToSendAlgorithm { get; set; }
 
         public long NextWindowIdToSend { get; set; }
-        public long LastWindowIdReceived { get; set; } = -1; // so 0 can be accepted as an initial valid window id. 
+        public long LastWindowIdReceived { get; set; } 
 
         public ProtocolDatagram LastAck { get; set; }
         public bool OpeningByReceiving { get; set; }
@@ -98,9 +111,16 @@ namespace ScalableIPC.Core.Session
         public int? RemoteIdleTimeout { get; set; }
         public int? RemoteMaxWindowSize { get; set; }
 
-        public virtual void IncrementNextWindowIdToSend()
+        public void IncrementNextWindowIdToSend()
         {
-            NextWindowIdToSend = ProtocolDatagram.ComputeNextWindowIdToSend(NextWindowIdToSend);
+            if (NextWindowIdToSendAlgorithm != null)
+            {
+                NextWindowIdToSend = NextWindowIdToSendAlgorithm.Invoke(NextWindowIdToSend);
+            }
+            else
+            {
+                NextWindowIdToSend = ProtocolDatagram.ComputeNextWindowIdToSend(NextWindowIdToSend);
+            }
         }
 
         public bool IsSendInProgress()
@@ -489,7 +509,7 @@ namespace ScalableIPC.Core.Session
         // event in event loop has been processed.
         public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
         public Action<ISessionHandler, bool> OpenSuccessHandler { get; set; }
-        public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
+        public Action<ISessionHandler, ReceivedProtocolMessage> MessageReceivedHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
@@ -513,7 +533,7 @@ namespace ScalableIPC.Core.Session
             }
         }
 
-        public void OnMessageReceived(ProtocolMessage message)
+        public void OnMessageReceived(ReceivedProtocolMessage message)
         {
             if (MessageReceivedHandler != null)
             {

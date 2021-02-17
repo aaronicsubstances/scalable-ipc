@@ -20,7 +20,7 @@ The initial motivation for this protocol came from deliberations on IPC efficien
      * treating all errors as transient, so that sessions persist in spite of errors. Sessions also persist without the need for keep-alive packets.
      * preserving message boundaries like in UDP.
 
-  * Optimized for networking within single host machine by using faster IPC mechanisms where available, such as UDP, Unix domain sockets and Windows named pipes. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale *down* from global internetworking to localhost internetworking; and also scale *up* from localhost to global.
+  * Optimized for networking within single host machine by using faster IPC mechanisms where available, such as UDP, Unix domain sockets and Windows named pipes. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale *down* from global internetworking to localhost networking; and also scale *up* from localhost to global.
 
 ## Protocol State Machine
 
@@ -92,7 +92,7 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
       1. A window group must not exceed 65,500 byte limit (chosen to be close to theoretical max UDP payload size).
 
-      1. Attributes will be attached as pdu options to each window group being sent.
+      1. Attributes will be attached as pdu options to each window group being sent. Receiving end accepts attributes of any size, but sender can impose a max byte limit of at least 30,000 bytes.
 
       1. Expected send outcomes are (a) network send error (except for ack replies whose network send aftermath doesn't matter) (b) ack error code (c) eventual ack timeout (d) eventual success
 

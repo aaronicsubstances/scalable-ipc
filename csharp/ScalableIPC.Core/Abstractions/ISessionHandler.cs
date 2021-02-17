@@ -15,6 +15,7 @@ namespace ScalableIPC.Core.Abstractions
     /// </para>
     /// <list type="number">
     /// <item>end to end assumption of communication endpoints</item>
+    /// <item>assumption that session ids are not reusable.</item>
     /// <item>end to end idle timeout specification</item>
     /// <item>packet integrity assumption</item>
     /// <item>guaranteed delivery via acknowlegements</item>
@@ -51,10 +52,18 @@ namespace ScalableIPC.Core.Abstractions
         int EnquireLinkInterval { get; set; } // non-positive means disable enquire link timer
         Func<int, int> EnquireLinkIntervalAlgorithm { get; set; }
 
+        // Rules for window id changes are:
+        //  - Receiver usually accepts only next ids larger than last received window id.
+        //  - The only exception is that after 9E15, receiver must receive a next starting from 0
+        //  - In any case increments cannot exceed 100.
+        // By so doing receiver can be conservative, and sender can have 
+        // freedom in varying trend of window ids.
+        Func<long, long> NextWindowIdToSendAlgorithm { get; set; }
+
         // application layer interface. contract here is that these should be scheduled on event loop.
         Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
         Action<ISessionHandler, bool> OpenSuccessHandler { get; set; }
-        Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get; set; }
+        Action<ISessionHandler, ReceivedProtocolMessage> MessageReceivedHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }

@@ -17,6 +17,13 @@ namespace ScalableIPC.Core
         {
             var sb = new StringBuilder();
             sb.Append(nameof(ProtocolMessage)).Append("{");
+            AppendToStringCommon(sb);
+            sb.Append("}");
+            return sb.ToString();
+        }
+
+        protected void AppendToStringCommon(StringBuilder sb)
+        {
             sb.Append(nameof(Attributes)).Append("=").Append(StringUtilities.StringifyOptions(Attributes));
             sb.Append(", ");
             sb.Append(nameof(DataOffset)).Append("=").Append(DataOffset);
@@ -24,6 +31,23 @@ namespace ScalableIPC.Core
             sb.Append(nameof(DataLength)).Append("=").Append(DataLength);
             sb.Append(", ");
             sb.Append(nameof(DataBytes)).Append("=").Append(StringUtilities.StringifyByteArray(DataBytes));
+        }
+    }
+
+    public class ReceivedProtocolMessage: ProtocolMessage
+    {
+        public string SessionId { get; set; }
+        public List<long> WindowIds { get; set; }
+
+        public override string ToString()
+        {
+            var sb = new StringBuilder();
+            sb.Append(nameof(ReceivedProtocolMessage)).Append("{");
+            sb.Append(nameof(SessionId)).Append("=").Append(SessionId);
+            sb.Append(", ");
+            sb.Append(nameof(WindowIds)).Append("=[").Append(string.Join(",", WindowIds));
+            sb.Append("], ");
+            AppendToStringCommon(sb);
             sb.Append("}");
             return sb.ToString();
         }

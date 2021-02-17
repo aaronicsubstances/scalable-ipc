@@ -1248,8 +1248,9 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public int MaxRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int EnquireLinkInterval { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Func<int, int> EnquireLinkIntervalAlgorithm { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Func<long, long> NextWindowIdToSendAlgorithm { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ReceivedProtocolMessage> MessageReceivedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }

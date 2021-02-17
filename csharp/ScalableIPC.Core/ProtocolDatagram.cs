@@ -9,13 +9,15 @@ namespace ScalableIPC.Core
 {
     /// <summary>
     /// Protocol PDU structure was formed with the following in mind:
-    /// 1. use of sessionid removes the need for TIME_WAIT state used by TCP. 32-byte session ids are generated
+    /// 1. use of sessionid enables multiplexing across connection-oriented networks. 32-byte session ids are generated
     ///    by combining random uuid, current timestamp, and auto incrementing integer.
     /// 2. use of 32-bit sequence number separate from window id, allows a maximum bandwidth of 512 * 2G = 1TB (1024 GB), 
     ///    more than enough for networks with large bandwidth-delay product (assuming packet size of 512 bytes).
     /// 3. use of 64-bit window id is for ensuring that, by the time 0-9e15 range is exhausted in max increments of 100,
     ///    at a speed of 8 terabytes per second (ie 2^43 bytes/s), it will take about 17 minutes
-    ///    to exhaust ids and wrap around. That's more than enough for networks to discard traces of any lingering packet.
+    ///    to exhaust ids and wrap around. That's long enough for most networks to discard traces of any lingering packet.
+    ///    In any case, a special timestamp datagram option plus reduced MTU size can be used by any network to deal with
+    ///    short window id wrap around times.
     /// </summary>
     public class ProtocolDatagram
     {
