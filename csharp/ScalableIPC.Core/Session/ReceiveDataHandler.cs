@@ -272,13 +272,13 @@ namespace ScalableIPC.Core.Session
         private void ProcessAndPassCurrentWindowGroupToApplicationLayer()
         {
             ProtocolDatagram windowGroupAsMessage = ProtocolDatagram.CreateMessageOutOfWindow(CurrentWindowGroup);
-            var windowIdsUseds = CurrentWindowGroup.Select(d => d.WindowId).Distinct().ToList();
+            var windowIdsUsed = CurrentWindowGroup.Select(d => d.WindowId).Distinct().ToList();
 
             // now create message for application layer, and decode any long options present.
             ReceivedProtocolMessage messageForApp = new ReceivedProtocolMessage
             {
                 SessionId = _sessionHandler.SessionId,
-                WindowIds = windowIdsUseds,
+                WindowIds = windowIdsUsed,
                 DataBytes = windowGroupAsMessage.DataBytes,
                 DataOffset = windowGroupAsMessage.DataOffset,
                 DataLength = windowGroupAsMessage.DataLength

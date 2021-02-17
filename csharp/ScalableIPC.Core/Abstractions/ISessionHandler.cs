@@ -54,7 +54,7 @@ namespace ScalableIPC.Core.Abstractions
 
         // Rules for window id changes are:
         //  - Receiver usually accepts only next ids larger than last received window id.
-        //  - The only exception is that after 9E15, receiver must receive a next starting from 0
+        //  - The only exception is that after 9E15, receiver must receive 100 or less,
         //  - In any case increments cannot exceed 100.
         // By so doing receiver can be conservative, and sender can have 
         // freedom in varying trend of window ids.

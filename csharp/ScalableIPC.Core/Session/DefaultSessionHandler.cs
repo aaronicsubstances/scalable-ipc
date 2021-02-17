@@ -57,7 +57,6 @@ namespace ScalableIPC.Core.Session
             _stateHandlers.Add(new EnquireLinkHandler(this));
 
             // initialize window ids
-            NextWindowIdToSend = 0;
             if (NextWindowIdToSendAlgorithm != null)
             {
                 NextWindowIdToSend = NextWindowIdToSendAlgorithm.Invoke(-1);
@@ -66,7 +65,6 @@ namespace ScalableIPC.Core.Session
             {
                 NextWindowIdToSend = 0;
             }
-            LastWindowIdReceived = -1; // so 0 can be accepted as an initial valid window id.
 
             ScheduleOpenTimeout();
         }
@@ -103,7 +101,7 @@ namespace ScalableIPC.Core.Session
         public Func<long, long > NextWindowIdToSendAlgorithm { get; set; }
 
         public long NextWindowIdToSend { get; set; }
-        public long LastWindowIdReceived { get; set; } 
+        public long LastWindowIdReceived { get; set; } = -1; // so that any value can be accepted as an initial valid window id.
 
         public ProtocolDatagram LastAck { get; set; }
         public bool OpeningByReceiving { get; set; }

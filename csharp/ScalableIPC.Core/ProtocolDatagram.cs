@@ -553,6 +553,10 @@ namespace ScalableIPC.Core
                 // return any non negative value not exceeding min crossover limit.
                 return 0;
             }
+            else if (nextWindowIdToSend < 0)
+            {
+                return 0;
+            }
             else
             {
                 // increase by any positive amount not exceeding min crossover limit.
@@ -563,12 +567,17 @@ namespace ScalableIPC.Core
         public static bool IsReceivedWindowIdValid(long v, long lastWindowIdProcessed)
         {
             // ANY alternate computations is allowed with these 3 requirements:
-            // 1. the very first value should be less than or equal to min crossover limit.
+            // 1. the very first value should not exceed max crossover limit.
             // 2. if current value has crossed max crossover limit,
             //    then next value must be less than or equal to min crossover limit.
             // 3. else next value must be larger than current value by a difference which is 
             //    less than or equal to min crossover limit.
-            if (lastWindowIdProcessed < 0 || lastWindowIdProcessed >= MaxWindowIdCrossOverLimit)
+            if (lastWindowIdProcessed < 0)
+            {
+                // accept any first time value.
+                return v >= 0 && v <= MaxWindowIdCrossOverLimit;
+            }
+            else if (lastWindowIdProcessed >= MaxWindowIdCrossOverLimit)
             {
                 return v >= 0 && v <= MinWindowIdCrossOverLimit;
             }

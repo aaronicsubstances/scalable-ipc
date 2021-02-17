@@ -66,6 +66,8 @@ namespace ScalableIPC.UnitTests.Core
             return new List<object[]>
             {
                 new object[]{ 0, 1 },
+                new object[]{ -1, 0 },
+                new object[]{ -10, 0 },
                 new object[]{ 1, 2 },
                 new object[]{ 99, 100 },
                 new object[]{ 100, 101 },
@@ -110,6 +112,9 @@ namespace ScalableIPC.UnitTests.Core
                 new object[]{ 60, 60, false },
                 new object[]{ 0, -1, true },
                 new object[]{ 60, -1, true },
+                new object[]{ 0, -2, true },
+                new object[]{ 1_000, -1, true },
+                new object[]{ 9_000_000_000_000_000_000, -1, false },
                 new object[]{ 61, 60, true },
                 new object[]{ 99, 0, true },
                 new object[]{ 100, 0, true },

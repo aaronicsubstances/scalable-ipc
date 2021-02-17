@@ -74,9 +74,9 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
       1. if a pdu is deemed valid, its window id becomes the minimum window id which will be accepted from remote peers. In any case once a window is processed whether successfully or not, its window id will not be accepted again.
 
-      1. a pdu is invalid if its window id or seq_nr is negative. It is also invalid if its window id is less than the current minimum, or if its window id exceeds the current minimum by a difference of more than 100. If seq_nr is too large as indicated by current window buffer size, again pdu is invalid.
+      1. a pdu is invalid if its window id or seq_nr is negative. It is also invalid if its window id is less than the current minimum, or if its window id exceeds the current minimum by a difference of more than 100. If there is no current minimum, then any window id is accepted once it is not too large. If seq_nr is too large as indicated by current window buffer size, again pdu is invalid.
  
-      1.  The very first window id must be 100 or less, and the maximum possible value is 9E15 (chosen to be representable exactly as a double precision floating point number). After that limit, window ids wrap around to 100 or less.
+      1.  The maximum possible window id value is 9E15 (chosen to be representable exactly as a double precision floating point number). After that limit, window ids wrap around to 100 or less.
 
       1. window id validations apply to pdus of different op codes and across session state changes.
 
