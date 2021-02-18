@@ -510,8 +510,6 @@ namespace ScalableIPC.Core.Session
         public Action<ISessionHandler, ReceivedProtocolMessage> MessageReceivedHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
-        public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get; set; }
-        public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get; set; }
         public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get; set; }
         public Action<ISessionHandler, ProtocolDatagram> EnquireLinkSuccessHandler { get; set; }
 
@@ -552,22 +550,6 @@ namespace ScalableIPC.Core.Session
             if (SessionDisposedHandler != null)
             {
                 PostEventLoopCallback(() => SessionDisposedHandler?.Invoke(this, cause), null);
-            }
-        }
-
-        public void OnSendError(ProtocolOperationException cause)
-        {
-            if (SendErrorHandler != null)
-            {
-                PostEventLoopCallback(() => SendErrorHandler?.Invoke(this, cause), null);
-            }
-        }
-
-        public void OnReceiveError(ProtocolOperationException cause)
-        {
-            if (ReceiveErrorHandler != null)
-            {
-                PostEventLoopCallback(() => ReceiveErrorHandler?.Invoke(this, cause), null);
             }
         }
 

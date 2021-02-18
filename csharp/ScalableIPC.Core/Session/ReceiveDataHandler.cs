@@ -194,7 +194,6 @@ namespace ScalableIPC.Core.Session
                 if (cumulativeLength > ProtocolDatagram.MaxDatagramSize)
                 {
                     processingError = new ProtocolOperationException(ProtocolOperationException.ErrorCodeWindowGroupOverflow);
-                    _sessionHandler.OnReceiveError(processingError);
 
                     // reset current window group.
                     CurrentWindowGroup.Clear();
@@ -217,12 +216,10 @@ namespace ScalableIPC.Core.Session
                         if (ex is ProtocolOperationException protEx)
                         {
                             processingError = protEx;
-                            _sessionHandler.OnReceiveError(protEx);
                         }
                         else
                         {
                             processingError = new ProtocolOperationException(ex);
-                            _sessionHandler.OnReceiveError(processingError);
                         }
                     }
                     finally

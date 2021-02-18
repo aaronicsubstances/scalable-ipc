@@ -1253,8 +1253,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public Action<ISessionHandler, ReceivedProtocolMessage> MessageReceivedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolDatagram> EnquireLinkSuccessHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, bool> OpenSuccessHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }

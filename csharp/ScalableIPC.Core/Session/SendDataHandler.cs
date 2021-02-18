@@ -226,9 +226,6 @@ namespace ScalableIPC.Core.Session
             _datagramFragmenter = null;
             CurrentWindowGroup = null;
 
-            // notify application layer.
-            _sessionHandler.OnSendError(error);
-
             // revert receive prohibition
             if (_sessionHandler.State == SessionState.Opening)
             {
