@@ -19,7 +19,7 @@ namespace ScalableIPC.Core.Session
     /// <item>Limited non-extensible number of states.</item>
     /// <item>The only opcodes around are data, close, enquire link and their acks.</item>
     /// <item>max window size, various timeouts, enquire link interval and algorithm, max retry count,
-    /// initial NextWindowIdToSend value, NextWindowIdToSendAlgorithm,
+    /// initial NextWindowIdToSend value, NextWindowIdToSendAlgorithm, state change handlers, and other notification handlers
     /// are set during initialization, and not modified afterwards.</item>
     /// </list>
     /// </remarks>
@@ -143,28 +143,34 @@ namespace ScalableIPC.Core.Session
 
         public AbstractPromise<VoidType> ProcessReceiveAsync(ProtocolDatagram datagram)
         {
+            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
             PostEventLoopCallback(() =>
             {
-                bool handled = false;
-                if (State < SessionState.DisposeAwaiting)
+                if (State >= SessionState.Closed)
                 {
-                    ResetIdleTimeout();
-                    ScheduleEnquireLinkEvent(true);
-                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
+                    promiseCb.CompleteExceptionally(_disposalCause);
+                    return;
+                }
+
+                bool handled = false;
+                ResetIdleTimeout();
+                ScheduleEnquireLinkEvent(true);
+                foreach (ISessionStateHandler stateHandler in _stateHandlers)
+                {
+                    handled = stateHandler.ProcessReceive(datagram);
+                    if (handled)
                     {
-                        handled = stateHandler.ProcessReceive(datagram);
-                        if (handled)
-                        {
-                            break;
-                        }
+                        promiseCb.CompleteSuccessfully(VoidType.Instance);
+                        break;
                     }
                 }
                 if (!handled)
                 {
-                    OnDatagramDiscarded(datagram);
+                    RaiseReceiveError(datagram, "e1432b11-806f-4b0e-a7b9-bafeae6a1a9f: " +
+                        "received pdu could not handled");
                 }
-            }, null);
-            return NetworkApi.PromiseApi.CompletedPromise();
+            }, promiseCb);
+            return promiseCb.RelatedPromise;
         }
 
         public AbstractPromise<VoidType> SendAsync(ProtocolMessage message)
@@ -172,17 +178,16 @@ namespace ScalableIPC.Core.Session
             PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
             PostEventLoopCallback(() =>
             {
-                if (State >= SessionState.DisposeAwaiting)
+                if (State >= SessionState.Closed)
                 {
                     promiseCb.CompleteExceptionally(_disposalCause);
+                    return;
                 }
-                else
-                {
-                    EnsureSendNotInProgress();
-                    ResetIdleTimeout();
-                    ScheduleEnquireLinkEvent(true);
-                    _sendHandler.ProcessSend(message, promiseCb);
-                }
+
+                EnsureSendNotInProgress();
+                ResetIdleTimeout();
+                ScheduleEnquireLinkEvent(true);
+                _sendHandler.ProcessSend(message, promiseCb);
             }, promiseCb);
             return promiseCb.RelatedPromise;
         }
@@ -198,29 +203,26 @@ namespace ScalableIPC.Core.Session
             PostEventLoopCallback(() =>
             {
                 var closeGracefully = errorCode == ProtocolOperationException.ErrorCodeNormalClose;
-                if (State == SessionState.Disposed)
+                if (State >= SessionState.Closed)
                 {
                     promiseCb.CompleteSuccessfully(VoidType.Instance);
                 }
-                else if (State >= SessionState.Closing)
+                else if (State == SessionState.Closing)
                 {
                     _closeHandler.QueueCallback(promiseCb);
                 }
-                else
+                else if (State == SessionState.Opened)
                 {
                     if (closeGracefully)
                     {
                         EnsureSendNotInProgress();
                     }
                     var cause = new ProtocolOperationException(errorCode);
-                    if (closeGracefully)
-                    {
-                        InitiateDisposeGracefully(cause, promiseCb);
-                    }
-                    else
-                    {
-                        InitiateDispose(cause);
-                    }
+                    InitiateDisposeGracefully(cause, promiseCb);
+                }
+                else
+                {
+                    InitiateDispose(new ProtocolOperationException(errorCode));
                 }
             }, promiseCb);
             return promiseCb.RelatedPromise;
@@ -351,7 +353,7 @@ namespace ScalableIPC.Core.Session
         private void ProcessAckTimeout(Action cb)
         {
             _lastAckTimeoutId = null;
-            if (State < SessionState.DisposeAwaiting)
+            if (State < SessionState.Closed)
             {
                 cb.Invoke();
             }
@@ -378,12 +380,14 @@ namespace ScalableIPC.Core.Session
 
         public void InitiateDisposeGracefully(ProtocolOperationException cause, PromiseCompletionSource<VoidType> cb)
         {
-            if (State >= SessionState.Closing)
+            if (State != SessionState.Opened)
             {
                 return;
             }
 
             State = SessionState.Closing;
+            OnSessionDataExchangeClosing(cause);
+
             // check if null. may be timeout triggered.
             if (cb != null)
             {
@@ -399,60 +403,71 @@ namespace ScalableIPC.Core.Session
                 return;
             }
 
-            _disposalCause = cause;
+            PerformCommonDisposalSteps(cause);
 
-            // cancel all data handling activities.
-            foreach (ISessionStateHandler stateHandler in _stateHandlers)
-            {
-                if (stateHandler == _closeHandler)
-                {
-                    // skip until final disposal.
-                    continue;
-                }
-                stateHandler.Dispose(cause);
-            }
-
-            State = SessionState.DisposeAwaiting;
-
-            OnSessionDisposing(cause);
+            State = SessionState.Closed;
+            OnSessionDataExchangeClosed(cause);
 
             NetworkApi.RequestSessionDispose(RemoteEndpoint, SessionId, cause);
         }
 
-        public AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause)
+        private void PerformCommonDisposalSteps(ProtocolOperationException cause)
+        {
+            CancelOpenTimeout();
+            CancelIdleTimeout();
+            CancelAckTimeout();
+            CancelEnquireLinkTimer();
+
+            _disposalCause = cause;
+
+            foreach (ISessionStateHandler stateHandler in _stateHandlers)
+            {
+                stateHandler.Dispose(cause);
+            }
+        }
+
+        public AbstractPromise<VoidType> MarkAsDisposingAsync(ProtocolOperationException cause)
         {
             PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
             PostEventLoopCallback(() =>
             {
-                if (State == SessionState.Disposed)
+                if (State < SessionState.Disposing)
                 {
-                    promiseCb.CompleteSuccessfully(VoidType.Instance);
-                }
-                else
-                {
-                    CancelOpenTimeout();
-                    CancelIdleTimeout();
-                    CancelAckTimeout();
-                    CancelEnquireLinkTimer();
-
                     // just in case this method was called abruptly, e.g. in the
                     // case of a shutdown, record dispose cause and trigger disposal again.
-                    _disposalCause = cause;
+                    PerformCommonDisposalSteps(cause);
 
-                    foreach (ISessionStateHandler stateHandler in _stateHandlers)
-                    {
-                        stateHandler.Dispose(cause);
-                    }
-
-                    State = SessionState.Disposed;
-
-                    promiseCb.CompleteSuccessfully(VoidType.Instance);
-
-                    // pass on to application layer.
-                    OnSessionDisposed(cause);
+                    State = SessionState.Disposing;
+                    OnSessionDisposing(cause);
                 }
+                promiseCb.CompleteSuccessfully(VoidType.Instance);
             }, promiseCb);
             return promiseCb.RelatedPromise;
+        }
+
+        public AbstractPromise<VoidType> MarkAsDisposedAsync(ProtocolOperationException cause)
+        {
+            PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
+            PostEventLoopCallback(() =>
+            {
+                if (State != SessionState.Disposed)
+                {
+                    // just in case this method was called abruptly, e.g. in the
+                    // case of a shutdown, record dispose cause and trigger disposal again.
+                    PerformCommonDisposalSteps(cause);
+
+                    State = SessionState.Disposed;
+                    OnSessionDisposed(cause);
+                }
+                promiseCb.CompleteSuccessfully(VoidType.Instance);
+            }, promiseCb);
+            return promiseCb.RelatedPromise;
+        }
+        
+        public void RaiseReceiveError(ProtocolDatagram offendingDatagram, string errorMsg)
+        {
+            OnDatagramDiscarded(offendingDatagram);
+            throw new Exception(errorMsg);
         }
 
         // event loop methods
@@ -508,6 +523,8 @@ namespace ScalableIPC.Core.Session
         public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
         public Action<ISessionHandler, bool> OpenSuccessHandler { get; set; }
         public Action<ISessionHandler, ReceivedProtocolMessage> MessageReceivedHandler { get; set; }
+        public Action<ISessionHandler, ProtocolOperationException> SessionDataExchangeClosingHandler { get; set; }
+        public Action<ISessionHandler, ProtocolOperationException> SessionDataExchangeClosedHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
         public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
         public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get; set; }
@@ -534,6 +551,21 @@ namespace ScalableIPC.Core.Session
             if (MessageReceivedHandler != null)
             {
                 PostEventLoopCallback(() => MessageReceivedHandler?.Invoke(this, message), null);
+            }
+        }
+        public void OnSessionDataExchangeClosing(ProtocolOperationException cause)
+        {
+            if (SessionDataExchangeClosingHandler != null)
+            {
+                PostEventLoopCallback(() => SessionDataExchangeClosingHandler?.Invoke(this, cause), null);
+            }
+        }
+        
+        public void OnSessionDataExchangeClosed(ProtocolOperationException cause)
+        {
+            if (SessionDataExchangeClosedHandler != null)
+            {
+                PostEventLoopCallback(() => SessionDataExchangeClosedHandler?.Invoke(this, cause), null);
             }
         }
 

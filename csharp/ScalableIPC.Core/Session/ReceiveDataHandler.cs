@@ -9,6 +9,7 @@ namespace ScalableIPC.Core.Session
     public class ReceiveDataHandler : ISessionStateHandler
     {
         private readonly IStandardSessionHandler _sessionHandler;
+        private bool _openHandlerCalled;
 
         public ReceiveDataHandler(IStandardSessionHandler sessionHandler)
         {
@@ -38,6 +39,37 @@ namespace ScalableIPC.Core.Session
 
         private void OnReceiveRequest(ProtocolDatagram datagram)
         {
+            // Reject unexpected window id
+            if (!ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId, _sessionHandler.LastWindowIdReceived))
+            {
+                // before rejecting very important: check if datagram is for last processed window.
+                if (_sessionHandler.LastAck != null && datagram.WindowId == _sessionHandler.LastAck.WindowId)
+                {
+                    // already received and passed to application layer.
+                    // just send back repeat acknowledgement.
+
+                    /* fire and forget */
+                    _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint,
+                        _sessionHandler.LastAck, null, null);
+                }
+                else
+                {
+                    _sessionHandler.RaiseReceiveError(datagram, "a3b2dcea-6025-46ef-ae37-a01098390224: " +
+                        "received data pdu with invalid window id");
+                }
+                return;
+            }
+
+            // validate session state in which PDU has been received.
+            // but after validating window id, so that acks can be repeatedly returned
+            // for incoming PDUs which have already been processed, regardless of state.
+            if (_sessionHandler.State > SessionState.Opened)
+            {
+                _sessionHandler.RaiseReceiveError(datagram, "f52a61bb-3691-47d2-a4c4-28cb862dbb7a:" +
+                    "data pdu received beyond opened state");
+                return;
+            }
+
             // reject quickly data exchange is already occuring by sending in opening state.
             if (_sessionHandler.State == SessionState.Opening &&
                 _sessionHandler.OpeningBySending)
@@ -56,47 +88,32 @@ namespace ScalableIPC.Core.Session
                 };
                 _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint,
                     rejectionAck, null, null);
-                return;
-            }
-
-            // Reject unexpected window id
-            if (!ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId, _sessionHandler.LastWindowIdReceived))
-            {
-                // before rejecting very important: check if datagram is for last processed window.
-                if (_sessionHandler.LastAck != null && datagram.WindowId == _sessionHandler.LastAck.WindowId)
-                {
-                    // already received and passed to application layer.
-                    // just send back repeat acknowledgement.
-
-                    /* fire and forget */
-                    _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint,
-                        _sessionHandler.LastAck, null, null);
-                }
-                else
-                {
-                    _sessionHandler.OnDatagramDiscarded(datagram);
-                }
-                return;
-            }
-
-            // validate session state in which PDU has been received.
-            // but after validating window id, so that acks can be repeatedly returned
-            // for incoming PDUs which have already been processed, regardless of state.
-            if (_sessionHandler.State >= SessionState.Closing)
-            {
-                _sessionHandler.OnDatagramDiscarded(datagram);
+                _sessionHandler.RaiseReceiveError(datagram, "915be42b-d47e-4e85-b0e2-19807af2273b: " +
+                    "received data pdu in opening state which is currently sending data");
                 return;
             }
 
             // save datagram into current window or reject unexpected sequence number.
             if (!AddToCurrentWindow(CurrentWindow, _sessionHandler.MaxWindowSize, datagram))
             {
-                _sessionHandler.OnDatagramDiscarded(datagram);
+                _sessionHandler.RaiseReceiveError(datagram, "20b03c56-6129-4e25-b7f6-92b2965f9b85:" +
+                    "could not add data pdu to current window due to large seq nr");
                 return;
             }
 
             // Successfully received datagram into window.
             _sessionHandler.LastWindowIdReceived = datagram.WindowId;
+
+            // reset current window group if requested. in that case also reset state to behave
+            // like receive has not happened before.
+            if (datagram.Options?.IsFirstInWindowGroup == true)
+            {
+                CurrentWindowGroup.Clear();
+                if (_sessionHandler.State == SessionState.Opening)
+                {
+                    _sessionHandler.OpeningByReceiving = false;
+                }
+            }
 
             // determine whether to transition to opened state automatically.
             if (_sessionHandler.State == SessionState.Opening)
@@ -116,12 +133,6 @@ namespace ScalableIPC.Core.Session
                 }
             }
 
-            // reset current window if requested.
-            if (datagram.Options?.IsFirstInWindowGroup == true)
-            {
-                CurrentWindowGroup.Clear();
-            }
-
             // determine size of sliding window
             var lastEffectiveSeqNr = GetLastPositionInSlidingWindow(CurrentWindow);
             if (lastEffectiveSeqNr == -1)
@@ -133,7 +144,7 @@ namespace ScalableIPC.Core.Session
             if (IsCurrentWindowFull(CurrentWindow, _sessionHandler.MaxWindowSize,
                    lastEffectiveSeqNr))
             {
-                UpdateWindowGroup(lastEffectiveSeqNr);
+                UpdateWindowGroup(datagram, lastEffectiveSeqNr);
                 return;
             }
 
@@ -153,11 +164,11 @@ namespace ScalableIPC.Core.Session
         {
             _sessionHandler.State = SessionState.Opened;
             _sessionHandler.CancelOpenTimeout();
+            _sessionHandler.ResetIdleTimeout();
             _sessionHandler.ScheduleEnquireLinkEvent(true);
-            _sessionHandler.OnOpenSuccess(true);
         }
 
-        private void UpdateWindowGroup(int lastEffectiveSeqNr)
+        private void UpdateWindowGroup(ProtocolDatagram latestReceivedDatagram, int lastEffectiveSeqNr)
         {
             // Window is full
 
@@ -264,6 +275,12 @@ namespace ScalableIPC.Core.Session
             }
             _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint,
                 _sessionHandler.LastAck, null, null);
+
+            if (processingError != null)
+            {
+                _sessionHandler.RaiseReceiveError(latestReceivedDatagram, "74acfa5b-b6f5-43d0-9cd7-ecf417738f9f: " +
+                    processingError.Message);
+            }
         }
 
         private void ProcessAndPassCurrentWindowGroupToApplicationLayer()
@@ -314,6 +331,11 @@ namespace ScalableIPC.Core.Session
             if (_sessionHandler.State == SessionState.Opening)
             {
                 TransitionToOpenState();
+            }
+            if (!_openHandlerCalled)
+            {
+                _sessionHandler.OnOpenSuccess(true);
+                _openHandlerCalled = true;
             }
             _sessionHandler.OnMessageReceived(messageForApp);
         }

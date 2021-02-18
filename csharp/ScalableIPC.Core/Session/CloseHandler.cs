@@ -38,6 +38,27 @@ namespace ScalableIPC.Core.Session
 
         public bool ProcessReceive(ProtocolDatagram datagram)
         {
+            if (datagram.OpCode == ProtocolDatagram.OpCodeClose ||
+                datagram.OpCode == ProtocolDatagram.OpCodeCloseAck)
+            {
+                OnReceiveRequest(datagram);
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public void OnReceiveRequest(ProtocolDatagram datagram)
+        {
+            if (_sessionHandler.State > SessionState.Closing)
+            {
+                _sessionHandler.RaiseReceiveError(datagram, "a71359dc-cc8f-440d-979f-ecdd9f83faa3:" +
+                    "close/ack pdu received beyond closing state");
+                return;
+            }
+
             if (datagram.OpCode == ProtocolDatagram.OpCodeCloseAck)
             {
                 // to prevent clashes with other handlers performing sends, 
@@ -45,15 +66,16 @@ namespace ScalableIPC.Core.Session
                 if (SendInProgress)
                 {
                     _sendWindowHandler.OnAckReceived(datagram);
-                    return true;
                 }
             }
             else if (datagram.OpCode == ProtocolDatagram.OpCodeClose)
             {
                 ProcessReceiveClose(datagram);
-                return true;
             }
-            return false;
+            else
+            {
+                throw new Exception("unexpected op code: " + datagram.OpCode);
+            }
         }
 
         private void ProcessReceiveClose(ProtocolDatagram datagram)
@@ -61,7 +83,7 @@ namespace ScalableIPC.Core.Session
             var recvdErrorCode = ProtocolOperationException.FetchExpectedAbortCode(datagram);
             if (recvdErrorCode < 0)
             {
-                _sessionHandler.OnDatagramDiscarded(datagram);
+                _sessionHandler.RaiseReceiveError(datagram, "5b91e004-2246-4b39-9ff1-7fdfb70b5055: received close pdu with invalid abort code");
                 return;
             }
 
@@ -69,10 +91,14 @@ namespace ScalableIPC.Core.Session
             if (recvdErrorCode == ProtocolOperationException.ErrorCodeNormalClose)
             {
                 // Reject close datagram with invalid window id or sequence number.
-                if (!(datagram.SequenceNumber == 0 && ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId,
-                    _sessionHandler.LastWindowIdReceived)))
+                if (datagram.SequenceNumber != 0)
                 {
-                    _sessionHandler.OnDatagramDiscarded(datagram);
+                    _sessionHandler.RaiseReceiveError(datagram, "fd584c28-8b47-4dc7-acb3-a100b5e3933b: received normal close pdu with invalid seq nr");
+                    return;
+                }
+                if (!ProtocolDatagram.IsReceivedWindowIdValid(datagram.WindowId, _sessionHandler.LastWindowIdReceived))
+                {
+                    _sessionHandler.RaiseReceiveError(datagram, "920980a8-4890-4b6f-a68e-925d3b84a11c: received normal close pdu with invalid window id");
                     return;
                 }
             }
@@ -118,14 +144,23 @@ namespace ScalableIPC.Core.Session
                     AbortCode = abortCodeToSend
                 }
             };
-            _sendWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
-            _sendWindowHandler.ProspectiveWindowToSend = new List<ProtocolDatagram> { closeDatagram };
-            _sendWindowHandler.SuccessCallback = () => OnSendSuccessOrError(cause);
-            _sendWindowHandler.TimeoutCallback = () => OnSendSuccessOrError(cause);
-            _sendWindowHandler.ErrorCallback = _ => OnSendSuccessOrError(cause);
-            _sendWindowHandler.Start();
+            if (abortCodeToSend == ProtocolOperationException.ErrorCodeNormalClose)
+            {
+                _sendWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
+                _sendWindowHandler.ProspectiveWindowToSend = new List<ProtocolDatagram> { closeDatagram };
+                _sendWindowHandler.SuccessCallback = () => OnSendSuccessOrError(cause);
+                _sendWindowHandler.TimeoutCallback = () => OnSendSuccessOrError(cause);
+                _sendWindowHandler.ErrorCallback = _ => OnSendSuccessOrError(cause);
+                _sendWindowHandler.Start();
 
-            SendInProgress = true;
+                SendInProgress = true;
+            }
+            else
+            {
+                // don't set send in progress, but wait for outcome and proceed regardless of outcome.
+                _sessionHandler.NetworkApi.RequestSend(_sessionHandler.RemoteEndpoint, closeDatagram,
+                    null, _ => OnSendSuccessOrError(cause));
+            }
         }
 
         private void OnSendSuccessOrError(ProtocolOperationException cause)

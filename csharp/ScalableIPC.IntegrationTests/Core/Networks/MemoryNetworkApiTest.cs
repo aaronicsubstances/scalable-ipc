@@ -1256,6 +1256,8 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolDatagram> EnquireLinkSuccessHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, bool> OpenSuccessHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ProtocolOperationException> SessionDataExchangeClosingHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ProtocolOperationException> SessionDataExchangeClosedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
             public AbstractPromise<VoidType> CloseAsync()
             {
@@ -1267,7 +1269,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 throw new NotImplementedException();
             }
 
-            public AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause)
+            public AbstractPromise<VoidType> MarkAsDisposingAsync(ProtocolOperationException cause)
             {
                 CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "FinaliseDisposeAsync() called")
                        .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
@@ -1303,6 +1305,11 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             }
 
             public AbstractPromise<VoidType> SendAsync(ProtocolMessage message)
+            {
+                throw new NotImplementedException();
+            }
+
+            public AbstractPromise<VoidType> MarkAsDisposedAsync(ProtocolOperationException cause)
             {
                 throw new NotImplementedException();
             }

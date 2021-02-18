@@ -344,6 +344,8 @@ namespace ScalableIPC.Core.Networks
                 case ProtocolDatagram.OpCodeDataAck:
                 case ProtocolDatagram.OpCodeClose:
                 case ProtocolDatagram.OpCodeCloseAck:
+                case ProtocolDatagram.OpCodeEnquireLink:
+                case ProtocolDatagram.OpCodeEnquireLinkAck:
                     return true;
                 default:
                     // ignore shutdowns and restarts
@@ -379,7 +381,7 @@ namespace ScalableIPC.Core.Networks
             }
             if (sessionHandler != null)
             {
-                return sessionHandler.SessionHandler.FinaliseDisposeAsync(cause);
+                return sessionHandler.SessionHandler.MarkAsDisposingAsync(cause);
             }
             return PromiseApi.CompletedPromise();
         }

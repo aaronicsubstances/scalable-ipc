@@ -41,7 +41,8 @@ namespace ScalableIPC.Core.Abstractions
         AbstractPromise<VoidType> SendAsync(ProtocolMessage message);
         AbstractPromise<VoidType> CloseAsync();
         AbstractPromise<VoidType> CloseAsync(int errorCode);
-        AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause);
+        AbstractPromise<VoidType> MarkAsDisposingAsync(ProtocolOperationException cause);
+        AbstractPromise<VoidType> MarkAsDisposedAsync(ProtocolOperationException cause);
         int OpenTimeout { get; set; } // equivalent to idle timeout prior to successful opening of session.
         int IdleTimeout { get; set; } // non-positive means disable idle timer
         int AckTimeout { get; set; }
@@ -64,6 +65,8 @@ namespace ScalableIPC.Core.Abstractions
         Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get; set; }
         Action<ISessionHandler, bool> OpenSuccessHandler { get; set; }
         Action<ISessionHandler, ReceivedProtocolMessage> MessageReceivedHandler { get; set; }
+        Action<ISessionHandler, ProtocolOperationException> SessionDataExchangeClosingHandler { get; set; }
+        Action<ISessionHandler, ProtocolOperationException> SessionDataExchangeClosedHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get; set; }
         Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get; set; }
         Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get; set; }

@@ -37,6 +37,7 @@ namespace ScalableIPC.Core.Session.Abstractions
         void CancelAckTimeout();
         void InitiateDisposeGracefully(ProtocolOperationException cause, PromiseCompletionSource<VoidType> promiseCb);
         void InitiateDispose(ProtocolOperationException cause);
+        void RaiseReceiveError(ProtocolDatagram offendingDatagram, string errorMsg);
 
         // event loop method for use by session state handlers
         void PostEventLoopCallback(Action cb, PromiseCompletionSource<VoidType> promisesCb);
@@ -45,6 +46,8 @@ namespace ScalableIPC.Core.Session.Abstractions
         void OnDatagramDiscarded(ProtocolDatagram datagram);
         void OnOpenSuccess(bool onReceive);
         void OnMessageReceived(ReceivedProtocolMessage message);
+        void OnSessionDataExchangeClosing(ProtocolOperationException cause);
+        void OnSessionDataExchangeClosed(ProtocolOperationException cause);
         void OnSessionDisposing(ProtocolOperationException cause);
         void OnSessionDisposed(ProtocolOperationException cause);
         void OnEnquireLinkTimerFired();
