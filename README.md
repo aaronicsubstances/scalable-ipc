@@ -46,6 +46,8 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
    - beyond closing state, all pdus are ignored. close requests are responded to with immediate success. On the other hand, send data requests are responded to with immediate failure.
 
+   - network implementations determine transitions to disposing and disposed states, and are at liberty to make those transitions from any state.
+
 ## Data Exchange Protocol
 
    1. Aim of having an opening state is to implement guarantee for network api implementations that: *while a session is in this state, its remote peer can be ignored at any time without fear of remote processing side effects.*

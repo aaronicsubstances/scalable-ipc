@@ -28,9 +28,6 @@ digraph finite_state_machine {
 		1. Open Timeout<br/>
 		2. Close requested
 	>];
-	Opening -> Disposing [ label = "Session Disposing" ];
-	Opened -> Disposing [ label = "Session Disposing" ];
-	Closing -> Disposing [ label = "Session Disposing" ];
 	Closed -> Disposing [ label = "Session Disposing" ];
 	Disposing -> Disposed [ label = "Time Wait Elapsed" ];
 }
