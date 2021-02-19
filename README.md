@@ -28,7 +28,7 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
 **NB:**
 
-   - in opening state only data pdus are processed; all others are ignored. Time spent in this state determines open timeout.
+   - in opening state only data pdus and their acks are processed; all others are ignored. Time spent in this state determines open timeout.
 
    - in opened state,
 
@@ -42,9 +42,9 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 
    - in closed state, session disposing is automatically requested.
    
-   - beyond opened state, data and enquire link pdus are ignored.
+   - beyond opened state, data and enquire link pdus are ignored (but not their acks).
 
-   - beyond closing state, close pdus are ignored and close requests are responded to immediately with success.
+   - beyond closing state, all pdus are ignored. close requests are responded to with immediate success. On the other hand, send data requests are responded to with immediate failure.
 
 ## Data Exchange Protocol
 

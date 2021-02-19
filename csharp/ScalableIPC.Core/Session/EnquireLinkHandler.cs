@@ -36,14 +36,14 @@ namespace ScalableIPC.Core.Session
 
         public void OnReceiveRequest(ProtocolDatagram datagram)
         {
-            if (_sessionHandler.State != SessionState.Opened)
-            {
-                _sessionHandler.RaiseReceiveError(datagram, "a71359dc-cc8f-440d-979f-ecdd9f83faa3: " +
-                    "enquire link/ack pdu received outside opened state");
-                return;
-            }
             if (datagram.OpCode == ProtocolDatagram.OpCodeEnquireLink)
             {
+                if (_sessionHandler.State != SessionState.Opened)
+                {
+                    _sessionHandler.RaiseReceiveError(datagram, "a71359dc-cc8f-440d-979f-ecdd9f83faa3: " +
+                        "enquire link pdu received outside opened state");
+                    return;
+                }
                 var replyDatagram = new ProtocolDatagram
                 {
                     SessionId = _sessionHandler.SessionId,
@@ -54,6 +54,18 @@ namespace ScalableIPC.Core.Session
             }
             else if (datagram.OpCode == ProtocolDatagram.OpCodeEnquireLinkAck)
             {
+                if (_sessionHandler.State == SessionState.Opening)
+                {
+                    _sessionHandler.RaiseReceiveError(datagram, "0819b8bf-0c75-4113-b58f-81a1423d15c3: " +
+                        "enquire link ack received in opening state");
+                    return;
+                }
+                if (_sessionHandler.State >= SessionState.Closed)
+                {
+                    _sessionHandler.RaiseReceiveError(datagram, "a71359dc-cc8f-440d-979f-ecdd9f83faa3: " +
+                        "enquire link ack received in closed aftermath state");
+                    return;
+                }
                 ProcessAck(datagram);
             }
             else

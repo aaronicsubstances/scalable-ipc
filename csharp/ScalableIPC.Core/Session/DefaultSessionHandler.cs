@@ -202,7 +202,6 @@ namespace ScalableIPC.Core.Session
             PromiseCompletionSource<VoidType> promiseCb = NetworkApi.PromiseApi.CreateCallback<VoidType>(_taskExecutor);
             PostEventLoopCallback(() =>
             {
-                var closeGracefully = errorCode == ProtocolOperationException.ErrorCodeNormalClose;
                 if (State >= SessionState.Closed)
                 {
                     promiseCb.CompleteSuccessfully(VoidType.Instance);
@@ -213,6 +212,7 @@ namespace ScalableIPC.Core.Session
                 }
                 else if (State == SessionState.Opened)
                 {
+                    var closeGracefully = errorCode == ProtocolOperationException.ErrorCodeNormalClose;
                     if (closeGracefully)
                     {
                         EnsureSendNotInProgress();
@@ -220,9 +220,13 @@ namespace ScalableIPC.Core.Session
                     var cause = new ProtocolOperationException(errorCode);
                     InitiateDisposeGracefully(cause, promiseCb);
                 }
-                else
+                else if (State == SessionState.Opening)
                 {
                     InitiateDispose(new ProtocolOperationException(errorCode));
+                }
+                else
+                {
+                    throw new Exception("unexpected state: " + State);
                 }
             }, promiseCb);
             return promiseCb.RelatedPromise;
@@ -398,7 +402,7 @@ namespace ScalableIPC.Core.Session
 
         public void InitiateDispose(ProtocolOperationException cause)
         {
-            if (State > SessionState.Closing)
+            if (State >= SessionState.Closed)
             {
                 return;
             }

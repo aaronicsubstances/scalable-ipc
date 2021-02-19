@@ -52,10 +52,16 @@ namespace ScalableIPC.Core.Session
 
         public void OnReceiveRequest(ProtocolDatagram datagram)
         {
-            if (_sessionHandler.State > SessionState.Closing)
+            if (_sessionHandler.State == SessionState.Opening)
             {
-                _sessionHandler.RaiseReceiveError(datagram, "a71359dc-cc8f-440d-979f-ecdd9f83faa3:" +
-                    "close/ack pdu received beyond closing state");
+                _sessionHandler.RaiseReceiveError(datagram, "2085b977-1e0e-4bf3-9bc3-c85dc71ef9b3: " +
+                    "close pdu/ack received in opening state");
+                return;
+            }
+            if (_sessionHandler.State >= SessionState.Closed)
+            {
+                _sessionHandler.RaiseReceiveError(datagram, "a40ac0dc-0727-496e-b6f4-5c402bd22fde: " +
+                    "close pdu/ack received in closed aftermath state");
                 return;
             }
 
@@ -63,10 +69,14 @@ namespace ScalableIPC.Core.Session
             {
                 // to prevent clashes with other handlers performing sends, 
                 // check that specific send in progress is on.
-                if (SendInProgress)
+                if (!SendInProgress)
                 {
-                    _sendWindowHandler.OnAckReceived(datagram);
+                    _sessionHandler.RaiseReceiveError(datagram, "948b490b-93c6-4aab-94b1-7ccecf0a141a: " +
+                        "close handler is not currently sending, so close ack is not needed");
+                    return;
                 }
+
+                _sendWindowHandler.OnAckReceived(datagram);
             }
             else if (datagram.OpCode == ProtocolDatagram.OpCodeClose)
             {

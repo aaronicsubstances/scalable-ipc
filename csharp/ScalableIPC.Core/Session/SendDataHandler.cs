@@ -44,15 +44,29 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
+            OnAckReceived(datagram);
+            return true;
+        }
+
+        private void OnAckReceived(ProtocolDatagram datagram)
+        {
+            if (_sessionHandler.State >= SessionState.Closed)
+            {
+                _sessionHandler.RaiseReceiveError(datagram, "47efeff4-3bdf-4d5e-8283-f7854aa13a67: " +
+                    "data ack received in closed aftermath state");
+                return;
+            }
+
             // to prevent clashes with other handlers performing sends, 
             // check that specific send in progress is on.
             if (!SendInProgress)
             {
-                return false;
+                _sessionHandler.RaiseReceiveError(datagram, "2a1c3770-ba5c-4ea2-b1e8-c5a058e27b51: " +
+                    "data handler is not currently sending, so data ack is not needed");
+                return;
             }
 
             _sendWindowHandler.OnAckReceived(datagram);
-            return true;
         }
 
         public void ProcessSend(ProtocolMessage message,
