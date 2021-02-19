@@ -55,10 +55,6 @@ namespace ScalableIPC.UnitTests.Helpers
             {
                 return false;
             }
-            if (x.TraceId != y.TraceId)
-            {
-                return false;
-            }
             if (!OptionsComparer.Default.Equals(x.AllOptions, y.AllOptions))
             {
                 return false;

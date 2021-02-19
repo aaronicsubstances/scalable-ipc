@@ -10,6 +10,10 @@ namespace ScalableIPC.Core
         // Reserve s_ prefix for known options.
         public const string KnownOptionPrefix = "s_";
 
+        // let standard protocol options always have a limit on the length of all their possible values,
+        // since they have to fit into an MTU sized datagram, without need for option encoding as done
+        // in datagram fragmenter.
+        // That means placing length limits on string options. numbers and booleans implicitly have a length limit.
         public const string OptionNameIdleTimeout = KnownOptionPrefix + "idle_timeout";
         public const string OptionNameErrorCode = KnownOptionPrefix + "error_code";
         public const string OptionNameAbortCode = KnownOptionPrefix + "abort_code";
@@ -19,7 +23,6 @@ namespace ScalableIPC.Core
         public const string OptionNameSkipDataExchangeProhibitionsInOpeningState = KnownOptionPrefix + "03";
         public const string OptionNameIsWindowFull = KnownOptionPrefix + "10";
         public const string OptionNameMaxWindowSize = KnownOptionPrefix + "20";
-        public const string OptionNameTraceId = KnownOptionPrefix + "traceId";
 
         public ProtocolDatagramOptions()
         {
@@ -39,7 +42,6 @@ namespace ScalableIPC.Core
         public bool? IsWindowFull { get; set; }
         public bool? IsLastInWindow { get; set; }
         public bool? IsLastInWindowGroup { get; set; }
-        public string TraceId { get; set; }
         public int? MaxWindowSize { get; set; }
         public bool? IsFirstInWindowGroup { get; set; }
         public bool SkipDataExchangeRestrictionsDueToOpeningState { get; set; }
@@ -59,8 +61,6 @@ namespace ScalableIPC.Core
             sb.Append(nameof(IsLastInWindow)).Append("=").Append(IsLastInWindow);
             sb.Append(", ");
             sb.Append(nameof(IsLastInWindowGroup)).Append("=").Append(IsLastInWindowGroup);
-            sb.Append(", ");
-            sb.Append(nameof(TraceId)).Append("=").Append(TraceId);
             sb.Append(", ");
             sb.Append(nameof(MaxWindowSize)).Append("=").Append(MaxWindowSize);
             sb.Append(", ");
@@ -96,7 +96,6 @@ namespace ScalableIPC.Core
             IsLastInWindow = null;
             IsWindowFull = null;
             IsLastInWindowGroup = null;
-            TraceId = null;
             MaxWindowSize = null;
             IsFirstInWindowGroup = null;
 
@@ -131,9 +130,6 @@ namespace ScalableIPC.Core
                             break;
                         case OptionNameIsLastInWindowGroup:
                             IsLastInWindowGroup = ParseOptionAsBoolean(value);
-                            break;
-                        case OptionNameTraceId:
-                            TraceId = value;
                             break;
                         case OptionNameMaxWindowSize:
                             MaxWindowSize = ParseOptionAsInt32(value);
@@ -262,10 +258,6 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameIsWindowFull, IsWindowFull.ToString());
             }
-            if (TraceId != null)
-            {
-                knownOptions.Add(OptionNameTraceId, TraceId);
-            }
             if (MaxWindowSize != null)
             {
                 knownOptions.Add(OptionNameMaxWindowSize, MaxWindowSize.ToString());
@@ -302,10 +294,6 @@ namespace ScalableIPC.Core
             if (IsLastInWindowGroup != null)
             {
                 destOptions.IsLastInWindowGroup = IsLastInWindowGroup;
-            }
-            if (TraceId != null)
-            {
-                destOptions.TraceId = TraceId;
             }
             if (MaxWindowSize != null)
             {

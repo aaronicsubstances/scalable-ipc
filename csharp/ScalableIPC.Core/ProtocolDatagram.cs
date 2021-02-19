@@ -42,7 +42,6 @@ namespace ScalableIPC.Core
         public const int MinDatagramSize = 2 + SessionIdLength + 8 + 1 + 8 + 4 + 2;
         public const int MaxDatagramSize = 65_500;
         public const int MinimumTransferUnitSize = 512;
-        public const int MaxOptionByteCount = 60_000;
 
         private static readonly string Latin1Encoding = "ISO-8859-1";
 

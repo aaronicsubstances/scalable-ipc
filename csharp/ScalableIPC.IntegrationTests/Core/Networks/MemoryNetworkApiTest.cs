@@ -1070,7 +1070,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 else if (isReceiveExceptionCase)
                 {
                     datagram.Options = new ProtocolDatagramOptions();
-                    datagram.Options.TraceId = ErrorTraceValue;
+                    datagram.Options.AllOptions.Add("TraceId", new List<string> { ErrorTraceValue });
                     expectedErrorLogPositions = new string[] { "c42673d8-a1d1-4cb1-b9c1-a5369bedff64" };
                 }
                 else if (callbackExceptionCase)
@@ -1297,7 +1297,10 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                         .AddProperty(LogDataKeyTimestamp, ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds())
                         .AddProperty(CustomLogEvent.LogDataKeySessionId, SessionId)
                         .AddProperty(LogDataKeyRemoteEndpoint, RemoteEndpoint.ToString()));
-                if (datagram.Options?.TraceId == ErrorTraceValue)
+                List<string> traceValues = null;
+                datagram.Options?.AllOptions.TryGetValue("TraceId", out traceValues);
+                var traceValue = traceValues?.LastOrDefault();
+                if (traceValue == ErrorTraceValue)
                 {
                     throw new Exception(ErrorTraceValue);
                 }
