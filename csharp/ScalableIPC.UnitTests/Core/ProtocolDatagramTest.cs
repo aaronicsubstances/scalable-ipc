@@ -66,18 +66,20 @@ namespace ScalableIPC.UnitTests.Core
             return new List<object[]>
             {
                 new object[]{ 0, 1 },
+                new object[]{ -1, 0 },
+                new object[]{ -10, 0 },
                 new object[]{ 1, 2 },
-                new object[]{ 999, 1000 },
-                new object[]{ 1000, 1001 },
-                new object[]{ 1001, 1002 },
+                new object[]{ 99, 100 },
+                new object[]{ 100, 101 },
+                new object[]{ 101, 102 },
                 new object[]{ int.MaxValue - 1, int.MaxValue },
                 new object[]{ int.MaxValue, int.MaxValue + 1L },
                 new object[]{ int.MaxValue + 1L, int.MaxValue + 2L },
-                new object[]{ 9_000_000_000_000_000_000 - 2, 9_000_000_000_000_000_000 - 1 },
-                new object[]{ 9_000_000_000_000_000_000 - 1, 9_000_000_000_000_000_000 },
-                new object[]{ 9_000_000_000_000_000_000, 1 },
-                new object[]{ 9_000_000_000_000_000_000 + 1, 1 },
-                new object[]{ long.MaxValue, 1 },
+                new object[]{ 9_000_000_000_000_000 - 2, 9_000_000_000_000_000 - 1 },
+                new object[]{ 9_000_000_000_000_000 - 1, 9_000_000_000_000_000 },
+                new object[]{ 9_000_000_000_000_000, 0 },
+                new object[]{ 9_000_000_000_000_000 + 1, 0 },
+                new object[]{ long.MaxValue, 0 },
             };
         }
 
@@ -95,33 +97,36 @@ namespace ScalableIPC.UnitTests.Core
             {
                 new object[]{ 0, 1, false },
                 new object[]{ 1, 2, false },
-                new object[]{ 999, 1000, false },
-                new object[]{ 1000, 1001, false },
-                new object[]{ 1001, 1002, false },
+                new object[]{ 99, 100, false },
+                new object[]{ 100, 101, false },
+                new object[]{ 101, 102, false },
                 new object[]{ int.MaxValue - 1, int.MaxValue, false },
                 new object[]{ int.MaxValue, int.MaxValue + 1L, false },
                 new object[]{ int.MaxValue + 1L, int.MaxValue + 2L, false },
-                new object[]{ 9_000_000_000_000_000_000 - 2, 9_000_000_000_000_000_000 - 1, false },
-                new object[]{ 9_000_000_000_000_000_000 - 1, 9_000_000_000_000_000_000, false },
-                new object[]{ 9_000_000_000_000_000_000, 0, false },
-                new object[]{ 9_000_000_000_000_000_000 + 1, 0, false },
+                new object[]{ 9_000_000_000_000_000 - 2, 9_000_000_000_000_000 - 1, false },
+                new object[]{ 9_000_000_000_000_000 - 1, 9_000_000_000_000_000, false },
+                new object[]{ 9_000_000_000_000_000, 0, false },
+                new object[]{ 9_000_000_000_000_000 + 1, 0, false },
                 new object[]{ long.MaxValue, 0, false },
                 new object[]{ 0, 0, false },
-                new object[]{ 160, 160, false },
+                new object[]{ 60, 60, false },
                 new object[]{ 0, -1, true },
-                new object[]{ 160, -1, false },
-                new object[]{ 161, 160, true },
-                new object[]{ 999, 0, true },
-                new object[]{ 1000, 0, true },
-                new object[]{ 1001, 0, false },
-                new object[]{ 1000, 1, true },
-                new object[]{ 1001, 1, true },
-                new object[]{ 1002, 1, false },
-                new object[]{ 9_000_000_000_000_000_000 + 2, 9_000_000_000_000_000_000 - 2, true },
-                new object[]{ 9_000_000_000_000_000_000 + 999, 9_000_000_000_000_000_000 - 1, true },
-                new object[]{ 9_000_000_000_000_000_000 + 1000, 9_000_000_000_000_000_000 - 1, false },
-                new object[]{ 9_000_000_000_000_000_000 + 1, 9_000_000_000_000_000_000, false },
-                new object[]{ 9_000_000_000_000_000_000 + 1000, 9_000_000_000_000_000_000 + 1, false }
+                new object[]{ 60, -1, true },
+                new object[]{ 0, -2, true },
+                new object[]{ 1_000, -1, true },
+                new object[]{ 9_000_000_000_000_000_000, -1, false },
+                new object[]{ 61, 60, true },
+                new object[]{ 99, 0, true },
+                new object[]{ 100, 0, true },
+                new object[]{ 101, 0, false },
+                new object[]{ 100, 1, true },
+                new object[]{ 101, 1, true },
+                new object[]{ 102, 1, false },
+                new object[]{ 9_000_000_000_000_000 + 2, 9_000_000_000_000_000 - 2, true },
+                new object[]{ 9_000_000_000_000_000 + 99, 9_000_000_000_000_000 - 1, true },
+                new object[]{ 9_000_000_000_000_000 + 100, 9_000_000_000_000_000 - 1, false },
+                new object[]{ 9_000_000_000_000_000 + 1, 9_000_000_000_000_000, false },
+                new object[]{ 9_000_000_000_000_000 + 100, 9_000_000_000_000_000 + 1, false }
             };
         }
 
@@ -370,7 +375,7 @@ namespace ScalableIPC.UnitTests.Core
             sessionId = "".PadLeft(64, '0');
             instance = new ProtocolDatagram
             {
-                OpCode = ProtocolDatagram.OpCodeClose,
+                OpCode = ProtocolDatagram.OpCodeEnquireLink,
                 ExpectedDatagramLength = 57,
                 SessionId = sessionId,
                 WindowId = int.MaxValue + 1L
@@ -401,7 +406,7 @@ namespace ScalableIPC.UnitTests.Core
             {
                 SessionId = sessionId,
                 WindowId = 3_290_342_720_000_601_258,
-                OpCode = ProtocolDatagram.OpCodeOpen,
+                OpCode = ProtocolDatagram.OpCodeData,
                 SequenceNumber = 1_895_425_975,
                 Options = new ProtocolDatagramOptions
                 {
@@ -442,7 +447,7 @@ namespace ScalableIPC.UnitTests.Core
                 ExpectedDatagramLength = 90,
                 SessionId = sessionId,
                 WindowId = 720_000_601,
-                OpCode = ProtocolDatagram.OpCodeOpenAck,
+                OpCode = ProtocolDatagram.OpCodeDataAck,
                 SequenceNumber = 1_000,
                 Options = new ProtocolDatagramOptions
                 {
@@ -492,7 +497,7 @@ namespace ScalableIPC.UnitTests.Core
             {
                 SessionId = sessionId,
                 WindowId = 1,
-                OpCode = ProtocolDatagram.OpCodeData,
+                OpCode = ProtocolDatagram.OpCodeClose,
                 SequenceNumber = 1,
                 Options = new ProtocolDatagramOptions
                 {
@@ -768,7 +773,7 @@ namespace ScalableIPC.UnitTests.Core
                 ExpectedDatagramLength = 78,
                 SessionId = sessionId,
                 WindowId = 3_290_342_720_000_601_258,
-                OpCode = ProtocolDatagram.OpCodeDataAck,
+                OpCode = ProtocolDatagram.OpCodeCloseAck,
                 SequenceNumber = 1_895_425_975,
                 Options = new ProtocolDatagramOptions
                 {
@@ -820,7 +825,7 @@ namespace ScalableIPC.UnitTests.Core
                 ExpectedDatagramLength = 90,
                 SessionId = sessionId,
                 WindowId = 720_000_601,
-                OpCode = ProtocolDatagram.OpCodeOpenAck,
+                OpCode = ProtocolDatagram.OpCodeDataAck,
                 SequenceNumber = 1_000,
                 Options = new ProtocolDatagramOptions
                 {
@@ -870,7 +875,7 @@ namespace ScalableIPC.UnitTests.Core
                 ExpectedDatagramLength = 74,
                 SessionId = sessionId,
                 WindowId = 1,
-                OpCode = ProtocolDatagram.OpCodeData,
+                OpCode = ProtocolDatagram.OpCodeClose,
                 SequenceNumber = 1,
                 Options = new ProtocolDatagramOptions
                 {

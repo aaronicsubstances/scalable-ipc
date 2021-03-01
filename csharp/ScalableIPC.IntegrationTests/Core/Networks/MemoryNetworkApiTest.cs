@@ -19,7 +19,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
     [Collection("SequentialTests")]
     public class MemoryNetworkApiTest
     {
-        internal static readonly string LogDataKeyConfiguredForSendOpen = "configuredForSend";
         internal static readonly string LogDataKeySendException = "sendException";
         internal static readonly string LogDataKeySerializedDatagram = "serializedDatagram";
         internal static readonly string LogDataKeyDatagramHashCode = "datagramHashCode";
@@ -180,10 +179,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.Null(record);
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
-            Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSendOpen]);
-            // Test that ProcessOpen is called.
-            record = logNavigator.Next(
-                rec => rec.Properties.Contains("12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
             Assert.NotNull(record);
 
             // test that session id can't be reused. 
@@ -212,13 +207,9 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             Assert.NotNull(record);
             record = logNavigator.Next(
                 rec => rec.Properties.Contains("3f4f66e2-dafc-4c79-aa42-6f988a337d78"));
+            Assert.NotNull(record);
             var sessionId2 = sessionHandler2.SessionId;
             Assert.NotNull(sessionId2);
-            Assert.Equal(true, record.ParsedProperties[LogDataKeyConfiguredForSendOpen]);
-            // Test that ProcessOpen is called.
-            record = logNavigator.Next(
-                rec => rec.Properties.Contains("12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
-            Assert.NotNull(record);
 
             // test that session id can't be reused. 
             await Assert.ThrowsAnyAsync<Exception>(() =>
@@ -411,8 +402,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                     result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
                         receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
                     Assert.NotNull(result);
-                    var actualConfiguredForSend = (bool)result.ParsedProperties[LogDataKeyConfiguredForSendOpen];
-                    Assert.False(actualConfiguredForSend);
                 }
                 result = logNavigator.Next(x => x.GetLogPositionId() == "3f4f66e2-dafc-4c79-aa42-6f988a337d78" &&
                     receiveThreadIds.Contains(x.GetCurrentLogicalThreadId()));
@@ -1081,7 +1070,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 else if (isReceiveExceptionCase)
                 {
                     datagram.Options = new ProtocolDatagramOptions();
-                    datagram.Options.TraceId = ErrorTraceValue;
+                    datagram.Options.AllOptions.Add("TraceId", new List<string> { ErrorTraceValue });
                     expectedErrorLogPositions = new string[] { "c42673d8-a1d1-4cb1-b9c1-a5369bedff64" };
                 }
                 else if (callbackExceptionCase)
@@ -1229,19 +1218,17 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                         "f8f6c939-09e2-4f8d-9b2b-fd25ee4ead9e"));
             }
 
-            public void CompleteInit(string sessionId, bool configureForSendOpen,
-                AbstractNetworkApi networkApi, GenericNetworkIdentifier remoteEndpoint)
+            public void CompleteInit(string sessionId, AbstractNetworkApi networkApi, 
+                GenericNetworkIdentifier remoteEndpoint)
             {
                 CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "CompleteInit() called")
                     .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
                         "3f4f66e2-dafc-4c79-aa42-6f988a337d78")
                     .AddProperty(CustomLogEvent.LogDataKeyCurrentLogicalThreadId,
-                        networkApi.PromiseApi.CurrentLogicalThreadId)
-                    .AddProperty(LogDataKeyConfiguredForSendOpen, configureForSendOpen));
+                        networkApi.PromiseApi.CurrentLogicalThreadId));
                 NetworkApi = networkApi;
                 RemoteEndpoint = remoteEndpoint;
                 SessionId = sessionId;
-                ConfiguredForSendOpen = configureForSendOpen;
             }
 
             public AbstractNetworkApi NetworkApi { get; private set; }
@@ -1249,7 +1236,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public GenericNetworkIdentifier RemoteEndpoint { get; private set; }
 
             public string SessionId { get; private set; }
-            public bool ConfiguredForSendOpen { get; private set; }
 
             public int MaxWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteWindowSize { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
@@ -1257,20 +1243,21 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
             public int MaxRetryPeriod { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int OpenTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int IdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public int AckTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MinRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int MaxRemoteIdleTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public double FireAndForgetSendProbability { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public int EnquireLinkInterval { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Func<int, int> EnquireLinkIntervalAlgorithm { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Func<long, long> NextWindowIdToSendAlgorithm { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolDatagram> DatagramDiscardedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public Action<ISessionHandler, ProtocolMessage> MessageReceivedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ReceivedProtocolMessage> MessageReceivedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolOperationException> SessionDisposingHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolOperationException> SessionDisposedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public Action<ISessionHandler, ProtocolOperationException> ReceiveErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public Action<ISessionHandler, ProtocolOperationException> SendErrorHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, int> EnquireLinkTimerFiredHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
             public Action<ISessionHandler, ProtocolDatagram> EnquireLinkSuccessHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-            public Action<ISessionHandler> OpenSuccessHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, bool> OpenSuccessHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ProtocolOperationException> SessionDataExchangeClosingHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public Action<ISessionHandler, ProtocolOperationException> SessionDataExchangeClosedHandler { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
             public AbstractPromise<VoidType> CloseAsync()
             {
@@ -1282,7 +1269,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 throw new NotImplementedException();
             }
 
-            public AbstractPromise<VoidType> FinaliseDisposeAsync(ProtocolOperationException cause)
+            public AbstractPromise<VoidType> MarkAsDisposingAsync(ProtocolOperationException cause)
             {
                 CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "FinaliseDisposeAsync() called")
                        .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
@@ -1291,14 +1278,6 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 {
                     throw new ArgumentNullException(nameof(cause));
                 }
-                return NetworkApi.PromiseApi.CompletedPromise();
-            }
-
-            public AbstractPromise<VoidType> ProcessOpenAsync()
-            {
-                CustomLoggerFacade.TestLog(() => new CustomLogEvent(GetType(), "ProcessOpenAsync() called")
-                        .AddProperty(CustomLogEvent.LogDataKeyLogPositionId,
-                           "12f2f4e3-af83-460f-8d46-0ac0fc9d95fe"));
                 return NetworkApi.PromiseApi.CompletedPromise();
             }
 
@@ -1318,7 +1297,10 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                         .AddProperty(LogDataKeyTimestamp, ((DateTimeOffset)DateTime.UtcNow).ToUnixTimeMilliseconds())
                         .AddProperty(CustomLogEvent.LogDataKeySessionId, SessionId)
                         .AddProperty(LogDataKeyRemoteEndpoint, RemoteEndpoint.ToString()));
-                if (datagram.Options?.TraceId == ErrorTraceValue)
+                List<string> traceValues = null;
+                datagram.Options?.AllOptions.TryGetValue("TraceId", out traceValues);
+                var traceValue = traceValues?.LastOrDefault();
+                if (traceValue == ErrorTraceValue)
                 {
                     throw new Exception(ErrorTraceValue);
                 }
@@ -1330,7 +1312,7 @@ namespace ScalableIPC.IntegrationTests.Core.Networks
                 throw new NotImplementedException();
             }
 
-            public AbstractPromise<bool> SendWithoutAckAsync(ProtocolMessage message)
+            public AbstractPromise<VoidType> MarkAsDisposedAsync(ProtocolOperationException cause)
             {
                 throw new NotImplementedException();
             }

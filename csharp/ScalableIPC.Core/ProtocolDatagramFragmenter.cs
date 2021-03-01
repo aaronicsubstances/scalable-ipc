@@ -10,55 +10,51 @@ namespace ScalableIPC.Core
         public static readonly string EncodedOptionNamePrefix = ProtocolDatagramOptions.KnownOptionPrefix +
             "e_";
 
-        private static readonly List<string> DefaultOptionsToSkip = new List<string>
-        {
-            ProtocolDatagramOptions.OptionNameIsLastInWindow, ProtocolDatagramOptions.OptionNameIsWindowFull,
-            ProtocolDatagramOptions.OptionNameErrorCode, ProtocolDatagramOptions.OptionNameIsLastInWindowGroup,
-            EncodedOptionNamePrefix, ProtocolDatagramOptions.OptionNameMaxWindowSize
-        };
-
-        // reserve space to cover minimum datagram size, the last in window and last in window group options.
-        private static readonly int DefaultReservedSpace = 100;
+        // reserve space to cover minimum datagram size.
+        // must be able to contain situation in which most standard protocol options specified at once. 
+        // currently that means: 57 + 4*14 + 30 = 143 (~ 150), and still have ample space for data.
+        private static readonly int DefaultReservedSpace = 150;
 
         private static readonly int OptionOverhead = 5; // for option length indicators and null terminator.
 
         private readonly ProtocolMessage _message;
         private readonly int _maxFragmentSize;
-        private readonly int _maxFragmentBatchSize;
-        private readonly int _maxFragmentOptionsSize;
         private readonly List<string> _optionsToSkip;
+        private readonly int _reservedSpace;
+        private readonly int _maxFragmentGroupSize;
         private int _usedDataLength;
         private List<ProtocolDatagram> _optionsTemplate;
         private bool _done;
 
-        public ProtocolDatagramFragmenter(ProtocolMessage message, int maxFragmentSize, List<string> extraOptionsToSkip)
-            : this(message, maxFragmentSize, extraOptionsToSkip,
-                 ProtocolDatagram.MaxOptionByteCount, ProtocolDatagram.MaxDatagramSize)
+        public ProtocolDatagramFragmenter(ProtocolMessage message, int mtu, List<string> extraOptionsToSkip)
+            : this(message, mtu, extraOptionsToSkip, DefaultReservedSpace, ProtocolDatagram.MaxDatagramSize)
         { }
 
         // helps with testing
         internal ProtocolDatagramFragmenter(ProtocolMessage message, int maxFragmentSize, List<string> extraOptionsToSkip,
-            int maxFragmentOptionsSize, int maxFragmentBatchSize)
+            int reservedSpace, int maxFragmentGroupSize)
         {
             _message = message;
-            _maxFragmentSize = maxFragmentSize - DefaultReservedSpace;
-            _optionsToSkip = new List<string>(DefaultOptionsToSkip);
+            _maxFragmentSize = maxFragmentSize;
+            _optionsToSkip = new List<string> { ProtocolDatagramOptions.KnownOptionPrefix };
             if (extraOptionsToSkip != null)
             {
                 _optionsToSkip.AddRange(extraOptionsToSkip);
             }
-            _maxFragmentBatchSize = maxFragmentBatchSize;
-            _maxFragmentOptionsSize = maxFragmentOptionsSize;
+            _reservedSpace = reservedSpace;
+            _maxFragmentGroupSize = maxFragmentGroupSize;
             _usedDataLength = 0;
             _done = false;
         }
 
-        public List<ProtocolDatagram> Next()
+        public List<ProtocolDatagram> Next(int minReqdCount = 0)
         {
             if (_done)
             {
                 return new List<ProtocolDatagram>();
             }
+
+            var effectiveMaxFragmentSize = _maxFragmentSize - _reservedSpace;
 
             // The requirement of the fragmentation algorithm is to include the attributes of a message
             // in each window group returned from this method.
@@ -69,21 +65,35 @@ namespace ScalableIPC.Core
             if (_optionsTemplate == null)
             {
                 _optionsTemplate = CreateFragmentsForAttributes(_message.Attributes,
-                    _maxFragmentSize, _maxFragmentOptionsSize,
+                    effectiveMaxFragmentSize, _maxFragmentGroupSize,
                     _optionsToSkip);
             }
 
+            // ensure minimum count.
             var nextFragments = DuplicateFragmentsFromOptions();
+            while (nextFragments.Count < minReqdCount)
+            {
+                nextFragments.Add(new ProtocolDatagram());
+            }
+
+            // add reserved space to fragments derived from option template, both
+            // to detect insufficient space and to reduce available space for 
+            // data top up later.
+            foreach (var fragment in nextFragments)
+            {
+                fragment.ExpectedDatagramLength += _reservedSpace;
+            }
+
             int bytesNeeded = nextFragments.Sum(x => x.ExpectedDatagramLength);
-            if (bytesNeeded > _maxFragmentBatchSize)
+            if (bytesNeeded > _maxFragmentGroupSize)
             {
                 throw new Exception("84017b75-4533-4e40-8541-85f12e9410d3: options too large to fit into max datagram size");
             }
 
-            if (_maxFragmentSize < 1)
+            if (effectiveMaxFragmentSize < 1)
             {
                 throw new Exception("98130f24-fae0-4d1b-bacc-6344aa2f6113: " +
-                    $"max fragment size must exceed default reserved space: {_maxFragmentSize + DefaultReservedSpace}");
+                    $"max fragment size must exceed reserved space: {_maxFragmentSize} <= {_reservedSpace}");
             }
 
             // use to detect infinite looping resulting from lack of progress.
@@ -96,13 +106,13 @@ namespace ScalableIPC.Core
                 {
                     break;
                 }
-                if (bytesNeeded >= _maxFragmentBatchSize)
+                if (bytesNeeded >= _maxFragmentGroupSize)
                 {
                     break;
                 }
                 int extraSpace = Math.Min(Math.Min(_message.DataLength - _usedDataLength,
-                    _maxFragmentBatchSize - bytesNeeded),
-                    _maxFragmentSize - nextFragment.ExpectedDatagramLength);
+                    _maxFragmentGroupSize - bytesNeeded),
+                    effectiveMaxFragmentSize - nextFragment.ExpectedDatagramLength);
                 if (extraSpace <= 0)
                 {
                     continue;
@@ -115,11 +125,11 @@ namespace ScalableIPC.Core
             }
 
             // next phase: add new fragments till window is filled up or data is used up.
-            while (_usedDataLength < _message.DataLength && bytesNeeded < _maxFragmentBatchSize)
+            while (_usedDataLength < _message.DataLength && bytesNeeded < _maxFragmentGroupSize)
             {
                 int spaceForData = Math.Min(Math.Min(_message.DataLength - _usedDataLength,
-                    _maxFragmentBatchSize - bytesNeeded),
-                    _maxFragmentSize);
+                    _maxFragmentGroupSize - bytesNeeded),
+                    effectiveMaxFragmentSize);
                 bytesNeeded += spaceForData;
                 var nextFragment = new ProtocolDatagram();
                 nextFragments.Add(nextFragment);
@@ -129,23 +139,24 @@ namespace ScalableIPC.Core
                 _usedDataLength += spaceForData;
             }
 
-            // for case of empty input, create a corresponding empty datagram.
+            _done = _usedDataLength >= _message.DataLength;
+
+            // for case of empty input, assert nothing created.
             if (_message.DataLength == 0 && _optionsTemplate.Count == 0)
             {
                 if (nextFragments.Count > 0)
                 {
                     throw new Exception("Wrong algorithm. Unexpected fragments created for empty input");
                 }
-                nextFragments.Add(new ProtocolDatagram());
             }
-
-            _done = _usedDataLength >= _message.DataLength;
-
-            // Ensure progress has been made.
-            if (nextFragments.Count == 0 || (!_done && _usedDataLength <= prevUsedDataLength))
+            else
             {
-                throw new Exception("122cc165-f7df-4985-8167-bc84fd25752d: " +
-                    "options so large that no space is left for data");
+                // Ensure progress has been made.
+                if (!_done && _usedDataLength <= prevUsedDataLength)
+                {
+                    throw new Exception("122cc165-f7df-4985-8167-bc84fd25752d: " +
+                        "options so large that no space is left for data");
+                }
             }
 
             // clear out to eliminate false expectations.
@@ -177,7 +188,7 @@ namespace ScalableIPC.Core
         }
 
         public static List<ProtocolDatagram> CreateFragmentsForAttributes(Dictionary<string, List<string>> attributes,
-            int maxFragmentSize, int maxFragmentOptionsSize, List<string> optionsToSkip)
+            int maxFragmentSize, int maxFragmentGroupSize, List<string> optionsToSkip)
         {
             var fragments = new List<ProtocolDatagram>();
             if (attributes == null)
@@ -223,10 +234,10 @@ namespace ScalableIPC.Core
                         var optionBytesNeeded = optionNameBytes + ProtocolDatagram.CountBytesInString(optionValue)
                            + OptionOverhead;
                         totalSize += optionBytesNeeded;
-                        if (totalSize > maxFragmentOptionsSize)
+                        if (totalSize > maxFragmentGroupSize)
                         {
                             throw new Exception("adb4e1ef-c160-4e34-82ee-73f00699b4bd: " +
-                                $"Attributes too large for max option bytes: {totalSize} > {maxFragmentOptionsSize}");
+                                $"Attributes too large for max option bytes: {totalSize} > {maxFragmentGroupSize}");
                         }
                         if (latestSize + optionBytesNeeded > maxFragmentSize)
                         {

@@ -8,13 +8,13 @@ using Xunit;
 
 namespace ScalableIPC.UnitTests.Core.Session
 {
-    public class ReceiveHandlerAssistantTest
+    public class ReceiveDataHandlerTest
     {
         [Theory]
         [MemberData(nameof(CreateTestGetLastPositionInSlidingWindowData))]
         public void TestGetLastPositionInSlidingWindow(List<ProtocolDatagram> currentWindow, int expected)
         {
-            int actual = ReceiveHandlerAssistant.GetLastPositionInSlidingWindow(currentWindow);
+            int actual = ReceiveDataHandler.GetLastPositionInSlidingWindow(currentWindow);
             Assert.Equal(expected, actual);
         }
 
@@ -37,7 +37,7 @@ namespace ScalableIPC.UnitTests.Core.Session
         public void TestIsCurrentWindowFull(List<ProtocolDatagram> currentWindow, int maxReceiveWindowSize,
             int lastPosInSlidingWindow, bool expected)
         {
-            bool actual = ReceiveHandlerAssistant.IsCurrentWindowFull(currentWindow, maxReceiveWindowSize,
+            bool actual = ReceiveDataHandler.IsCurrentWindowFull(currentWindow, maxReceiveWindowSize,
                 lastPosInSlidingWindow);
             Assert.Equal(expected, actual);
         }
@@ -89,7 +89,7 @@ namespace ScalableIPC.UnitTests.Core.Session
             ProtocolDatagram message, bool expected, List<ProtocolDatagram> expectedWindow)
         {
             var mutableWindow = new List<ProtocolDatagram>(inputWindow);
-            bool actual = ReceiveHandlerAssistant.AddToCurrentWindow(mutableWindow, maxReceiveWindowSize,
+            bool actual = ReceiveDataHandler.AddToCurrentWindow(mutableWindow, maxReceiveWindowSize,
                 message);
             Assert.Equal(expected, actual);
             if (!expected && expectedWindow == null)

@@ -31,10 +31,9 @@ namespace ScalableIPC.UnitTests.Core
             };
             int maxFragmentSize = 512;
             List<string> extraOptionsToSkip = null;
-            int maxFragmentOptionsSize = 1024;
-            int maxFragmentBatchSize = 2048;
+            int maxFragmentGroupSize = 2048;
             _instance = new ProtocolDatagramFragmenter(_message, maxFragmentSize, extraOptionsToSkip,
-                maxFragmentOptionsSize, maxFragmentBatchSize);
+                100, maxFragmentGroupSize);
         }
 
         [Fact]
@@ -190,9 +189,7 @@ namespace ScalableIPC.UnitTests.Core
         public void TestEmptyInput()
         {
             var emptyMessage = new ProtocolMessage();
-            var instance = new ProtocolDatagramFragmenter(emptyMessage, 110, null);
-            Assert.Equal(new List<ProtocolDatagram> { new ProtocolDatagram() }, instance.Next(), 
-                ProtocolDatagramComparer.Default);
+            var instance = new ProtocolDatagramFragmenter(emptyMessage, 160, null);
             Assert.Equal(new List<ProtocolDatagram>(), instance.Next());
         }
 
@@ -215,7 +212,7 @@ namespace ScalableIPC.UnitTests.Core
                 new ProtocolDatagram { Options = opts1 },
                 new ProtocolDatagram { Options = opts2 }
             };
-            var instance = new ProtocolDatagramFragmenter(attsOnlyMsg, 110, null, 150, 18);
+            var instance = new ProtocolDatagramFragmenter(attsOnlyMsg, 110, null, 18, 150);
             Assert.Equal(expected, instance.Next(),
                 ProtocolDatagramComparer.Default);
             Assert.Equal(new List<ProtocolDatagram>(), instance.Next());
@@ -256,10 +253,6 @@ namespace ScalableIPC.UnitTests.Core
             int maxFragmentBatchSize = 200;
             List<List<ProtocolDatagram>> expected = new List<List<ProtocolDatagram>>
             {
-                new List<ProtocolDatagram>
-                {
-                    new ProtocolDatagram()
-                },
                 new List<ProtocolDatagram>()
             };
 

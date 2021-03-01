@@ -19,6 +19,8 @@ namespace ScalableIPC.Core
         // data codes.
         public const int ErrorCodeWindowGroupOverflow = 250;
         public const int ErrorCodeOptionDecodingError = 251;
+        public const int ErrorCodeTwoWayDataExchangeForbiddenInOpeningState = 252;
+        public const int ErrorCodeSingleWindowAsGroupNotReceivableInOpeningState = 253;
 
         // The following error codes are not meant to be used for network
         // communications. As such they are negative.
@@ -33,20 +35,6 @@ namespace ScalableIPC.Core
             int? errorCode = datagram.Options?.ErrorCode;
             switch (datagram.OpCode)
             {
-                case ProtocolDatagram.OpCodeClose:
-                    if (errorCode == null || errorCode == 0)
-                    {
-                        // use default value.
-                        return ErrorCodeNormalClose;
-                    }
-                    else if (errorCode < 0 || errorCode >= 100)
-                    {
-                        return -1;
-                    }
-                    else
-                    {
-                        return errorCode.Value;
-                    }
                 case ProtocolDatagram.OpCodeEnquireLinkAck:
                     if (errorCode == null || errorCode == 0)
                     {
@@ -74,6 +62,31 @@ namespace ScalableIPC.Core
                     else
                     {
                         return errorCode.Value;
+                    }
+                default:
+                    break;
+            }
+            return int.MinValue;
+        }
+
+        public static int FetchExpectedAbortCode(ProtocolDatagram datagram)
+        {
+            int? abortCode = datagram.Options?.AbortCode;
+            switch (datagram.OpCode)
+            {
+                case ProtocolDatagram.OpCodeClose:
+                    if (abortCode == null || abortCode == 0)
+                    {
+                        // use default value.
+                        return ErrorCodeNormalClose;
+                    }
+                    else if (abortCode < 0 || abortCode >= 100)
+                    {
+                        return -1;
+                    }
+                    else
+                    {
+                        return abortCode.Value;
                     }
                 default:
                     break;
@@ -109,6 +122,8 @@ namespace ScalableIPC.Core
                 return "APPLICATION ERROR";
             else if (code == ErrorCodeWindowGroupOverflow)
                 return "WINDOW GROUP OVERLFOW";
+            else if (code == ErrorCodeSingleWindowAsGroupNotReceivableInOpeningState)
+                return "WINDOW GROUP NOT RECEIVABLE IN OPENING STATE";
             else if (code == ErrorCodeRestart)
                 return "RESTART";
             else if (code == ErrorCodeShutdown)

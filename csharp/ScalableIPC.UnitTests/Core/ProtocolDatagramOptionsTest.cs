@@ -34,7 +34,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
-                TraceId = ""
             };
             var secondInstance = new ProtocolDatagramOptions
             {
@@ -42,7 +41,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
-                TraceId = ""
             };
             testData.Add(new object[] { firstInstance, secondInstance, true });
 
@@ -143,7 +141,6 @@ namespace ScalableIPC.UnitTests.Core
             inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "-1", "4" });
             inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "TRUE" });
             inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "FALSE" });
-            inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "a", "b", "" });
             inputInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string>());
             var expectedInstance = new ProtocolDatagramOptions
             {
@@ -151,13 +148,11 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
-                TraceId = ""
             };
             expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIdleTimeout, new List<string> { "3" });
             expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "-1", "4" });
             expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "TRUE" });
             expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "FALSE" });
-            expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "a", "b", "" });
             expectedInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string>());
             testData.Add(new object[] { inputInstance, expectedInstance });
 
@@ -168,7 +163,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
-                TraceId = "",
                 IsWindowFull = true
             };
             inputInstance.AllOptions.Add("k1", new List<string> { "v1" });
@@ -267,7 +261,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
-                TraceId = "",
                 IsWindowFull = false
             };
             var expected = new List<string[]>
@@ -277,7 +270,6 @@ namespace ScalableIPC.UnitTests.Core
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindow, "True" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, "False" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsWindowFull, "False" } },
-                { new string[]{ ProtocolDatagramOptions.OptionNameTraceId, "" } },
             };
             testData.Add(new object[] { instance, expected });
 
@@ -299,7 +291,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
-                TraceId = "3f61a6c3-4736-4b6d-bbc1-416ad9b30493",
                 IsWindowFull = false
             };
             instance.AllOptions.Add("k1", new List<string> { "v1" });
@@ -314,7 +305,6 @@ namespace ScalableIPC.UnitTests.Core
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindow, "True" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, "False" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsWindowFull, "False" } },
-                { new string[]{ ProtocolDatagramOptions.OptionNameTraceId, "3f61a6c3-4736-4b6d-bbc1-416ad9b30493" } },
             };
             testData.Add(new object[] { instance, expected });
 
@@ -325,7 +315,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
-                TraceId = "test",
                 IsWindowFull = false
             };
             instance.AllOptions.Add("k1", new List<string> { "v1" });
@@ -335,7 +324,6 @@ namespace ScalableIPC.UnitTests.Core
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "true" });
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "FALSE" });
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "true", "False" });
-            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "test" });
             expected = new List<string[]>
             {
                 { new string[]{ "k1", "v1" } },
@@ -348,7 +336,6 @@ namespace ScalableIPC.UnitTests.Core
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, "FALSE" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsWindowFull, "true" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsWindowFull, "False" } },
-                { new string[]{ ProtocolDatagramOptions.OptionNameTraceId, "test" } },
             };
             testData.Add(new object[] { instance, expected });
 
@@ -359,7 +346,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
-                TraceId = "b1ea7f1b-9862-42b6-a0c5-c751f35b474f",
                 IsWindowFull = false
             };
             instance.AllOptions.Add("k1", new List<string> { "v1" });
@@ -369,7 +355,6 @@ namespace ScalableIPC.UnitTests.Core
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "true", "1" });
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "0" });
             instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "true" });
-            instance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "test" });
             expected = new List<string[]>
             {
                 { new string[]{ "k1", "v1" } },
@@ -386,8 +371,6 @@ namespace ScalableIPC.UnitTests.Core
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, "False" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsWindowFull, "true" } },
                 { new string[]{ ProtocolDatagramOptions.OptionNameIsWindowFull, "False" } },
-                { new string[]{ ProtocolDatagramOptions.OptionNameTraceId, "test" } },
-                { new string[]{ ProtocolDatagramOptions.OptionNameTraceId, "b1ea7f1b-9862-42b6-a0c5-c751f35b474f" } }
             };
             testData.Add(new object[] { instance, expected });
 
@@ -417,7 +400,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
-                TraceId = "",
                 IsWindowFull = false,
                 MaxWindowSize = 10
             };
@@ -427,7 +409,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = false,
-                TraceId = "",
                 IsWindowFull = false,
                 MaxWindowSize = 10
             };
@@ -440,7 +421,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = true,
-                TraceId = "t",
                 IsWindowFull = true
             };
             destInstance = new ProtocolDatagramOptions();
@@ -450,7 +430,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = true,
-                TraceId = "t",
                 IsWindowFull = true
             };
             testData.Add(new object[] { srcInstance, destInstance, expected });
@@ -462,7 +441,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 0,
                 IsLastInWindow = false,
                 IsLastInWindowGroup = false,
-                TraceId = "",
                 IsWindowFull = false
             };
             destInstance = new ProtocolDatagramOptions
@@ -471,7 +449,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 4,
                 IsLastInWindow = true,
                 IsLastInWindowGroup = true,
-                TraceId = "t",
                 IsWindowFull = true
             };
             expected = new ProtocolDatagramOptions
@@ -480,7 +457,6 @@ namespace ScalableIPC.UnitTests.Core
                 ErrorCode = 0,
                 IsLastInWindow = false,
                 IsLastInWindowGroup = false,
-                TraceId = "",
                 IsWindowFull = false
             };
             testData.Add(new object[] { srcInstance, destInstance, expected });
@@ -497,7 +473,6 @@ namespace ScalableIPC.UnitTests.Core
             srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameErrorCode, new List<string> { "-1", "4" });
             srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindow, new List<string> { "true" });
             srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsLastInWindowGroup, new List<string> { "false" });
-            srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameTraceId, new List<string> { "a", "b", "" });
             srcInstance.AllOptions.Add(ProtocolDatagramOptions.OptionNameIsWindowFull, new List<string> { "false" });
             destInstance = new ProtocolDatagramOptions()
             {

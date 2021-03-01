@@ -2,6 +2,7 @@
 using ScalableIPC.Core.Session.Abstractions;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace ScalableIPC.Core.Session
@@ -11,15 +12,17 @@ namespace ScalableIPC.Core.Session
         private readonly IStandardSessionHandler _sessionHandler;
         private ProtocolDatagramFragmenter _datagramFragmenter;
         private PromiseCompletionSource<VoidType> _pendingPromiseCallback;
-        private IRetrySendHandlerAssistant _sendWindowHandler;
+        private ISendHandlerAssistant _sendWindowHandler;
+        private bool _skipDataExchangeRestrictions;
 
         public SendDataHandler(IStandardSessionHandler sessionHandler)
         {
             _sessionHandler = sessionHandler;
         }
         
-        internal List<ProtocolDatagram> CurrentWindowGroup { get; private set; }
-        internal int SentDatagramCountInCurrentWindowGroup { get; private set; }
+        public List<ProtocolDatagram> CurrentWindowGroup { get; private set; }
+        public int SentDatagramCountInCurrentWindowGroup { get; private set; }
+
         public bool SendInProgress { get; set; }
 
         public void Dispose(ProtocolOperationException cause)
@@ -41,22 +44,41 @@ namespace ScalableIPC.Core.Session
                 return false;
             }
 
+            OnAckReceived(datagram);
+            return true;
+        }
+
+        private void OnAckReceived(ProtocolDatagram datagram)
+        {
+            if (_sessionHandler.State >= SessionState.Closed)
+            {
+                _sessionHandler.RaiseReceiveError(datagram, "47efeff4-3bdf-4d5e-8283-f7854aa13a67: " +
+                    "data ack received in closed aftermath state");
+                return;
+            }
+
             // to prevent clashes with other handlers performing sends, 
             // check that specific send in progress is on.
             if (!SendInProgress)
             {
-                return false;
+                _sessionHandler.RaiseReceiveError(datagram, "2a1c3770-ba5c-4ea2-b1e8-c5a058e27b51: " +
+                    "data handler is not currently sending, so data ack is not needed");
+                return;
             }
 
             _sendWindowHandler.OnAckReceived(datagram);
-            return true;
         }
 
         public void ProcessSend(ProtocolMessage message,
            PromiseCompletionSource<VoidType> promiseCb)
         {
-            _pendingPromiseCallback = promiseCb;
-
+            // reject quickly data exchange is already occuring by receiving in opening state.
+            if (_sessionHandler.State == SessionState.Opening &&
+                _sessionHandler.OpeningByReceiving)
+            {
+                throw new Exception("Cannot send while receiving data in opening state");
+            }
+            
             // ensure minimum of 512 and maximum = datagram max length
             int mtu = Math.Min(Math.Max(ProtocolDatagram.MinimumTransferUnitSize, 
                 _sessionHandler.NetworkApi.MaximumTransferUnitSize), ProtocolDatagram.MaxDatagramSize);
@@ -65,23 +87,61 @@ namespace ScalableIPC.Core.Session
             // reset fields used for continuation.
             SentDatagramCountInCurrentWindowGroup = 0;
 
+            _skipDataExchangeRestrictions = false;
+            if (message.Attributes != null && message.Attributes.ContainsKey(
+                ProtocolDatagramOptions.OptionNameSkipDataExchangeProhibitionsInOpeningState))
+            {
+                string lastValStr = message.Attributes[
+                    ProtocolDatagramOptions.OptionNameSkipDataExchangeProhibitionsInOpeningState].LastOrDefault();
+                if (lastValStr != null)
+                {
+                    _skipDataExchangeRestrictions = ProtocolDatagramOptions.ParseOptionAsBoolean(lastValStr);
+                }
+            }
+            if (_sessionHandler.State == SessionState.Opening)
+            {
+                if (_skipDataExchangeRestrictions)
+                {
+                    TransitionToOpenState();
+                }
+                else
+                {
+                    _sessionHandler.OpeningBySending = true;
+                }
+            }
+
+            _pendingPromiseCallback = promiseCb;
             ContinueWindowSend(false);
             SendInProgress = true;
+        }
+
+        private void TransitionToOpenState()
+        {
+            _sessionHandler.State = SessionState.Opened;
+            _sessionHandler.CancelOpenTimeout();
+            _sessionHandler.ScheduleEnquireLinkEvent(true);
+            _sessionHandler.OnOpenSuccess(false);
         }
 
         private bool ContinueWindowSend(bool haveSentBefore)
         {
             if (!haveSentBefore)
             {
-                CurrentWindowGroup = _datagramFragmenter.Next();
-                if (CurrentWindowGroup.Count == 0)
+                int minReqd = 1;
+                if (_sessionHandler.State == SessionState.Opening && !_skipDataExchangeRestrictions)
                 {
-                    throw new Exception("Wrong fragmentation algorithm. At least one datagram must be returned");
+                    minReqd = 2;
+                }
+                CurrentWindowGroup = _datagramFragmenter.Next(minReqd);
+                if (CurrentWindowGroup.Count < minReqd)
+                {
+                    throw new Exception($"Wrong fragmentation algorithm. At least {minReqd} datagram(s) must be returned, " +
+                        $"but received {CurrentWindowGroup.Count}");
                 }
             }
             else if (SentDatagramCountInCurrentWindowGroup >= CurrentWindowGroup.Count)
             {
-                CurrentWindowGroup = _datagramFragmenter.Next();
+                CurrentWindowGroup = _datagramFragmenter.Next(0);
                 if (CurrentWindowGroup.Count == 0)
                 {
                     // No more datagrams found for send window.
@@ -93,10 +153,23 @@ namespace ScalableIPC.Core.Session
             // try and fetch remainder in current window group, but respect constraint of max send window size.
             // ensure minimum of 1 for max send window size.
             int maxSendWindowSize = Math.Max(1, _sessionHandler.MaxWindowSize);
+            if (_sessionHandler.State == SessionState.Opening && !haveSentBefore && !_skipDataExchangeRestrictions)
+            {
+                maxSendWindowSize = 1;
+            }
             var nextWindow = CurrentWindowGroup.GetRange(SentDatagramCountInCurrentWindowGroup, Math.Min(maxSendWindowSize,
                 CurrentWindowGroup.Count - SentDatagramCountInCurrentWindowGroup));
             SentDatagramCountInCurrentWindowGroup += nextWindow.Count;
 
+            if (SentDatagramCountInCurrentWindowGroup == 0)
+            {
+                var firstMsgInNextWindow = nextWindow[0];
+                if (firstMsgInNextWindow.Options == null)
+                {
+                    firstMsgInNextWindow.Options = new ProtocolDatagramOptions();
+                }
+                firstMsgInNextWindow.Options.IsFirstInWindowGroup = true;
+            }
             var lastMsgInNextWindow = nextWindow[nextWindow.Count - 1];
             if (lastMsgInNextWindow.Options == null)
             {
@@ -112,17 +185,27 @@ namespace ScalableIPC.Core.Session
             {
                 datagram.OpCode = ProtocolDatagram.OpCodeData;
                 datagram.SessionId = _sessionHandler.SessionId;
+
+                // apply to all datagrams in window if set since they
+                // may arrive at different ordering at receiver, and it is
+                // the first which will have an impact.
+                if (_sessionHandler.State == SessionState.Opening && _skipDataExchangeRestrictions)
+                {
+                    if (datagram.Options == null)
+                    {
+                        datagram.Options = new ProtocolDatagramOptions();
+                    }
+                    datagram.Options.SkipDataExchangeRestrictionsDueToOpeningState = true;
+                }
                 // the rest will be set by assistant handlers
             }
 
-            _sendWindowHandler = new RetrySendHandlerAssistant(_sessionHandler)
-            {
-                CurrentWindow = nextWindow,
-                SuccessCallback = OnWindowSendSuccess,
-                ErrorCallback = OnWindowSendError,
-                TimeoutCallback = () => OnWindowSendError(
-                    new ProtocolOperationException(ProtocolOperationException.ErrorCodeSendTimeout))
-            };
+            _sendWindowHandler = _sessionHandler.CreateSendHandlerAssistant();
+            _sendWindowHandler.ProspectiveWindowToSend = nextWindow;
+            _sendWindowHandler.SuccessCallback = OnWindowSendSuccess;
+            _sendWindowHandler.ErrorCallback = OnWindowSendError;
+            _sendWindowHandler.TimeoutCallback = () => OnWindowSendError(
+                    new ProtocolOperationException(ProtocolOperationException.ErrorCodeSendTimeout));
 
             // Found some datagrams to send in next window.
             _sendWindowHandler.Start();
@@ -157,8 +240,11 @@ namespace ScalableIPC.Core.Session
             _datagramFragmenter = null;
             CurrentWindowGroup = null;
 
-            // notify application layer.
-            _sessionHandler.OnSendError(error);
+            // revert receive prohibition
+            if (_sessionHandler.State == SessionState.Opening)
+            {
+                _sessionHandler.OpeningBySending = false;
+            }
         }
     }
 }

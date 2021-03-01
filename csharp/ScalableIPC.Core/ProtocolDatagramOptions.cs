@@ -10,13 +10,19 @@ namespace ScalableIPC.Core
         // Reserve s_ prefix for known options.
         public const string KnownOptionPrefix = "s_";
 
+        // let standard protocol options always have a limit on the length of all their possible values,
+        // since they have to fit into an MTU sized datagram, without need for option encoding as done
+        // in datagram fragmenter.
+        // That means placing length limits on string options. numbers and booleans implicitly have a length limit.
         public const string OptionNameIdleTimeout = KnownOptionPrefix + "idle_timeout";
         public const string OptionNameErrorCode = KnownOptionPrefix + "error_code";
-        public const string OptionNameIsWindowFull = KnownOptionPrefix + "10";
-        public const string OptionNameMaxWindowSize = KnownOptionPrefix + "20";
+        public const string OptionNameAbortCode = KnownOptionPrefix + "abort_code";
+        public const string OptionNameIsFirstInWindowGroup = KnownOptionPrefix + "00";
         public const string OptionNameIsLastInWindow = KnownOptionPrefix + "01";
         public const string OptionNameIsLastInWindowGroup = KnownOptionPrefix + "02";
-        public const string OptionNameTraceId = KnownOptionPrefix + "traceId";
+        public const string OptionNameSkipDataExchangeProhibitionsInOpeningState = KnownOptionPrefix + "03";
+        public const string OptionNameIsWindowFull = KnownOptionPrefix + "10";
+        public const string OptionNameMaxWindowSize = KnownOptionPrefix + "20";
 
         public ProtocolDatagramOptions()
         {
@@ -31,13 +37,15 @@ namespace ScalableIPC.Core
         public int? IdleTimeout { get; set; }
 
         // for error codes validate on a case by case basis depending on op code.
-        public int? ErrorCode { get; set; } 
+        public int? ErrorCode { get; set; }
+        public int? AbortCode { get; set; }
         public bool? IsWindowFull { get; set; }
         public bool? IsLastInWindow { get; set; }
         public bool? IsLastInWindowGroup { get; set; }
-        public string TraceId { get; set; }
         public int? MaxWindowSize { get; set; }
-        
+        public bool? IsFirstInWindowGroup { get; set; }
+        public bool SkipDataExchangeRestrictionsDueToOpeningState { get; set; }
+
         public override string ToString()
         {
             var sb = new StringBuilder();
@@ -46,15 +54,17 @@ namespace ScalableIPC.Core
             sb.Append(", ");
             sb.Append(nameof(ErrorCode)).Append("=").Append(ErrorCode);
             sb.Append(", ");
+            sb.Append(nameof(AbortCode)).Append("=").Append(AbortCode);
+            sb.Append(", ");
             sb.Append(nameof(IsWindowFull)).Append("=").Append(IsWindowFull);
             sb.Append(", ");
             sb.Append(nameof(IsLastInWindow)).Append("=").Append(IsLastInWindow);
             sb.Append(", ");
             sb.Append(nameof(IsLastInWindowGroup)).Append("=").Append(IsLastInWindowGroup);
             sb.Append(", ");
-            sb.Append(nameof(TraceId)).Append("=").Append(TraceId);
-            sb.Append(", ");
             sb.Append(nameof(MaxWindowSize)).Append("=").Append(MaxWindowSize);
+            sb.Append(", ");
+            sb.Append(nameof(IsFirstInWindowGroup)).Append("=").Append(IsFirstInWindowGroup);
             sb.Append(", ");
             sb.Append(nameof(AllOptions)).Append("=").Append(StringUtilities.StringifyOptions(AllOptions));
             sb.Append("}");
@@ -82,11 +92,12 @@ namespace ScalableIPC.Core
             // So reset before parsing.
             IdleTimeout = null;
             ErrorCode = null;
+            AbortCode = null;
             IsLastInWindow = null;
             IsWindowFull = null;
             IsLastInWindowGroup = null;
-            TraceId = null;
             MaxWindowSize = null;
+            IsFirstInWindowGroup = null;
 
             // Now identify and validate known options.
             // In case of repetition, last one wins.
@@ -108,6 +119,9 @@ namespace ScalableIPC.Core
                         case OptionNameErrorCode:
                             ErrorCode = ParseOptionAsInt32(value);
                             break;
+                        case OptionNameAbortCode:
+                            AbortCode = ParseOptionAsInt32(value);
+                            break;
                         case OptionNameIsLastInWindow:
                             IsLastInWindow = ParseOptionAsBoolean(value);
                             break;
@@ -117,11 +131,11 @@ namespace ScalableIPC.Core
                         case OptionNameIsLastInWindowGroup:
                             IsLastInWindowGroup = ParseOptionAsBoolean(value);
                             break;
-                        case OptionNameTraceId:
-                            TraceId = value;
-                            break;
                         case OptionNameMaxWindowSize:
                             MaxWindowSize = ParseOptionAsInt32(value);
+                            break;
+                        case OptionNameIsFirstInWindowGroup:
+                            IsFirstInWindowGroup = ParseOptionAsBoolean(value);
                             break;
                         default:
                             break;
@@ -188,7 +202,7 @@ namespace ScalableIPC.Core
                     else
                     {
                         if (kvp.Key == OptionNameIsLastInWindow || kvp.Key == OptionNameIsLastInWindowGroup ||
-                            kvp.Key == OptionNameIsWindowFull)
+                            kvp.Key == OptionNameIsWindowFull || kvp.Key == OptionNameIsFirstInWindowGroup)
                         {
                             isDefinedDifferently = !lastValue.Equals(overridingValue, StringComparison.OrdinalIgnoreCase);
                         }
@@ -223,6 +237,10 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameErrorCode, ErrorCode.ToString());
             }
+            if (AbortCode != null)
+            {
+                knownOptions.Add(OptionNameAbortCode, AbortCode.ToString());
+            }
             if (IdleTimeout != null)
             {
                 knownOptions.Add(OptionNameIdleTimeout, IdleTimeout.ToString());
@@ -240,13 +258,13 @@ namespace ScalableIPC.Core
             {
                 knownOptions.Add(OptionNameIsWindowFull, IsWindowFull.ToString());
             }
-            if (TraceId != null)
-            {
-                knownOptions.Add(OptionNameTraceId, TraceId);
-            }
             if (MaxWindowSize != null)
             {
                 knownOptions.Add(OptionNameMaxWindowSize, MaxWindowSize.ToString());
+            }
+            if (IsFirstInWindowGroup != null)
+            {
+                knownOptions.Add(OptionNameIsFirstInWindowGroup, IsFirstInWindowGroup.ToString());
             }
             return knownOptions;
         }
@@ -261,6 +279,10 @@ namespace ScalableIPC.Core
             {
                 destOptions.ErrorCode = ErrorCode;
             }
+            if (AbortCode != null)
+            {
+                destOptions.AbortCode = AbortCode;
+            }
             if (IsLastInWindow != null)
             {
                 destOptions.IsLastInWindow = IsLastInWindow;
@@ -273,13 +295,13 @@ namespace ScalableIPC.Core
             {
                 destOptions.IsLastInWindowGroup = IsLastInWindowGroup;
             }
-            if (TraceId != null)
-            {
-                destOptions.TraceId = TraceId;
-            }
             if (MaxWindowSize != null)
             {
                 destOptions.MaxWindowSize = MaxWindowSize;
+            }
+            if (IsFirstInWindowGroup != null)
+            {
+                destOptions.IsFirstInWindowGroup = IsFirstInWindowGroup;
             }
         }
     }

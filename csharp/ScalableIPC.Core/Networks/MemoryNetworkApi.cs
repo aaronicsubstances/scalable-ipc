@@ -73,23 +73,11 @@ namespace ScalableIPC.Core.Networks
 
         public ITransmissionBehaviour TransmissionBehaviour { get; set; }
 
-        public int AckTimeout { get; set; }
-
         public int MaximumTransferUnitSize { get; set; }
         
-        public object CreateSendContext(int retryCount, object previousSendContext)
+        public INetworkSendContext CreateSendContext()
         {
             return null;
-        }
-
-        public void DisposeSendContext(object sendContext)
-        {
-            // nothing to do.   
-        }
-
-        public int DetermineAckTimeout(object sendContext)
-        {
-            return AckTimeout;
         }
 
         public AbstractPromise<VoidType> StartAsync()
@@ -133,13 +121,9 @@ namespace ScalableIPC.Core.Networks
                 {
                     _sessionHandlerStore.Add(remoteEndpoint, sessionId,
                         new SessionHandlerWrapper(sessionHandler));
-                    sessionHandler.CompleteInit(sessionId, true, this, remoteEndpoint);
+                    sessionHandler.CompleteInit(sessionId, this, remoteEndpoint);
                 }
-                return sessionHandler.ProcessOpenAsync()
-                    .Then(_ =>
-                    {
-                        return sessionHandler;
-                    });
+                return PromiseApi.Resolve(sessionHandler);
             }
             catch (Exception ex)
             {
@@ -147,8 +131,8 @@ namespace ScalableIPC.Core.Networks
             }
         }
 
-        public Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message, 
-            object sendContext, Action<Exception> cb)
+        public Guid RequestSend(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram message,
+            INetworkSendContext sendContext, Action<Exception> cb)
         {
             // Start sending in separate thread of control.
             var newLogicalThreadId = GenerateAndRecordLogicalThreadId(null);
@@ -344,7 +328,7 @@ namespace ScalableIPC.Core.Networks
                     }
                     _sessionHandlerStore.Add(remoteEndpoint, datagram.SessionId,
                         new SessionHandlerWrapper(sessionHandler));
-                    sessionHandler.CompleteInit(datagram.SessionId, false, this, remoteEndpoint);
+                    sessionHandler.CompleteInit(datagram.SessionId, this, remoteEndpoint);
                 }
             }
             return sessionHandler.ProcessReceiveAsync(datagram);
@@ -356,12 +340,12 @@ namespace ScalableIPC.Core.Networks
             // validation?
             switch (datagram.OpCode)
             {
-                case ProtocolDatagram.OpCodeOpen:
-                case ProtocolDatagram.OpCodeOpenAck:
                 case ProtocolDatagram.OpCodeData:
                 case ProtocolDatagram.OpCodeDataAck:
                 case ProtocolDatagram.OpCodeClose:
                 case ProtocolDatagram.OpCodeCloseAck:
+                case ProtocolDatagram.OpCodeEnquireLink:
+                case ProtocolDatagram.OpCodeEnquireLinkAck:
                     return true;
                 default:
                     // ignore shutdowns and restarts
@@ -397,7 +381,7 @@ namespace ScalableIPC.Core.Networks
             }
             if (sessionHandler != null)
             {
-                return sessionHandler.SessionHandler.FinaliseDisposeAsync(cause);
+                return sessionHandler.SessionHandler.MarkAsDisposingAsync(cause);
             }
             return PromiseApi.CompletedPromise();
         }

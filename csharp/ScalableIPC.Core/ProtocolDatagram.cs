@@ -9,24 +9,24 @@ namespace ScalableIPC.Core
 {
     /// <summary>
     /// Protocol PDU structure was formed with the following in mind:
-    /// 1. use of sessionid removes the need for TIME_WAIT state used by TCP. 32-byte session ids are generated
+    /// 1. use of sessionid enables multiplexing across connection-oriented networks. 32-byte session ids are generated
     ///    by combining random uuid, current timestamp, and auto incrementing integer.
     /// 2. use of 32-bit sequence number separate from window id, allows a maximum bandwidth of 512 * 2G = 1TB (1024 GB), 
     ///    more than enough for networks with large bandwidth-delay product (assuming packet size of 512 bytes).
-    /// 3. use of 64-bit window id is for ensuring that by the time 64-bit numbers are exhausted in max increments of 1000,
-    ///    at a speed of 512 terabytes per second (ie 2^49 bytes/s), it will take 34 minutes (ie 2^11 seconds)
-    ///    to exhaust ids and wrap around. That's more than enough for networks to discard traces of any lingering packet.
+    /// 3. use of 64-bit window id is for ensuring that, by the time 0-9e15 range is exhausted in max increments of 100,
+    ///    at a speed of 8 terabytes per second (ie 2^43 bytes/s), it will take about 17 minutes
+    ///    to exhaust ids and wrap around. That's long enough for most networks to discard traces of any lingering packet.
+    ///    In any case, a special timestamp datagram option plus reduced MTU size can be used by any network to deal with
+    ///    short window id wrap around times.
     /// </summary>
     public class ProtocolDatagram
     {
-        public const byte OpCodeOpen = 0x01;
-        public const byte OpCodeOpenAck = 0x02;
-        public const byte OpCodeData = 0x03;
-        public const byte OpCodeDataAck = 0x04;
-        public const byte OpCodeClose = 0x05;
-        public const byte OpCodeCloseAck = 0x06;
-        public const byte OpCodeEnquireLink = 0x07;
-        public const byte OpCodeEnquireLinkAck = 0x08;
+        public const byte OpCodeData = 0x01;
+        public const byte OpCodeDataAck = 0x02;
+        public const byte OpCodeClose = 0x03;
+        public const byte OpCodeCloseAck = 0x04;
+        public const byte OpCodeEnquireLink = 0x05;
+        public const byte OpCodeEnquireLinkAck = 0x06;
         public const byte OpCodeRestart = 0x7e;
         public const byte OpCodeShutdown = 0x7f;
 
@@ -34,15 +34,14 @@ namespace ScalableIPC.Core
 
         public const int SessionIdLength = 32;
 
-        public const long MinWindowIdCrossOverLimit = 1_000;
-        public const long MaxWindowIdCrossOverLimit = 9_000_000_000_000_000_000L;
+        public const long MinWindowIdCrossOverLimit = 1_00;
+        public const long MaxWindowIdCrossOverLimit = 9_000_000_000_000_000L;
 
         // the expected length, sessionId, sessionId prefix,  opCode, window id, 
         // sequence number, null terminators are always present.
         public const int MinDatagramSize = 2 + SessionIdLength + 8 + 1 + 8 + 4 + 2;
         public const int MaxDatagramSize = 65_500;
         public const int MinimumTransferUnitSize = 512;
-        public const int MaxOptionByteCount = 60_000;
 
         private static readonly string Latin1Encoding = "ISO-8859-1";
 
@@ -550,8 +549,12 @@ namespace ScalableIPC.Core
             // max crossover limit.
             if (nextWindowIdToSend >= MaxWindowIdCrossOverLimit)
             {
-                // return any positive value not exceeding min crossover limit.
-                return 1;
+                // return any non negative value not exceeding min crossover limit.
+                return 0;
+            }
+            else if (nextWindowIdToSend < 0)
+            {
+                return 0;
             }
             else
             {
@@ -562,19 +565,20 @@ namespace ScalableIPC.Core
 
         public static bool IsReceivedWindowIdValid(long v, long lastWindowIdProcessed)
         {
-            // ANY alternate computations is allowed with these 2 requirements:
-            // 1. the very first value should be 0.
+            // ANY alternate computations is allowed with these 3 requirements:
+            // 1. the very first value should not exceed max crossover limit.
             // 2. if current value has crossed max crossover limit,
-            //    then next value must be less than or equal to min crossover limit, but greater than 0.
+            //    then next value must be less than or equal to min crossover limit.
             // 3. else next value must be larger than current value by a difference which is 
             //    less than or equal to min crossover limit.
             if (lastWindowIdProcessed < 0)
             {
-                return v == 0;
+                // accept any first time value.
+                return v >= 0 && v <= MaxWindowIdCrossOverLimit;
             }
-            if (lastWindowIdProcessed >= MaxWindowIdCrossOverLimit)
+            else if (lastWindowIdProcessed >= MaxWindowIdCrossOverLimit)
             {
-                return v > 0 && v <= MinWindowIdCrossOverLimit;
+                return v >= 0 && v <= MinWindowIdCrossOverLimit;
             }
             else
             {
