@@ -25,6 +25,10 @@ NodeJS - Effectively http.createServer(app). where app is the framework (e.g. Ex
 
 *For client calls, libraries will have to be built for each platform
 
+Basics of software consultancy
+ - increasing degrees of freedom when choosing software architecture with regards to deployment and data storage. 
+ - That is, going for 3 instead of 1 degrees of freedom.
+
 POSTULATE on network communication patterns and distributed systems
 =========================================================================
 Every network communication pattern or problem can be solved by a combination of
