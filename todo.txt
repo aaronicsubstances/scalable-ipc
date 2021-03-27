@@ -1,6 +1,7 @@
 Things to do before testing session handlers and creating network api implementations
 -------------------------------------------------------------------------------------
-1. Add failifExists parameter to AbstractNetwork.OpenAsync to allow for possibility of allowing open operations to succeed if a session has already been started (like OpenOrCreate file option).
+1. Add failifExists parameter to AbstractNetwork.OpenAsync to allow for possibility of allowing open operations to succeed if a session has already been started
+   (like OpenOrCreate file option).
 2. Catch processreceive error, ignore if handler existed, else call dispose and remove immediately without time waiting.
 3. Add time wait state delay. Dispose after that. Call markasdisposing and markasdisposed on session handlers.
 4. Have better strategy for defining tostring for error and abort codes, other than having to remember to add them in switch statement.
@@ -8,3 +9,4 @@ Things to do before testing session handlers and creating network api implementa
 6. Fix datagram options tests by testing for all added options.
 7. Add idle timeout field to protocolmessage for use in receive and send data handlers.
 8. remove known options during receive data
+9. implement "fire and forget" of data which could consist of multiple window groups. Main difference with regular send is not waiting for acknowledgements.
