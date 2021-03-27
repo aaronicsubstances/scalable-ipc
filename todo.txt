@@ -1,19 +1,33 @@
 Things to do before testing session handlers and creating network api implementations
 -------------------------------------------------------------------------------------
-1. Add failifExists parameter to AbstractNetwork.OpenAsync to allow for possibility of allowing open operations to succeed if a session has already been started
-   (like OpenOrCreate file option).
-2. Catch processreceive error, ignore if handler existed, else call dispose and remove immediately without time waiting.
-3. Add time wait state delay. Dispose after that. Call markasdisposing and markasdisposed on session handlers.
-4. Have better strategy for defining tostring for error and abort codes, other than having to remember to add them in switch statement.
-5. Fix datagram fragmenter tests with addition of min req cnt and reserved space parameters.
-6. Fix datagram options tests by testing for all added options.
-7. Add idle timeout field to protocolmessage for use in receive and send data handlers.
-8. remove known options during receive data
-9. implement "fire and forget" of data which could consist of multiple window groups. Main difference with regular send is not waiting for acknowledgements.
-10. consider turning enquire link nack into another close reason, and using close pdu to reply to unsuccessful enquire links.
-11. clarify how network deals with non existent session, and add to README: 
+1. Catch processreceive error, ignore if handler existed, else call dispose and remove immediately without time waiting.
+2. Add time wait state delay. Dispose after that. Call markasdisposing and markasdisposed on session handlers.
+3. Have better strategy for defining tostring for error and abort codes, other than having to remember to add them in switch statement.
+4. Fix datagram fragmenter tests with addition of min req cnt and reserved space parameters.
+5. Fix datagram options tests by testing for all added options.
+6. Add idle timeout field to protocolmessage for use in receive and send data handlers.
+7. remove known options during receive data
+8. implement "fire and forget" of data which could consist of multiple window groups. Main difference with regular send is not waiting for acknowledgements.
+9. consider turning enquire link nack into another close reason, and using close pdu to reply to unsuccessful enquire links.
+10. clarify how network deals with non existent session, and add to README: 
      a. if an enquire link does not find an existing session, it is unsuccessful, and (only then should) a close pdu be returned.
      b. Also if close pdu is received for non existing session, it should be ignored.
      c. If any ack kind of op code does not find an existing session, it should be ignored as well.
-     d. Only data op codes (1 or 3) should create a new session handler if it does not find an existing session.
+     d. Only data op code should create a new session handler if it does not find an existing session.
      e. even then it should consult TIME_WAIT table to see if session id is pending there. If it is, ignore pdu and skip new session creation.
+11. Provide a way to disable multiplexing in the following manner:
+    Have an IEndpointHandler interface for use by library clients,
+      - delegates to whatever is the current local session handler instance.
+      - keeps event handlers, and subscribe/unsuscribe as and when local instances changes.
+      - exposes current instance property. and forwards send/fire-and-forget methods
+    Add OpenEndpointAsync() method and IEndpointHandlerFactory property to AbstractNetworkApi
+    In HandleReceive, call IEndpointHandlerFactory first, before ISessionHandlerFactory
+    Pass all CompleteInit params to Create() methods of both *Factory interfaces.
+    Inside Create(), use ordered session ids, and discards earlier ones.
+    Return new IEndpointHandler instance from Create(), but store both local and remote session id for later comparison.
+    Generally local peer is set multiple times in OpenAsync, and remote peer is set multiple times in HandleReceive.
+    No longer do we need to always set skip data exchange restrictions to true during send data for multiplexing.
+    Or have to disable open/idle/enquire timeouts. Inside custom ISessionHandlerFactory, depending on whether
+    peers can send at the same time, or one is designated client and the other is server, appropriate option
+    can be used during send data.
+    
