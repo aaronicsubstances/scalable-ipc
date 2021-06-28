@@ -6,7 +6,7 @@ using System.Text;
 
 [assembly: InternalsVisibleTo("ScalableIPC.Core.UnitTests")]
 
-namespace ScalableIPC.Core
+namespace ScalableIPC.Core.Helpers
 {
     public class ByteUtils
     {

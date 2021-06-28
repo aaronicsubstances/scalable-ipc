@@ -1,9 +1,10 @@
-﻿using System;
+﻿using ScalableIPC.Core.Helpers;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Xunit;
 
-namespace ScalableIPC.Core.UnitTests
+namespace ScalableIPC.Core.UnitTests.Helpers
 {
     public class ByteUtilsTest
     {
