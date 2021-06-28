@@ -3,9 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ScalableIPC.Core.Concurrency
+namespace ScalableIPC.Core.UnitTests.Concurrency
 {
-    public class TestEventLoopApi: AbstractEventLoopApi
+    public class FakeEventLoopApi: AbstractEventLoopApi
     {
         public class TaskDescriptor
         {
@@ -81,11 +81,6 @@ namespace ScalableIPC.Core.Concurrency
             ScheduleTimeout(0, cb);
         }
 
-        protected internal static void StableSort(List<TaskDescriptor> list)
-        {
-            list.Sort((x, y) => x.ScheduledAt.CompareTo(y.ScheduledAt));
-        }
-
         public object ScheduleTimeout(int millis, Action cb)
         {
             if (millis < 0)
@@ -100,7 +95,10 @@ namespace ScalableIPC.Core.Concurrency
             }
             var taskDescriptor = new TaskDescriptor(cb, CurrentTimestamp + millis);
             _taskQueue.Add(taskDescriptor);
-            StableSort(_taskQueue);
+            
+            // stable sort
+            _taskQueue.Sort((x, y) => x.ScheduledAt.CompareTo(y.ScheduledAt));
+
             return taskDescriptor.Id;
         }
 

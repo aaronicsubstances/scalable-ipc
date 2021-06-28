@@ -1,18 +1,17 @@
-﻿using ScalableIPC.Core;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using Xunit;
 
-namespace ScalableIPC.UnitTests.Core
+namespace ScalableIPC.Core.UnitTests
 {
-    public class ProtocolDatagramTest
+    public class ByteUtilsTest
     {
         [Theory]
         [MemberData(nameof(CreateConvertBytesToHexData))]
         public void TestConvertBytesToHex(byte[] data, int offset, int length, string expected)
         {
-            string actual = ProtocolDatagram.ConvertBytesToHex(data, offset, length);
+            string actual = ByteUtils.ConvertBytesToHex(data, offset, length);
             Assert.Equal(expected, actual);
         }
 
@@ -35,7 +34,7 @@ namespace ScalableIPC.UnitTests.Core
         [MemberData(nameof(CreateConvertHexToBytesData))]
         public void TestConvertHexToBytes(string hex, byte[] expected)
         {
-            byte[] actual = ProtocolDatagram.ConvertHexToBytes(hex);
+            byte[] actual = ByteUtils.ConvertHexToBytes(hex);
             Assert.Equal(expected, actual);
         }
 
@@ -56,7 +55,7 @@ namespace ScalableIPC.UnitTests.Core
         [MemberData(nameof(CreateTestSerializeInt16BigEndianData))]
         public void TestSerializeInt16BigEndian(short v, byte[] expected)
         {
-            byte[] actual = ProtocolDatagram.SerializeInt16BigEndian(v);
+            byte[] actual = ByteUtils.SerializeInt16BigEndian(v);
             Assert.Equal(expected, actual);
         }
 
@@ -76,7 +75,7 @@ namespace ScalableIPC.UnitTests.Core
         [MemberData(nameof(CreateTestSerializeUnsignedInt16BigEndianData))]
         public void TestSerializeUnsignedInt16BigEndian(int v, byte[] expected)
         {
-            byte[] actual = ProtocolDatagram.SerializeUnsignedInt16BigEndian(v);
+            byte[] actual = ByteUtils.SerializeUnsignedInt16BigEndian(v);
             Assert.Equal(expected, actual);
         }
 
@@ -97,7 +96,7 @@ namespace ScalableIPC.UnitTests.Core
         [MemberData(nameof(CreateTestSerializeInt32BigEndianData))]
         public void TestSerializeInt32BigEndian(int v, byte[] expected)
         {
-            byte[] actual = ProtocolDatagram.SerializeInt32BigEndian(v);
+            byte[] actual = ByteUtils.SerializeInt32BigEndian(v);
             Assert.Equal(expected, actual);
         }
 
@@ -121,7 +120,7 @@ namespace ScalableIPC.UnitTests.Core
         [MemberData(nameof(CreateTestSerializeInt64BigEndianData))]
         public void TestSerializeInt64BigEndian(long v, byte[] expected)
         {
-            byte[] actual = ProtocolDatagram.SerializeInt64BigEndian(v);
+            byte[] actual = ByteUtils.SerializeInt64BigEndian(v);
             Assert.Equal(expected, actual);
         }
 
@@ -153,7 +152,7 @@ namespace ScalableIPC.UnitTests.Core
         [MemberData(nameof(CreateTestDeserializeInt16BigEndianData))]
         public void TestDeserializeInt16BigEndian(byte[] data, int offset, short expected)
         {
-            short actual = ProtocolDatagram.DeserializeInt16BigEndian(data, offset);
+            short actual = ByteUtils.DeserializeInt16BigEndian(data, offset);
             Assert.Equal(expected, actual);
         }
 
@@ -173,7 +172,7 @@ namespace ScalableIPC.UnitTests.Core
         [MemberData(nameof(CreateTestDeserializeUnsignedInt16BigEndianData))]
         public void TestDeserializeUnsignedInt16BigEndian(byte[] data, int offset, int expected)
         {
-            int actual = ProtocolDatagram.DeserializeUnsignedInt16BigEndian(data, offset);
+            int actual = ByteUtils.DeserializeUnsignedInt16BigEndian(data, offset);
             Assert.Equal(expected, actual);
         }
 
@@ -194,7 +193,7 @@ namespace ScalableIPC.UnitTests.Core
         [MemberData(nameof(CreateTestDeserializeInt32BigEndianData))]
         public void TestDeserializeInt32BigEndian(byte[] data, int offset, int expected)
         {
-            int actual = ProtocolDatagram.DeserializeInt32BigEndian(data, offset);
+            int actual = ByteUtils.DeserializeInt32BigEndian(data, offset);
             Assert.Equal(expected, actual);
         }
 
@@ -218,7 +217,7 @@ namespace ScalableIPC.UnitTests.Core
         [MemberData(nameof(CreateTestDeserializeInt64BigEndianData))]
         public void TestDeserializeInt64BigEndian(byte[] data, int offset, long expected)
         {
-            long actual = ProtocolDatagram.DeserializeInt64BigEndian(data, offset);
+            long actual = ByteUtils.DeserializeInt64BigEndian(data, offset);
             Assert.Equal(expected, actual);
         }
 
@@ -250,8 +249,8 @@ namespace ScalableIPC.UnitTests.Core
         public void TestGenerateUuid()
         {
             // check that conversion to hex succeeds, and that number of bytes produced = 16.
-            var randSid = ProtocolDatagram.GenerateUuid();
-            var randSidBytes = ProtocolDatagram.ConvertHexToBytes(randSid);
+            var randSid = ByteUtils.GenerateUuid();
+            var randSidBytes = ByteUtils.ConvertHexToBytes(randSid);
             Assert.Equal(16, randSidBytes.Length);
         }
     }

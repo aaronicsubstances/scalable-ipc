@@ -4,11 +4,11 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 
-[assembly: InternalsVisibleTo("ScalableIPC.UnitTests")]
+[assembly: InternalsVisibleTo("ScalableIPC.Core.UnitTests")]
 
 namespace ScalableIPC.Core
 {
-    public class ProtocolDatagram
+    public class ByteUtils
     {
         public static string GenerateUuid()
         {

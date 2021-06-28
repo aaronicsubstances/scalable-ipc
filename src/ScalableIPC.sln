@@ -5,7 +5,7 @@ VisualStudioVersion = 16.0.30517.126
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScalableIPC.Core", "ScalableIPC.Core\ScalableIPC.Core.csproj", "{224F1117-7C07-4BB4-B119-1FD95BF4079D}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScalableIPC.UnitTests", "ScalableIPC.UnitTests\ScalableIPC.UnitTests.csproj", "{03973E39-1288-4FDE-8D8C-B4C790BCCAA3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScalableIPC.Core.UnitTests", "ScalableIPC.Core.UnitTests\ScalableIPC.Core.UnitTests.csproj", "{03973E39-1288-4FDE-8D8C-B4C790BCCAA3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
