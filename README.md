@@ -1,115 +1,158 @@
 # ScalableIPC Protocol
 
-Defines and implements an application layer network protocol to serve as 
-
-   1. OS-neutral IPC mechanism of choice on a single host machine (localhost)
-   2. Protocol of choice for use on internal/backend networks of applications running on the Internet.
-   3. Common interface to pluggable underlying networks for HTTP, in order to dissociate HTTP from TCP, and leverage any alternative underlying network available which may be more efficient depending on the context (e.g. on a single host machine).
+Specifies an OS-independent network protocol for efficient inter-process communication between processes which
    
-The initial motivation for this protocol came from deliberations on IPC efficiency between microservice-based web applications.
+   1. Co-exist on the same host  machine (using UDP).
+   2. Separately exist on different hosts on the Internet (using TCP/TLS).
 
-## Features
+The initial motivation for this protocol came from deliberations on IPC efficiency between microservice-based HTTP-based applications.
 
-  * Uses multiplexed TCP/TLS by default. In general however, underlying network is an abstraction for the protocol, and hence it can be used on top of any network, even over unreliable ones, depending on the context.
-  * Enables multiplexing regardless of underlying network by using application layer session ids.
-  * Places upper bound on TCP TIME_WAIT state count when using multiplexed TCP. In contrast when non-persistent HTTP connections are being used, TIME_WAIT states just keep increasing and hogging ports per TCP design, for time period of MSL value of 1 minute or more.
-  * Exposes configuration parameters such as TIME_WAIT period, MTU, window size, and retry count on a per application basis, and thus makes the protocol adaptable to a wide range of networking needs. When using TCP directly however, such parameters can only be configured globally for all operating system connections.
-  * Makes streaming and duplex communication easier at application layer, by
+## Convenient Features
 
-     * enabling idle timeout to be applied or disabled per session.
-     * treating all errors as transient, so that sessions persist in spite of errors. Sessions also persist without the need for keep-alive packets.
-     * preserving message boundaries like in UDP.
+  * Leverages existing network protocols used on the Internet.
+  * Supports both client/server and peer-to-peer modes.
+  * Preservation of message boundaries, making it directly useful for protocol use cases characterised by request-response exchanges and single-message data transfers.
+  * Connectionless, in the sense that the enduser can assume the communication endpoints are always available, and that errors arising from any underlying transport's connections are transient.
+  * Completely takes care of connection management in underlying transport for end users.
+  * Reliable delivery, even if underlying transport doesn't offer reliability.
+  * Efficient data transfer by multiplexing multiple messages over a single underlying transport's connection.
+  * Designed to work with blocking or non-blocking I/O using callbacks.
+  * Designed to work in single or multithreaded environments using [Single-threaded Event-driven Frameworks](http://berb.github.io/diploma-thesis/original/055_events.html#st).
+       - A workaround for C#.NET Core (applicable to Java as well) is available [here](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler?view=netcore-3.1).
+       - A workaround for PHP is available [here](https://reactphp.org).
 
-  * Optimized for networking within single host machine by using faster IPC mechanisms where available, such as UDP, Unix domain sockets and Windows named pipes. *By such a design, the protocol can be set up once for networking on single host machine, and will not have to be swapped out for interhost network communications.* Hence the name **ScalableIPC**, i.e. it can scale *down* from global internetworking to localhost networking; and also scale *up* from localhost to global.
+## Implementation Requirements
 
-## Protocol State Machine
+  * Use UDP as the standard transport for same host communications.
+  * Use TCP/TLS as the standard transport for communications on the Internet.
+  * Assume underlying transport is sufficiently secure and detects/prevents data corruption on its own. Protocol's part is to deal with dropped, delayed and/or duplicated PDUs.
+  * Also assume underlying transport handles congestion on its own.
+  * Simple error control by continuously retrying within a fixed time period with random backoff strategy. Underlying transport is at liberty to use more complicated backoff strategies behind the scenes.
+  * Simple flow control with stop-and-wait. Underlying transport is at liberty to transparently use more complicated flow control mechanisms behind the scenes together with fragmenting PDUs.
+  * Employ in-memory database to save already processed message ids. Necessary for preventing repeated data processing during lifetime of process.
+  * Non-negotiable configuration parameters
+       - Maximum transfer unit (MTU). Should be at least 512.
+       - Maximum receivable message size. Should be at least 64 kilobytes (65536 bytes).
+       - Minimum and maximum random backoff period between retries.
+       - Receive timeout of acknowledgment PDUs. This becomes the time available for retries.
+       - Receive timeout of data PDUs. Necessary for cleaning up abandoned data transfers.
+       - Session id. Necessary for preventing repeated data processing during process restarts. Should be set differently at every start of the process which creates network endpoint.
+       - Time to wait before cleaning up processed data transfers.
+       - Whether or not to set timestamps in PDUs.
 
-![protocol state machine](psm.png)
+## PDU Structure
 
-**NB:**
+In the case of UDP, the datagram length indicates the length of the PDU.
+In the case of TCP/TLS, the PDU must be wrapped in a TLV format.
 
-   - in opening state only data pdus and their acks are processed; all others are ignored. Time spent in this state determines open timeout.
+data transfer length, pdu length, and sequence numbers are signed 32-bit integers.
+timestamp is 64-bit signed integer.
 
-   - in opened state,
+protocol version, opcode, error_code, message id and session id cannot be all zeros.
 
-      - data pdus are processed normally, and the activity here determines idle timeout.
+all strings are utf8-encoded.
 
-      - enquire link pdus are sent out periodically without waiting for reply or even network send aftermath.
+opcodes
+   - header
+   - header_ack
+   - data
+   - data_ack
+   - reset
 
-      - enquire link pdus are processed by sending back enquire link acks.
+Beginning members
+   - opcode - 2 bytes
+   - pdu length (omitted in datagram transports) - 4 bytes
+   - protocol version - 1 byte
+   - session id - 16 bytes (uuid)
+   - timestamp - 8 bytes (unix epoch)
+   - reserved - 4 bytes
 
-   - in closing state, close pdu is sent before transitioning to closed state. If gracious close was requested, then attempt is made to wait for ack pdu. Else only network send aftermath is awaited.
+HEADER members
+   - message id - 16 bytes (uuid)
+   - total data transfer length - 4 bytes
 
-   - in closed state, session disposing is automatically requested.
-   
-   - beyond opened state, data and enquire link pdus are ignored (but not their acks).
+HEADER_ACK members
+   - message id - 16 bytes
+   - error code - 2 bytes
 
-   - beyond closing state, all pdus are ignored. close requests are responded to with immediate success. On the other hand, send data requests are responded to with immediate failure.
+DATA members
+   - message id - 16 bytes
+   - sequence number - 4 bytes
+   - (payload, cannot be empty)
 
-   - network implementations determine transitions to disposing and disposed states, and are at liberty to make those transitions from any state.
+DATA_ACK members
+   - message id - 16 bytes
+   - sequence number - 4 bytes
+   - error code - 2 bytes
 
-## Data Exchange Protocol
+RESET members
+   - (none besides common ones)
 
-   1. Aim of having an opening state is to implement guarantee for network api implementations that: *while a session is in this state, its remote peer can be ignored at any time without fear of remote processing side effects.*
+## Receive Operation
 
-   1. During opening state, the following data exchange restrictions apply:
+Upon receipt of a PDU,
 
-      1. A session cannot send and receive data at the same time.
+  * validate opcode.
+  * Validate protocol version.
+  * Validate session id. If opcode is header or data, reply with reset pdu.
+  * Validate timestamp, unless timestamp is not a positive value or opcode is reset. Only accept timestamps which differ from current time by less than time to wait.
+  * Look in processed transfers for given message id. If found, reply data pdus and ignore the rest.
+  * Remainder of processing depends on opcode.
 
-      2. A window group to be sent and received must consist of 2 or more windows.
+For header pdu,
+  * Look in incoming transfers for given message id. if incoming transfer is already present, then discard. unless expected seq number is 0, in which case reply with header_ack.
+  * Validate total data transfer length. Must be positive. reply with message_too_large error pdu if needed.
+  * Check if there is space to accept incoming transfer. reply with out_of_space error pdu if needed.
+  * else no error so
+  * respond with header_ack. ignore send error.
+  * create incoming transfer for message id, and make expected seq number of subsequent data pdu 0.
+  * set receive data timeout.
 
-      3. The prescence of a skip_data_exchange_restrictions option at start of sending or receiving data, immediately transitions the opening state to the opened state prior to processing, so that none of the opening state restrictions can be applied. If the first pdu of a window group being sent or received lacks a skip_data_exchange_restrictions option, then the above  restrictions will apply until the end of the processing of the window group. During the processing, subsequent skip_data_exchange_restrictions options found will be ignored.
+For data pdu,
+  * Look in incoming transfers for given message id.
+  * validate seq number. For invalid case where seq number is the previous one, end by replying with
+    data_ack with previous seq number.
+  * respond with overflow error pdu if addition of data pdu will cause already accumulated data to overflow.
+  * else no error so
+  * cancel receive data timeout.
+  * respond with data_ack. ignore send error.
+  * Add to already accumulated data for incoming transfer.
+  * If total expected is received, remove from incoming transfers, add message id to processed transfers, and schedule for removal after time to wait. Notify application receipt handler with message id and total bytes.
+  * Else not done, so increase expected seq number, and set receive data timeout.
+  
+For header_ack and data_ack pdus,
+  * Look in outgoing transfers for given message id.
+  * Validate seq number.
+  * else no error so
+  * cancel receive ack timeout.
+  * notify outgoing transfer handler.
 
-   1. During receive data and presuming a current window buffer (array of pdus) and a window group buffer (array of windows),
+Upon receive data timeout,
+  * Mark incoming transfer as failed, unless it has succeeded already.
+  * don't respond with an ack.
+  * remove from incoming transfers, and add message id to processed transfers. Schedule for removal after time to wait.
 
-      1. use *first_in_window_group* option to clear window group buffer. use pdu with different window id to clear current window buffer. 
+Upon reset pdu,
+  * if session has been reset before, validate that reset pdu time is later than last received one.
+  * change session id.
+  * notify all outgoing transfers
 
-      1. always reply with ack if possible. An ack reply means that all seq_nrs not exceeding that of the received pdu have been received. It is only if seq_nr = 0 has not been received that ack reply cannot be sent.
+## Send Operation
 
-      1. use *last_in_window* option to indicate that a seq_nr ends a data window exchange. Receipt of a last_in_window pdu clears all pdus after its seq_nr, as well as any existing position with a last_in_window (so that all ejected seq_nrs have to be sent again).
- 
-      1. use *last_in_window_group* option to stop waiting for additions to window group buffer and process it for application layer. last_in_window_group option only applies if last_in_window option is set.
+  * receive message to send, and a callback which will be notified of the outcome.
+  * assign a random uuid as message id to outgoing transfer and return id to application.
+  * create outgoing transfer handler.
 
-      1. Current window buffer is emptied into window group buffer if full. In that case *is_window_full* option must be set to true on ack reply. Also *max_window_size* option must be set on ack reply to communicate buffer size for use by sender in the future. Usually current window buffer fills up because of receipt of a last_in_window option, but it can fill up earlier if receiver's buffer size is smaller than that of sender. 
+In outgoing transfer handler,
+  * split message into pdus using MTU size.
+  * to handle retries, have a dedicated retry handler per pdu, and set receive ack timeout before starting each.
+  * if ack is received, cancel retry handler.
+  * if ack timeout fires or an error_code is received, then it means outgoing transfer has failed. Cancel retry handler, and notify send operation callback.
+  * else create next retry handler for next pdu.
+  * if all pdus are done sending, remove from outgoing transfers, add message id to processed transfers, and schedule for removal after time to wait. Notify send operation callback.
 
-      1.  any processing error of a window or window group should be communicated in ack reply with the *error_code* option indicating kind of processing error. Some processing errors are (a) window group option decoding error (b) window group exceeding 65,500 max byte limit (c) receiving window group with only 1 window in opening state.
-
-      1. if a pdu is deemed valid, its window id becomes the minimum window id which will be accepted from remote peers. In any case once a window is processed whether successfully or not, its window id will not be accepted again.
-
-      1. a pdu is invalid if its window id or seq_nr is negative. It is also invalid if its window id is less than the current minimum, or if its window id exceeds the current minimum by a difference of more than 100. If there is no current minimum, then any window id is accepted once it is not too large. If seq_nr is too large as indicated by current window buffer size, again pdu is invalid.
- 
-      1.  The maximum possible window id value is 9E15 (chosen to be representable exactly as a double precision floating point number). After that limit, window ids wrap around to 100 or less.
-
-      1. window id validations apply to pdus of different op codes and across session state changes.
-
-      1. if at any time an invalid window id is received, but happens to be equal to the last processed window id, *then the same ack which was sent as reply for that window must be sent again, regardless of the state the session is currently in.*
-
-   1. With regards to sending data, protocol presumes the sending of bytes of data and associated attributes - key value pairs. Protocol also presumes bytes of data is divided into window groups, and each window group is in turn divided into prospective windows. A prospective window is an array of pdus which may or may not be received fully at remote peer in 1 window. A current window group and a current prospective window exist as the focus of send operation at any given time.
-
-      1.  Only 1 send operation can be ongoing at a time across data exchanges and gracious close requests. "fire and forget" sends however can always be made.
-
-      1. Between peers, max window size can vary and hence do not have to be synchronized. In general within a peer though, send window size equals receive window size.
-
-      1. Pdu size must not exceed MTU set by network implementation.
-
-      1. A window group must not exceed 65,500 byte limit (chosen to be close to theoretical max UDP payload size).
-
-      1. Attributes will be attached as pdu options to each window group being sent. Receiving end accepts attributes of any size, but sender can impose a max byte limit of at least 30,000 bytes.
-
-      1. Expected send outcomes are (a) network send error (except for ack replies whose network send aftermath doesn't matter) (b) ack error code (c) eventual ack timeout (d) eventual success
-
-      1. use ack timeout and retry count per window. max retry count determines eventual ack timeout.
-
-      1. retry sending one at a time (i.e. send one pdu, wait for ack with is_window_full option before sending next) from the beginning of the current prospective window if ack timeout occurs. Do not use received acks to assume certain seq_nrs have been received in between retries. Network implementations can depend on this "retry from beginning on timeout" feature.
-
-      1. However, once the very first pdu in prospective window has been sent during retrying, definitely use received acks to determine what has been received, and skip ahead in current prospective window to what needs to be sent next.
-
-      1. If starting a prospective window send for the first time, then send all in succession before waiting for ack with is_window_full option for last pdu in window (rather than one at a time). Reject acks received for pdus which have not been sent or have already been processed. However, if an ack is received while waiting for a network send aftermath for a pdu, then use ack, disregard the network send outcome, and restart sending from where the ack's seq_nr indicates. Network implementations can depend on this "ack can be sent before network send response" feature.
-
-      1. if is_window_full option is received in an ack pdu, use the ack's seq_nr to partition current prospective window into two. The first part joins the actual sent windows for the current window group being sent, and the second part takes over as the new current prospective window. Assign a new window id to it and send it as a new window with no retry history. If the current prospective window becomes empty, then the original prospective window is deemed successfully sent through one or more actual sent windows, and the next prospective window from the current or next window group can be sent. If there is no longer any prospective window to send, then send operation ends with an eventual success.
-
-## Roadmap
-
- * *On hold due to other priorities taking over in my life at the moment.*
- * C#.NET Core implementation is currently underway as the initial implementation.
- * Once initial implementation is done, the intention is to port to Java and NodeJS. To do this, initial implementation has been designed to work with blocking or non-blocking I/O (using abstraction of NodeJs promise and C#.NET Core TaskCompletionSource), in single or multithreaded environments (using abstraction of NodeJS event loop). By such a design, porting to other programming environments should be straightforward.
+In retry handler, given a pdu, repeat the following until cancellation.
+  * set timestamp if configuration permits, and send pdu asynchronously.
+  * wait for success or error. ignore send errors.
+  * generate backoff time randomly
+  * pause
