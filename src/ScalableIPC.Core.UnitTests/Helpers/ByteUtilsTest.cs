@@ -8,6 +8,8 @@ namespace ScalableIPC.Core.UnitTests.Helpers
 {
     public class ByteUtilsTest
     {
+        private static readonly Random RandNumGen = new Random();
+
         [Theory]
         [MemberData(nameof(CreateConvertBytesToHexData))]
         public void TestConvertBytesToHex(byte[] data, int offset, int length, string expected)
@@ -39,6 +41,37 @@ namespace ScalableIPC.Core.UnitTests.Helpers
             Assert.Equal(expected, actual);
         }
 
+        [Theory]
+        [MemberData(nameof(CreateConvertHexToBytesData))]
+        public void TestConvertHexToBytesWithOffset(string hex, byte[] expected)
+        {
+            byte[] actual = GenerateRandomBytes(null, expected.Length);
+            byte[] expectedWithOffset = GenerateRandomBytes(actual, 0);
+            int randomOffset = RandNumGen.Next(actual.Length - expected.Length);
+            Array.Copy(expected, 0, expectedWithOffset, randomOffset, expected.Length);
+            ByteUtils.ConvertHexToBytes(hex, actual, randomOffset);
+            Assert.Equal(expectedWithOffset, actual);
+        }
+
+        private static byte[] GenerateRandomBytes(byte[] template, int minLength)
+        {
+            if (template != null)
+            {
+                byte[] rawBytes = new byte[template.Length];
+                Array.Copy(template, rawBytes, rawBytes.Length);
+                return rawBytes;
+            }
+            else
+            {
+                byte[] rawBytes = new byte[minLength + RandNumGen.Next(10)];
+                for (int i = 0; i < rawBytes.Length; i++)
+                {
+                    rawBytes[i] = (byte)RandNumGen.Next(100);
+                }
+                return rawBytes;
+            }
+        }
+
         public static List<object[]> CreateConvertHexToBytesData()
         {
             return new List<object[]>
@@ -58,6 +91,18 @@ namespace ScalableIPC.Core.UnitTests.Helpers
         {
             byte[] actual = ByteUtils.SerializeInt16BigEndian(v);
             Assert.Equal(expected, actual);
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateTestSerializeInt16BigEndianData))]
+        public void TestSerializeInt16BigEndianWithOffset(short v, byte[] expected)
+        {
+            byte[] actual = GenerateRandomBytes(null, expected.Length);
+            byte[] expectedWithOffset = GenerateRandomBytes(actual, 0);
+            int randomOffset = RandNumGen.Next(actual.Length - expected.Length);
+            Array.Copy(expected, 0, expectedWithOffset, randomOffset, expected.Length);
+            ByteUtils.SerializeInt16BigEndian(v, actual, randomOffset);
+            Assert.Equal(expectedWithOffset, actual);
         }
 
         public static List<object[]> CreateTestSerializeInt16BigEndianData()
@@ -80,6 +125,18 @@ namespace ScalableIPC.Core.UnitTests.Helpers
             Assert.Equal(expected, actual);
         }
 
+        [Theory]
+        [MemberData(nameof(CreateTestSerializeUnsignedInt16BigEndianData))]
+        public void TestSerializeUnsignedInt16BigEndianWithOffset(int v, byte[] expected)
+        {
+            byte[] actual = GenerateRandomBytes(null, expected.Length);
+            byte[] expectedWithOffset = GenerateRandomBytes(actual, 0);
+            int randomOffset = RandNumGen.Next(actual.Length - expected.Length);
+            Array.Copy(expected, 0, expectedWithOffset, randomOffset, expected.Length);
+            ByteUtils.SerializeUnsignedInt16BigEndian(v, actual, randomOffset);
+            Assert.Equal(expectedWithOffset, actual);
+        }
+
         public static List<object[]> CreateTestSerializeUnsignedInt16BigEndianData()
         {
             return new List<object[]>
@@ -99,6 +156,18 @@ namespace ScalableIPC.Core.UnitTests.Helpers
         {
             byte[] actual = ByteUtils.SerializeInt32BigEndian(v);
             Assert.Equal(expected, actual);
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateTestSerializeInt32BigEndianData))]
+        public void TestSerializeInt32BigEndianWithOffset(int v, byte[] expected)
+        {
+            byte[] actual = GenerateRandomBytes(null, expected.Length);
+            byte[] expectedWithOffset = GenerateRandomBytes(actual, 0);
+            int randomOffset = RandNumGen.Next(actual.Length - expected.Length);
+            Array.Copy(expected, 0, expectedWithOffset, randomOffset, expected.Length);
+            ByteUtils.SerializeInt32BigEndian(v, actual, randomOffset);
+            Assert.Equal(expectedWithOffset, actual);
         }
 
         public static List<object[]> CreateTestSerializeInt32BigEndianData()
@@ -123,6 +192,18 @@ namespace ScalableIPC.Core.UnitTests.Helpers
         {
             byte[] actual = ByteUtils.SerializeInt64BigEndian(v);
             Assert.Equal(expected, actual);
+        }
+
+        [Theory]
+        [MemberData(nameof(CreateTestSerializeInt64BigEndianData))]
+        public void TestSerializeInt64BigEndianWithOffset(long v, byte[] expected)
+        {
+            byte[] actual = GenerateRandomBytes(null, expected.Length);
+            byte[] expectedWithOffset = GenerateRandomBytes(actual, 0);
+            int randomOffset = RandNumGen.Next(actual.Length - expected.Length);
+            Array.Copy(expected, 0, expectedWithOffset, randomOffset, expected.Length);
+            ByteUtils.SerializeInt64BigEndian(v, actual, randomOffset);
+            Assert.Equal(expectedWithOffset, actual);
         }
 
         public static List<object[]> CreateTestSerializeInt64BigEndianData()
@@ -250,9 +331,9 @@ namespace ScalableIPC.Core.UnitTests.Helpers
         public void TestGenerateUuid()
         {
             // check that conversion to hex succeeds, and that number of bytes produced = 16.
-            var randSid = ByteUtils.GenerateUuid();
-            var randSidBytes = ByteUtils.ConvertHexToBytes(randSid);
-            Assert.Equal(16, randSidBytes.Length);
+            var randMsgId = ByteUtils.GenerateUuid();
+            var randMsgIdBytes = ByteUtils.ConvertHexToBytes(randMsgId);
+            Assert.Equal(16, randMsgIdBytes.Length);
         }
     }
 }

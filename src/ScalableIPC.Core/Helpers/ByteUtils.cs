@@ -1,10 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.CompilerServices;
-using System.Text;
-
-[assembly: InternalsVisibleTo("ScalableIPC.Core.UnitTests")]
 
 namespace ScalableIPC.Core.Helpers
 {
@@ -13,21 +7,6 @@ namespace ScalableIPC.Core.Helpers
         public static string GenerateUuid()
         {
             return Guid.NewGuid().ToString("n");
-        }
-
-        internal static byte[] ConvertStringToBytes(string s)
-        {
-            return Encoding.UTF8.GetBytes(s);
-        }
-
-        internal static int CountBytesInString(string s)
-        {
-            return Encoding.UTF8.GetByteCount(s);
-        }
-
-        internal static string ConvertBytesToString(byte[] data, int offset, int length)
-        {
-            return Encoding.UTF8.GetString(data, offset, length);
         }
 
         internal static string ConvertBytesToHex(byte[] data, int offset, int len)
@@ -40,10 +19,6 @@ namespace ScalableIPC.Core.Helpers
         internal static byte[] ConvertHexToBytes(string hex)
         {
             int charCount = hex.Length;
-            if (charCount % 2 != 0)
-            {
-                throw new Exception("arg must have even length");
-            }
             byte[] rawBytes = new byte[charCount / 2];
             ConvertHexToBytes(hex, rawBytes, 0);
             return rawBytes;
