@@ -6,11 +6,11 @@ namespace ScalableIPC.Core.Abstractions
 {
     public interface IProtocolEndpointManager
     {
-        string SessionId { get; }
+        string EndpointOwnerId { get; }
         int PduSizeLimit { get; set; }
         int MessageSizeLimit { get; set; }
-        int MinimumRetryBackoffPeriod { get; set; }
-        int MaximumRetryBackoffPeriod { get; set; }
+        int MinRetryBackoffPeriod { get; set; }
+        int MaxRetryBackoffPeriod { get; set; }
         int AckReceiveTimeout { get; set; }
         int DataReceiveTimeout { get; set; }
         int ProcessedMessageDisposalWaitTime { get; set;}

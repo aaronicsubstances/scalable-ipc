@@ -13,13 +13,13 @@ namespace ScalableIPC.Core
 
         public ProtocolEndpointManager()
         {
-            SessionId = ByteUtils.GenerateUuid();
+            EndpointOwnerId = ByteUtils.GenerateUuid();
         }
-        public string SessionId { get; }
+        public string EndpointOwnerId { get; }
         public int PduSizeLimit { get; set; }
         public int MessageSizeLimit { get; set; }
-        public int MinimumRetryBackoffPeriod { get; set; }
-        public int MaximumRetryBackoffPeriod { get; set; }
+        public int MinRetryBackoffPeriod { get; set; }
+        public int MaxRetryBackoffPeriod { get; set; }
         public int AckReceiveTimeout { get; set; }
         public int DataReceiveTimeout { get; set; }
         public int ProcessedMessageDisposalWaitTime { get; set; }
