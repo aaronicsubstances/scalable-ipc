@@ -44,50 +44,82 @@ namespace ScalableIPC.Core.Helpers
             {
                 throw new Exception("arg must have even length");
             }
-            byte[] bytes = new byte[charCount / 2];
+            byte[] rawBytes = new byte[charCount / 2];
+            ConvertHexToBytes(hex, rawBytes, 0);
+            return rawBytes;
+        }
+
+        internal static void ConvertHexToBytes(string hex, byte[] rawBytes, int offset)
+        {
+            int charCount = hex.Length;
+            if (charCount % 2 != 0)
+            {
+                throw new Exception("arg must have even length");
+            }
             for (int i = 0; i < charCount; i += 2)
             {
                 // accept both upper and lower case hex chars.
-                bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+                rawBytes[offset + i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
             }
-            return bytes;
         }
 
         internal static byte[] SerializeUnsignedInt16BigEndian(int v)
         {
-            return SerializeInt16BigEndian((short)v);
+            byte[] rawBytes = new byte[2];
+            SerializeUnsignedInt16BigEndian(v, rawBytes, 0);
+            return rawBytes;
+        }
+
+        internal static void SerializeUnsignedInt16BigEndian(int v, byte[] rawBytes, int offset)
+        {
+            SerializeInt16BigEndian((short)v, rawBytes, offset);
         }
 
         internal static byte[] SerializeInt16BigEndian(short v)
         {
-            byte[] intBytes = new byte[2];
-            intBytes[0] = (byte)(0xff & (v >> 8));
-            intBytes[1] = (byte)(0xff & v);
-            return intBytes;
+            byte[] rawBytes = new byte[2];
+            SerializeInt16BigEndian(v, rawBytes, 0);
+            return rawBytes;
+        }
+
+        internal static void SerializeInt16BigEndian(short v, byte[] rawBytes, int offset)
+        {
+            rawBytes[offset] = (byte)(0xff & (v >> 8));
+            rawBytes[offset + 1] = (byte)(0xff & v);
         }
 
         internal static byte[] SerializeInt32BigEndian(int v)
         {
-            byte[] intBytes = new byte[4];
-            intBytes[0] = (byte)(0xff & (v >> 24));
-            intBytes[1] = (byte)(0xff & (v >> 16));
-            intBytes[2] = (byte)(0xff & (v >> 8));
-            intBytes[3] = (byte)(0xff & v);
-            return intBytes;
+            byte[] rawBytes = new byte[4];
+            SerializeInt32BigEndian(v, rawBytes, 0);
+            return rawBytes;
+        }
+
+        internal static void SerializeInt32BigEndian(int v, byte[] rawBytes, int offset)
+        {
+            rawBytes[offset] = (byte)(0xff & (v >> 24));
+            rawBytes[offset + 1] = (byte)(0xff & (v >> 16));
+            rawBytes[offset + 2] = (byte)(0xff & (v >> 8));
+            rawBytes[offset + 3] = (byte)(0xff & v);
         }
 
         internal static byte[] SerializeInt64BigEndian(long v)
         {
-            byte[] intBytes = new byte[8];
-            intBytes[0] = (byte)(0xff & (v >> 56));
-            intBytes[1] = (byte)(0xff & (v >> 48));
-            intBytes[2] = (byte)(0xff & (v >> 40));
-            intBytes[3] = (byte)(0xff & (v >> 32));
-            intBytes[4] = (byte)(0xff & (v >> 24));
-            intBytes[5] = (byte)(0xff & (v >> 16));
-            intBytes[6] = (byte)(0xff & (v >> 8));
-            intBytes[7] = (byte)(0xff & v);
-            return intBytes;
+            byte[] rawBytes = new byte[8];
+            SerializeInt64BigEndian(v, rawBytes, 0);
+            return rawBytes;
+        }
+
+        internal static void SerializeInt64BigEndian(long v, byte[] rawBytes, int offset)
+        {
+            rawBytes[offset] = (byte)(0xff & (v >> 56));
+            rawBytes[offset + 1] = (byte)(0xff & (v >> 48));
+            rawBytes[offset + 2] = (byte)(0xff & (v >> 40));
+            rawBytes[offset + 3] = (byte)(0xff & (v >> 32));
+            rawBytes[offset + 4] = (byte)(0xff & (v >> 24));
+            rawBytes[offset + 5] = (byte)(0xff & (v >> 16));
+            rawBytes[offset + 6] = (byte)(0xff & (v >> 8));
+            rawBytes[offset + 7] = (byte)(0xff & v);
         }
 
         internal static short DeserializeInt16BigEndian(byte[] rawBytes, int offset)

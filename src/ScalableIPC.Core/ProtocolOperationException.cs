@@ -8,18 +8,19 @@ namespace ScalableIPC.Core
     public class ProtocolOperationException: Exception
     {
         // Normal protocol ack error codes
-        public const int ErrorCodeInvalidDestinationEndpointId = 1;
-        public const int ErrorCodeMessageTooLarge = 2;
-        public const int ErrorCodeOutOfBufferSpace = 3;
-        public const int ErrorCodeReceiveBufferOverflow = 4;
+        public const int ErrorCodeProcessingError = 1;
+        public const int ErrorCodeInvalidDestinationEndpointId = 2;
+        public const int ErrorCodeMessageTooLarge = 3;
+        public const int ErrorCodeOutOfBufferSpace = 4;
+        public const int ErrorCodeReceiveBufferOverflow = 5;
+        public const int ErrorCodeReceiveTimeout = 6;
 
         // The following error codes are not meant to be used for network
         // communications. As such they are negative.
-        public const int ErrorCodeReset = -1;
-        public const int ErrorCodeShutdown = -2;
-        public const int ErrorCodeSendTimeout = -3;
-        public const int ErrorCodeReceiveTimeout = -4;
-        public const int ErrorCodeApplicationError = -5;
+        public const int ErrorCodeApplicationError = -1;
+        public const int ErrorCodeReset = -2;
+        public const int ErrorCodeShutdown = -3;
+        public const int ErrorCodeSendTimeout = -4;
 
         public static string StringifyReason(int errorCode)
         {

@@ -59,28 +59,30 @@ opcodes
    - data_ack
 
 Beginning members
-   - opcode - 2 bytes
+   - opcode - 1 byte
    - protocol version - 1 byte
-   - timestamp - 8 bytes (unix epoch)
+   - send time - 8 bytes (unix epoch)
    - reserved - 4 bytes
 
 HEADER members
-   - message destination id - 16 bytes (uuid)
    - message id - 16 bytes (uuid)
-   - total data transfer length - 4 bytes
+   - message destination id - 16 bytes (uuid)
+   - message length - 4 bytes
 
 HEADER_ACK members
-   - message source id - 16 bytes (uuid)
    - message id - 16 bytes
+   - message source id - 16 bytes (uuid)
    - error code - 2 bytes
 
 DATA members
    - message id - 16 bytes
+   - message destination id - 16 bytes (uuid)
    - sequence number - 4 bytes
    - (payload, cannot be empty)
 
 DATA_ACK members
    - message id - 16 bytes
+   - message source id - 16 bytes (uuid)
    - sequence number - 4 bytes
    - error code - 2 bytes
 

@@ -6,6 +6,7 @@ namespace ScalableIPC.Core.Abstractions
 {
     public interface IEndpointEventListener
     {
-        void OnMessageReceived(GenericNetworkIdentifier remoteEndpoint, string messageId,  byte[] data);
+        void OnMessageReceived(GenericNetworkIdentifier remoteEndpoint,
+            string messageId,  byte[] data, int offset, int length);
     }
 }
