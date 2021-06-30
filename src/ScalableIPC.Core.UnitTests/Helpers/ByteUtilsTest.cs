@@ -8,8 +8,6 @@ namespace ScalableIPC.Core.UnitTests.Helpers
 {
     public class ByteUtilsTest
     {
-        private static readonly Random RandNumGen = new Random();
-
         [Theory]
         [MemberData(nameof(CreateConvertBytesToHexData))]
         public void TestConvertBytesToHex(byte[] data, int offset, int length, string expected)
@@ -47,7 +45,7 @@ namespace ScalableIPC.Core.UnitTests.Helpers
         {
             byte[] actual = GenerateRandomBytes(null, expected.Length);
             byte[] expectedWithOffset = GenerateRandomBytes(actual, 0);
-            int randomOffset = RandNumGen.Next(actual.Length - expected.Length);
+            int randomOffset = MathUtils.GetRandomInt(actual.Length - expected.Length);
             Array.Copy(expected, 0, expectedWithOffset, randomOffset, expected.Length);
             ByteUtils.ConvertHexToBytes(hex, actual, randomOffset);
             Assert.Equal(expectedWithOffset, actual);
@@ -63,10 +61,10 @@ namespace ScalableIPC.Core.UnitTests.Helpers
             }
             else
             {
-                byte[] rawBytes = new byte[minLength + RandNumGen.Next(10)];
+                byte[] rawBytes = new byte[minLength + MathUtils.GetRandomInt(10) + 1];
                 for (int i = 0; i < rawBytes.Length; i++)
                 {
-                    rawBytes[i] = (byte)RandNumGen.Next(100);
+                    rawBytes[i] = (byte)MathUtils.GetRandomInt(100);
                 }
                 return rawBytes;
             }
@@ -85,6 +83,22 @@ namespace ScalableIPC.Core.UnitTests.Helpers
             };
         }
 
+        [Fact]
+        public void TestConvertHexToBytesForError()
+        {
+            Assert.ThrowsAny<Exception>(() => ByteUtils.ConvertHexToBytes("d"));
+        }
+
+        [Fact]
+        public void TestConvertHexToBytesWithOffsetForError()
+        {
+            Assert.ThrowsAny<Exception>(() =>
+            {
+                byte[] rawBytes = GenerateRandomBytes(null, 15);
+                ByteUtils.ConvertHexToBytes("abcde", rawBytes, 9);
+            });
+        }
+
         [Theory]
         [MemberData(nameof(CreateTestSerializeInt16BigEndianData))]
         public void TestSerializeInt16BigEndian(short v, byte[] expected)
@@ -99,7 +113,7 @@ namespace ScalableIPC.Core.UnitTests.Helpers
         {
             byte[] actual = GenerateRandomBytes(null, expected.Length);
             byte[] expectedWithOffset = GenerateRandomBytes(actual, 0);
-            int randomOffset = RandNumGen.Next(actual.Length - expected.Length);
+            int randomOffset = MathUtils.GetRandomInt(actual.Length - expected.Length);
             Array.Copy(expected, 0, expectedWithOffset, randomOffset, expected.Length);
             ByteUtils.SerializeInt16BigEndian(v, actual, randomOffset);
             Assert.Equal(expectedWithOffset, actual);
@@ -131,7 +145,7 @@ namespace ScalableIPC.Core.UnitTests.Helpers
         {
             byte[] actual = GenerateRandomBytes(null, expected.Length);
             byte[] expectedWithOffset = GenerateRandomBytes(actual, 0);
-            int randomOffset = RandNumGen.Next(actual.Length - expected.Length);
+            int randomOffset = MathUtils.GetRandomInt(actual.Length - expected.Length);
             Array.Copy(expected, 0, expectedWithOffset, randomOffset, expected.Length);
             ByteUtils.SerializeUnsignedInt16BigEndian(v, actual, randomOffset);
             Assert.Equal(expectedWithOffset, actual);
@@ -164,7 +178,7 @@ namespace ScalableIPC.Core.UnitTests.Helpers
         {
             byte[] actual = GenerateRandomBytes(null, expected.Length);
             byte[] expectedWithOffset = GenerateRandomBytes(actual, 0);
-            int randomOffset = RandNumGen.Next(actual.Length - expected.Length);
+            int randomOffset = MathUtils.GetRandomInt(actual.Length - expected.Length);
             Array.Copy(expected, 0, expectedWithOffset, randomOffset, expected.Length);
             ByteUtils.SerializeInt32BigEndian(v, actual, randomOffset);
             Assert.Equal(expectedWithOffset, actual);
@@ -200,7 +214,7 @@ namespace ScalableIPC.Core.UnitTests.Helpers
         {
             byte[] actual = GenerateRandomBytes(null, expected.Length);
             byte[] expectedWithOffset = GenerateRandomBytes(actual, 0);
-            int randomOffset = RandNumGen.Next(actual.Length - expected.Length);
+            int randomOffset = MathUtils.GetRandomInt(actual.Length - expected.Length);
             Array.Copy(expected, 0, expectedWithOffset, randomOffset, expected.Length);
             ByteUtils.SerializeInt64BigEndian(v, actual, randomOffset);
             Assert.Equal(expectedWithOffset, actual);

@@ -2,29 +2,33 @@
 
 namespace ScalableIPC.Core.Helpers
 {
-    public class ByteUtils
+    public static class ByteUtils
     {
         public static string GenerateUuid()
         {
             return Guid.NewGuid().ToString("n");
         }
 
-        internal static string ConvertBytesToHex(byte[] data, int offset, int len)
+        public static string ConvertBytesToHex(byte[] data, int offset, int len)
         {
             // send out lower case for similarity with other platforms (Java, Python, NodeJS, etc)
             // ensure even length.
             return BitConverter.ToString(data, offset, len).Replace("-", "").ToLower();
         }
 
-        internal static byte[] ConvertHexToBytes(string hex)
+        public static byte[] ConvertHexToBytes(string hex)
         {
             int charCount = hex.Length;
+            if (charCount % 2 != 0)
+            {
+                throw new Exception("arg must have even length");
+            }
             byte[] rawBytes = new byte[charCount / 2];
             ConvertHexToBytes(hex, rawBytes, 0);
             return rawBytes;
         }
 
-        internal static void ConvertHexToBytes(string hex, byte[] rawBytes, int offset)
+        public static void ConvertHexToBytes(string hex, byte[] rawBytes, int offset)
         {
             int charCount = hex.Length;
             if (charCount % 2 != 0)
@@ -38,39 +42,39 @@ namespace ScalableIPC.Core.Helpers
             }
         }
 
-        internal static byte[] SerializeUnsignedInt16BigEndian(int v)
+        public static byte[] SerializeUnsignedInt16BigEndian(int v)
         {
             byte[] rawBytes = new byte[2];
             SerializeUnsignedInt16BigEndian(v, rawBytes, 0);
             return rawBytes;
         }
 
-        internal static void SerializeUnsignedInt16BigEndian(int v, byte[] rawBytes, int offset)
+        public static void SerializeUnsignedInt16BigEndian(int v, byte[] rawBytes, int offset)
         {
             SerializeInt16BigEndian((short)v, rawBytes, offset);
         }
 
-        internal static byte[] SerializeInt16BigEndian(short v)
+        public static byte[] SerializeInt16BigEndian(short v)
         {
             byte[] rawBytes = new byte[2];
             SerializeInt16BigEndian(v, rawBytes, 0);
             return rawBytes;
         }
 
-        internal static void SerializeInt16BigEndian(short v, byte[] rawBytes, int offset)
+        public static void SerializeInt16BigEndian(short v, byte[] rawBytes, int offset)
         {
             rawBytes[offset] = (byte)(0xff & (v >> 8));
             rawBytes[offset + 1] = (byte)(0xff & v);
         }
 
-        internal static byte[] SerializeInt32BigEndian(int v)
+        public static byte[] SerializeInt32BigEndian(int v)
         {
             byte[] rawBytes = new byte[4];
             SerializeInt32BigEndian(v, rawBytes, 0);
             return rawBytes;
         }
 
-        internal static void SerializeInt32BigEndian(int v, byte[] rawBytes, int offset)
+        public static void SerializeInt32BigEndian(int v, byte[] rawBytes, int offset)
         {
             rawBytes[offset] = (byte)(0xff & (v >> 24));
             rawBytes[offset + 1] = (byte)(0xff & (v >> 16));
@@ -78,14 +82,14 @@ namespace ScalableIPC.Core.Helpers
             rawBytes[offset + 3] = (byte)(0xff & v);
         }
 
-        internal static byte[] SerializeInt64BigEndian(long v)
+        public static byte[] SerializeInt64BigEndian(long v)
         {
             byte[] rawBytes = new byte[8];
             SerializeInt64BigEndian(v, rawBytes, 0);
             return rawBytes;
         }
 
-        internal static void SerializeInt64BigEndian(long v, byte[] rawBytes, int offset)
+        public static void SerializeInt64BigEndian(long v, byte[] rawBytes, int offset)
         {
             rawBytes[offset] = (byte)(0xff & (v >> 56));
             rawBytes[offset + 1] = (byte)(0xff & (v >> 48));
@@ -97,7 +101,7 @@ namespace ScalableIPC.Core.Helpers
             rawBytes[offset + 7] = (byte)(0xff & v);
         }
 
-        internal static short DeserializeInt16BigEndian(byte[] rawBytes, int offset)
+        public static short DeserializeInt16BigEndian(byte[] rawBytes, int offset)
         {
             byte a = rawBytes[offset];
             byte b = rawBytes[offset + 1];
@@ -105,7 +109,7 @@ namespace ScalableIPC.Core.Helpers
             return (short)v;
         }
 
-        internal static int DeserializeUnsignedInt16BigEndian(byte[] rawBytes, int offset)
+        public static int DeserializeUnsignedInt16BigEndian(byte[] rawBytes, int offset)
         {
             byte a = rawBytes[offset];
             byte b = rawBytes[offset + 1];
@@ -113,7 +117,7 @@ namespace ScalableIPC.Core.Helpers
             return v; // NB: no cast to short.
         }
 
-        internal static int DeserializeInt32BigEndian(byte[] rawBytes, int offset)
+        public static int DeserializeInt32BigEndian(byte[] rawBytes, int offset)
         {
             byte a = rawBytes[offset];
             byte b = rawBytes[offset + 1];
@@ -124,7 +128,7 @@ namespace ScalableIPC.Core.Helpers
             return v;
         }
 
-        internal static long DeserializeInt64BigEndian(byte[] rawBytes, int offset)
+        public static long DeserializeInt64BigEndian(byte[] rawBytes, int offset)
         {
             byte a = rawBytes[offset];
             byte b = rawBytes[offset + 1];
