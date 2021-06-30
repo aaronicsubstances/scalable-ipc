@@ -138,7 +138,7 @@ Upon receive data timeout,
 
 In outgoing transfer handler,
   * split message into pdus using MTU size.
-  * set message destination id from message source id of last received ack. If the very first time, use all zeros.
+  * set message destination id from message source id of last received ack. If the very first time, use any id.
   * to handle retries, have a dedicated retry handler per pdu, and set receive ack timeout before starting each.
   * if ack is received, cancel retry handler.
   * if ack timeout fires or an error_code is received, then it almost certainly means outgoing transfer has failed. Cancel retry handler, and notify send operation callback. remove from outgoing transfers.
