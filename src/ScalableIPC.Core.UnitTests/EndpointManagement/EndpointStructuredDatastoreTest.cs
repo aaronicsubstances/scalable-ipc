@@ -293,7 +293,8 @@ namespace ScalableIPC.Core.UnitTests.EndpointManagement
             Assert.ThrowsAny<Exception>(() => instance.Add(remoteEndpoint1, null, value11));
             Assert.True(instance.Add(remoteEndpoint1, msgId11, value11));
             Assert.False(instance.Add(remoteEndpoint1, msgId11, value11));
-            Assert.False(instance.Add(remoteEndpoint1, msgId11, value21));
+            Assert.True(instance.Add(remoteEndpoint1, msgId21, value21));
+            Assert.False(instance.Add(remoteEndpoint1, msgId21, value21));
         }
     }
 }

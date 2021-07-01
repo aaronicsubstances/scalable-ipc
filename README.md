@@ -12,7 +12,7 @@ The initial motivation for this protocol came from deliberations on IPC efficien
   * Leverages existing network protocols used on the Internet.
   * Supports both client/server and peer-to-peer modes.
   * Preservation of message boundaries, making it directly useful for protocol use cases characterised by request-response exchanges and single-message data transfers.
-  * Connectionless, in the sense that the enduser can assume the communication endpoints are always available, and that errors arising from any underlying transport's connections are transient.
+  * Connectionless, in the sense that the end user can assume the communication endpoints are always available, and that errors arising from any underlying transport's connections are transient.
   * Completely takes care of connection management in underlying transport for end users.
   * Reliable delivery, even if underlying transport doesn't offer reliability.
   * Efficient data transfer by multiplexing multiple messages over a single underlying transport's connection.
@@ -93,7 +93,7 @@ Upon receipt of a PDU,
   * Validate opcode.
   * Validate protocol version.
   * Validate timestamp, unless timestamp is not a positive value. Only accept timestamps which differ from current time by less than time to wait.
-  * Look in processed transfers for given message id and remote endpoint. If found, reply data pdus and ignore the rest.
+  * Look in processed transfers for given message id and remote endpoint. If found, reply header/data pdus and ignore acks.
   * Remainder of processing depends on opcode.
 
 For header pdu,

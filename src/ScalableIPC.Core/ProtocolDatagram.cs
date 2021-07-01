@@ -7,10 +7,12 @@ namespace ScalableIPC.Core
 {
     public class ProtocolDatagram
     {
-        public const byte OpCodeHeader = 0x01;
-        public const byte OpCodeHeaderAck = 0x02;
-        public const byte OpCodeData = 0x03;
-        public const byte OpCodeDataAck = 0x04;
+        public const byte OpCodeData = 0x01;
+        public const byte OpCodeDataAck = 0x02;
+        public const byte OpCodeHeader = 0x03;
+        public const byte OpCodeHeaderAck = 0x04;
+
+        public const byte ProtocolVersion1_0 = 0x10;
 
         public const int MinDatagramSize = 46;
 
