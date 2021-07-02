@@ -19,6 +19,6 @@ namespace ScalableIPC.Core.Abstractions
         GenericNetworkIdentifier LocalEndpoint { get; set; }
         IProtocolEndpointManager EndpointManager { get; set; }
         void BeginSend(GenericNetworkIdentifier remoteEndpoint,
-            byte[] data, int offset, int length, Action<ProtocolOperationException> cb);
+            byte[] data, int offset, int length, Action<Exception> cb);
     }
 }

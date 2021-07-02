@@ -21,7 +21,7 @@ namespace ScalableIPC.Core.Abstractions
         string BeginSend(GenericNetworkIdentifier remoteEndpoint,
             byte[] data, int offset, int length, Action<ProtocolOperationException> cb);
         void BeginReceive(GenericNetworkIdentifier remoteEndpoint,
-            byte[] data, int offset, int length, Action<ProtocolOperationException> cb);
+            byte[] data, int offset, int length, Action<Exception> cb);
         void Reset(ProtocolOperationException causeOfReset);
     }
 }

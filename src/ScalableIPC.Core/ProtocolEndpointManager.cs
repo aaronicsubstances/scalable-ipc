@@ -39,7 +39,7 @@ namespace ScalableIPC.Core
         }
 
         public void BeginReceive(GenericNetworkIdentifier remoteEndpoint,
-            byte[] data, int offset, int length, Action<ProtocolOperationException> cb)
+            byte[] data, int offset, int length, Action<Exception> cb)
         {
 
         }
