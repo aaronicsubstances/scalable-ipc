@@ -148,5 +148,289 @@ namespace ScalableIPC.Core.UnitTests
 
             return testData;
         }
+        [Theory]
+        [MemberData(nameof(CreateTestSerializeForErrorData))]
+        public void TestSerializeForError(ProtocolDatagram instance, string expected)
+        {
+            var ex = Assert.ThrowsAny<Exception>(() => instance.Serialize());
+            if (expected != null)
+            {
+                Assert.Contains(expected, ex.Message);
+            }
+        }
+
+        public static List<object[]> CreateTestSerializeForErrorData()
+        {
+            var testData = new List<object[]>();
+
+            // test for wrong length of msg id.
+            var msgId = "".PadRight(30, '1');
+            var endpointId = "".PadRight(32, '5');
+            var instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeData,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 1625087321,
+                Reserved = 0x03,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                SequenceNumber = 0x14,
+                Data = new byte[] { 0x68, 0x65, 0x6c, 0x6c, 0x6f }, // hello
+                DataOffset = 0,
+                DataLength = 5
+            };
+            var expected = "e47fc3b1-f391-4f1a-aa82-814c01be6bea";
+            testData.Add(new object[] { instance, expected });
+
+            // test for null msg id.
+            msgId = null;
+            endpointId = "306ba29b2da24b0682589e6f25cadb36";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeData,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 1625087321,
+                Reserved = 0x03,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                SequenceNumber = 0x14,
+                Data = new byte[] { 0x68, 0x65, 0x6c, 0x6c, 0x6f }, // hello
+                DataOffset = 0,
+                DataLength = 5
+            };
+            expected = "e47fc3b1-f391-4f1a-aa82-814c01be6bea";
+            testData.Add(new object[] { instance, expected });
+
+            // test for null data.
+            msgId = "5f7d7630d8b6467db03d71419b6f87f0";
+            endpointId = "1c26abdbef304ac4b533af48641bbc6d";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeData,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 1625087321,
+                Reserved = 0x03,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                SequenceNumber = 0x14,
+                Data = null,
+                DataOffset = 0,
+                DataLength = 5
+            };
+            expected = "f414e24d-d8bb-44dc-afb4-d34773d28e9a";
+            testData.Add(new object[] { instance, expected });
+
+            // test for invalid data offset.
+            msgId = "0c02866124aa4a3bb0e8f70cad242a1e";
+            endpointId = "2a75f7b2c1e5422f9e2da148bb50d379";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeData,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 1625087321,
+                Reserved = 0x03,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                SequenceNumber = 0x14,
+                Data = new byte[] { 0x68, 0x65, 0x6c, 0x6c, 0x6f }, // hello
+                DataOffset = -1,
+                DataLength = 5
+            };
+            expected = "149f8bf9-0226-40e3-a6ca-2d00541a4d75";
+            testData.Add(new object[] { instance, expected });
+
+            // test for invalid data length.
+            msgId = "6a0789c7b2444014b00e348f6a695ef9";
+            endpointId = "1a13893f2c534d03920062e0ad46390c";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeData,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 1625087321,
+                Reserved = 0x03,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                SequenceNumber = 0x14,
+                Data = new byte[] { 0x68, 0x65, 0x6c, 0x6c, 0x6f }, // hello
+                DataOffset = 0,
+                DataLength = -7
+            };
+            expected = "9039a1e3-c4a1-4eff-b53f-059a7316b97d";
+            testData.Add(new object[] { instance, expected });
+
+            // test for invalid combination data offset and length.
+            msgId = "3dda9a0042a24500919be9f4ef7dd437";
+            endpointId = "f259ff43dc404d0c85cda925d0a950c9";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeData,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 1625087321,
+                Reserved = 0x03,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                SequenceNumber = 0x14,
+                Data = new byte[] { 0x68, 0x65, 0x6c, 0x6c, 0x6f }, // hello
+                DataOffset = 4,
+                DataLength = 3
+            };
+            expected = "786322b1-f408-4b9a-a41d-d95acecda445";
+            testData.Add(new object[] { instance, expected });
+
+            // test for null msg dest id.
+            msgId = "5615e7e63dc24722b3ed0a0722c9a687";
+            endpointId = null;
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeData,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 1625087321,
+                Reserved = 0x03,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                SequenceNumber = 0x14,
+                Data = new byte[] { 0x68, 0x65, 0x6c, 0x6c, 0x6f }, // hello
+                DataOffset = 4,
+                DataLength = 1
+            };
+            expected = "938436a3-56aa-45f8-97ef-9715dea14cc4";
+            testData.Add(new object[] { instance, expected });
+
+            // test for invalid msg dest id.
+            msgId = "7bf116b2bb52468284c9584c1ed04e3d";
+            endpointId = "1";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeData,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 1625087321,
+                Reserved = 0x03,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                SequenceNumber = 0x14,
+                Data = new byte[] { 0x68, 0x65, 0x6c, 0x6c, 0x6f }, // hello
+                DataOffset = 4,
+                DataLength = 1
+            };
+            expected = "938436a3-56aa-45f8-97ef-9715dea14cc4";
+            testData.Add(new object[] { instance, expected });
+
+            // test for null message source id.
+            msgId = "359d341300274004938c9f6058a68777";
+            endpointId = null;
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeDataAck,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 0,
+                Reserved = 0,
+                MessageId = msgId,
+                MessageSourceId = endpointId,
+                SequenceNumber = 2,
+                ErrorCode = 1
+            };
+            expected = "3fd5c735-c487-4cef-976d-f8a0c52a06a3";
+            testData.Add(new object[] { instance, expected });
+
+            // test for invalid message source id.
+            msgId = "7fbe93102c3e41e4b9264f2030e0b8d2";
+            endpointId = "ab";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeDataAck,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 0,
+                Reserved = 0,
+                MessageId = msgId,
+                MessageSourceId = endpointId,
+                SequenceNumber = 2,
+                ErrorCode = 1
+            };
+            expected = "3fd5c735-c487-4cef-976d-f8a0c52a06a3";
+            testData.Add(new object[] { instance, expected });
+
+            // test null msg dest id.
+            msgId = "be1778d1cc2a4f54ada8ec05392fcb86";
+            endpointId = null;
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeHeader,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 1_625_119_002,
+                Reserved = 0,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                MessageLength = 20367
+            };
+            expected = "39d799a9-98ee-4477-bd28-f126b38212ac";
+            testData.Add(new object[] { instance, expected });
+
+            // test invalid msg dest id.
+            msgId = "da296e2643344bbfaf84eca18a53cdd4";
+            endpointId = "0ff";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeHeader,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 1_625_119_002,
+                Reserved = 0,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                MessageLength = 20367
+            };
+            expected = "39d799a9-98ee-4477-bd28-f126b38212ac";
+            testData.Add(new object[] { instance, expected });
+
+            // test null msg source id
+            msgId = "dd686ff4616743589931d8e14c133e8b";
+            endpointId = null;
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeHeaderAck,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 0,
+                Reserved = 0,
+                MessageId = msgId,
+                MessageSourceId = endpointId,
+                ErrorCode = 20
+            };
+            expected = "25b04616-6aff-4f55-b0c9-1b06922b1c44";
+            testData.Add(new object[] { instance, expected });
+
+            // test invalid msg source id
+            msgId = "dd686ff4616743589931d8e14c133e8b";
+            endpointId = "ae09cbb70106477fbaa25ae7d5962be0fd875c7afaa344f89c28800bb63123b7";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeHeaderAck,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                SentAt = 0,
+                Reserved = 0,
+                MessageId = msgId,
+                MessageSourceId = endpointId,
+                ErrorCode = 20
+            };
+            expected = "25b04616-6aff-4f55-b0c9-1b06922b1c44";
+            testData.Add(new object[] { instance, expected });
+
+            // test invalid opcode
+            msgId = "b5080f1419d04465b6dae1808b848fe6";
+            endpointId = "56ebd94d8f0b48b4a853fdcef6fe61ba";
+            instance = new ProtocolDatagram
+            {
+                OpCode = 0,
+                Version = 0,
+                SentAt = 0,
+                Reserved = 0,
+                MessageId = msgId,
+                MessageSourceId = endpointId,
+                MessageDestinationId = endpointId,
+                ErrorCode = 0
+            };
+            expected = "6f66dbe8-0c15-48b6-8c6a-856762cdf3e9";
+            testData.Add(new object[] { instance, expected });
+
+            return testData;
+        }
     }
 }
