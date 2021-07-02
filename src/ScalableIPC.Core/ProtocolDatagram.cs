@@ -361,5 +361,42 @@ namespace ScalableIPC.Core
             }
             return rawBytes;
         }
+
+        public override bool Equals(object obj)
+        {
+            return obj is ProtocolDatagram datagram &&
+                   OpCode == datagram.OpCode &&
+                   Version == datagram.Version &&
+                   SentAt == datagram.SentAt &&
+                   Reserved == datagram.Reserved &&
+                   MessageId == datagram.MessageId &&
+                   MessageSourceId == datagram.MessageSourceId &&
+                   MessageDestinationId == datagram.MessageDestinationId &&
+                   MessageLength == datagram.MessageLength &&
+                   SequenceNumber == datagram.SequenceNumber &&
+                   ErrorCode == datagram.ErrorCode &&
+                   DataOffset == datagram.DataOffset &&
+                   DataLength == datagram.DataLength &&
+                   EqualityComparer<byte[]>.Default.Equals(Data, datagram.Data);
+        }
+
+        public override int GetHashCode()
+        {
+            int hashCode = -2063747072;
+            hashCode = hashCode * -1521134295 + OpCode.GetHashCode();
+            hashCode = hashCode * -1521134295 + Version.GetHashCode();
+            hashCode = hashCode * -1521134295 + SentAt.GetHashCode();
+            hashCode = hashCode * -1521134295 + Reserved.GetHashCode();
+            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(MessageId);
+            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(MessageSourceId);
+            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(MessageDestinationId);
+            hashCode = hashCode * -1521134295 + MessageLength.GetHashCode();
+            hashCode = hashCode * -1521134295 + SequenceNumber.GetHashCode();
+            hashCode = hashCode * -1521134295 + ErrorCode.GetHashCode();
+            hashCode = hashCode * -1521134295 + DataOffset.GetHashCode();
+            hashCode = hashCode * -1521134295 + DataLength.GetHashCode();
+            hashCode = hashCode * -1521134295 + EqualityComparer<byte[]>.Default.GetHashCode(Data);
+            return hashCode;
+        }
     }
 }
