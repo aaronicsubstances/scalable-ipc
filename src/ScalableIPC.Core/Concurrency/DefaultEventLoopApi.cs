@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Concurrency
 {
-    public class DefaultEventLoopApi : AbstractEventLoopApi
+    public class DefaultEventLoopApi : EventLoopApi
     {
         private readonly LimitedConcurrencyLevelTaskScheduler _throttledTaskScheduler;
 

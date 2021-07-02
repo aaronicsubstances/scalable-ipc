@@ -9,15 +9,16 @@ using System.Text;
 
 namespace ScalableIPC.Core
 {
-    public class ProtocolEndpointManager: IProtocolEndpointManager
+    public class StandardTransportProcessor: IStandardTransportProcessor
     {
         public const int MinimumMessageSizeLimit = 65_536;
         public const int MinimumPduSizeLimit = 512;
 
-        public ProtocolEndpointManager()
+        public StandardTransportProcessor()
         {
             EndpointOwnerId = ByteUtils.GenerateUuid();
         }
+
         public string EndpointOwnerId { get; }
         public int PduSizeLimit { get; set; }
         public int MessageSizeLimit { get; set; }
@@ -27,9 +28,9 @@ namespace ScalableIPC.Core
         public int DataReceiveTimeout { get; set; }
         public int ProcessedMessageDisposalWaitTime { get; set; }
         public bool UsePduTimestamp { get; set; }
-        public IEndpointEventListener EndpointEventListener { get; set; }
-        public AbstractTransportApi UnderlyingTransport { get; set; }
-        public AbstractEventLoopApi EventLoop { get; set; }
+        public StandardTransportProcessorEventListener EventListener { get; set; }
+        public TransportApi UnderlyingTransport { get; set; }
+        public EventLoopApi EventLoop { get; set; }
 
         public string BeginSend(GenericNetworkIdentifier remoteEndpoint,
             byte[] data, int offset, int length, Action<ProtocolOperationException> cb)
@@ -39,7 +40,7 @@ namespace ScalableIPC.Core
         }
 
         public void BeginReceive(GenericNetworkIdentifier remoteEndpoint,
-            byte[] data, int offset, int length, Action<Exception> cb)
+            byte[] data, int offset, int length, Action<ProtocolOperationException> cb)
         {
 
         }

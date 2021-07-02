@@ -61,7 +61,7 @@ opcodes
 Beginning members
    - opcode - 1 byte
    - protocol version - 1 byte
-   - send time - 8 bytes (unix epoch)
+   - send time - 8 bytes (unix epoch in seconds)
    - reserved - 4 bytes
 
 HEADER members
@@ -92,7 +92,7 @@ Upon receipt of a PDU,
 
   * Validate opcode.
   * Validate protocol version.
-  * Validate timestamp, unless timestamp is not a positive value. Only accept timestamps which differ from current time by less than time to wait.
+  * Validate timestamp, unless timestamp is not a positive value. Only accept timestamps which differ from seconds of current unix epoch by less than time to wait.
   * Look in processed transfers for given message id and remote endpoint. If found, reply header/data pdus and ignore acks.
   * Remainder of processing depends on opcode.
 

@@ -5,7 +5,7 @@ using System.Text;
 
 namespace ScalableIPC.Core.UnitTests.Concurrency
 {
-    public class FakeEventLoopApi: AbstractEventLoopApi
+    public class FakeEventLoopApi: EventLoopApi
     {
         public class TaskDescriptor
         {

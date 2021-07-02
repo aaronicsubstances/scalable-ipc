@@ -14,11 +14,11 @@ namespace ScalableIPC.Core.Abstractions
     /// 4. Unix domain socket
     /// 5. Windows named pipe
     /// </summary>
-    public interface AbstractTransportApi
+    public interface TransportApi
     {
         GenericNetworkIdentifier LocalEndpoint { get; set; }
-        IProtocolEndpointManager EndpointManager { get; set; }
+        TransportProcessorApi EndpointDataProcessor { get; set; }
         void BeginSend(GenericNetworkIdentifier remoteEndpoint,
-            byte[] data, int offset, int length, Action<Exception> cb);
+            byte[] data, int offset, int length, Action<ProtocolOperationException> cb);
     }
 }

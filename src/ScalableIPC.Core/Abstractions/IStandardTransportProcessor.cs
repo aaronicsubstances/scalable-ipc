@@ -4,7 +4,11 @@ using System.Text;
 
 namespace ScalableIPC.Core.Abstractions
 {
-    public interface IProtocolEndpointManager
+    /// <summary>
+    /// Purpose of this interface is to guide porting to other programming languages by differentiating between
+    /// common properties and methods and implementation-specific helper properties and methods.
+    /// </summary>
+    internal interface IStandardTransportProcessor: TransportProcessorApi
     {
         string EndpointOwnerId { get; }
         int PduSizeLimit { get; set; }
@@ -15,13 +19,11 @@ namespace ScalableIPC.Core.Abstractions
         int DataReceiveTimeout { get; set; }
         int ProcessedMessageDisposalWaitTime { get; set;}
         bool UsePduTimestamp { get; set; }
-        IEndpointEventListener EndpointEventListener { get; set; }
-        AbstractTransportApi UnderlyingTransport { get; set; }
-        AbstractEventLoopApi EventLoop { get; set; }
+        StandardTransportProcessorEventListener EventListener { get; set; }
+        TransportApi UnderlyingTransport { get; set; }
+        EventLoopApi EventLoop { get; set; }
         string BeginSend(GenericNetworkIdentifier remoteEndpoint,
             byte[] data, int offset, int length, Action<ProtocolOperationException> cb);
-        void BeginReceive(GenericNetworkIdentifier remoteEndpoint,
-            byte[] data, int offset, int length, Action<Exception> cb);
         void Reset(ProtocolOperationException causeOfReset);
     }
 }
