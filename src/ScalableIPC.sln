@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScalableIPC.Core", "Scalabl
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ScalableIPC.Core.UnitTests", "ScalableIPC.Core.UnitTests\ScalableIPC.Core.UnitTests.csproj", "{03973E39-1288-4FDE-8D8C-B4C790BCCAA3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScalableIPC.IntegrationTests", "ScalableIPC.IntegrationTests\ScalableIPC.IntegrationTests.csproj", "{0C496C11-252F-438B-B7AC-9F3F716EA7CE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{03973E39-1288-4FDE-8D8C-B4C790BCCAA3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{03973E39-1288-4FDE-8D8C-B4C790BCCAA3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{03973E39-1288-4FDE-8D8C-B4C790BCCAA3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C496C11-252F-438B-B7AC-9F3F716EA7CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C496C11-252F-438B-B7AC-9F3F716EA7CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C496C11-252F-438B-B7AC-9F3F716EA7CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C496C11-252F-438B-B7AC-9F3F716EA7CE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

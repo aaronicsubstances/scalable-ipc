@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 
 [assembly: InternalsVisibleTo("ScalableIPC.Core.UnitTests")]
+[assembly: InternalsVisibleTo("ScalableIPC.IntegrationTests")]
 
 namespace ScalableIPC.Core
 {
