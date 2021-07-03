@@ -61,11 +61,8 @@ namespace ScalableIPC.Core.UnitTests.Transports
                 logs.Add($"{testEventLoop.CurrentTimestamp}:received send cb:{ex?.Message ?? "success"}");
             });
             // advance time severally up to 20 ms
-            testEventLoop.AdvanceTimeBy(0);
-            for (int i = 0; i < 20; i++)
-            {
-                testEventLoop.AdvanceTimeBy(1);
-            }
+            testEventLoop.AdvanceTimeIndefinitely();
+            testEventLoop.AdvanceTimeTo(20);
             var expectedLogs = new List<string>
             {
                 "0:received send cb:success",
@@ -74,7 +71,7 @@ namespace ScalableIPC.Core.UnitTests.Transports
             };
             Assert.Equal(expectedLogs, logs);
         
-            // TestKumasiToAccraTransmission()
+            // TestKumasiToAccraTransmission
             logs.Clear();
             msg = "yes";
             msgBytes = Encoding.UTF8.GetBytes(msg);
@@ -82,12 +79,8 @@ namespace ScalableIPC.Core.UnitTests.Transports
             {
                 logs.Add($"{testEventLoop.CurrentTimestamp}:received send cb:{ex?.Message ?? "success"}");
             });
-            // advance time severally up to 20 ms
-            testEventLoop.AdvanceTimeBy(0);
-            for (int i = 0; i < 20; i++)
-            {
-                testEventLoop.AdvanceTimeBy(1);
-            }
+            // advance time severally
+            testEventLoop.AdvanceTimeIndefinitely();
             expectedLogs = new List<string>
             {
                 $"20:received from kumasi:{msg}",
@@ -142,12 +135,8 @@ namespace ScalableIPC.Core.UnitTests.Transports
             // Now send.
             transportA.BeginSend(addrB, msgBytes, 0, msgBytes.Length, cb);
 
-            // advance time severally up to 20 ms
-            eventLoop.AdvanceTimeBy(0);
-            for (int i = 0; i < 20; i++)
-            {
-                eventLoop.AdvanceTimeBy(1);
-            }
+            // advance time severally
+            eventLoop.AdvanceTimeIndefinitely();
 
             Assert.Equal(expected, actual);
         }

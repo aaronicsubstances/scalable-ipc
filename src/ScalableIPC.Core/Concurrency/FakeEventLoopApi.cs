@@ -56,24 +56,39 @@ namespace ScalableIPC.Core.Concurrency
             {
                 throw new ArgumentException("cannot be negative", nameof(delay));
             }
-            CurrentTimestamp += delay;
-            TriggerActions();
+            AdvanceTimeTo(CurrentTimestamp + delay);
+        }
+
+        public void AdvanceTimeTo(long newTimestamp)
+        {
+            if (newTimestamp < 0)
+            {
+                throw new ArgumentException("cannot be negative", nameof(newTimestamp));
+            }
+            TriggerActions(newTimestamp);
+            CurrentTimestamp = newTimestamp;
+        }
+
+        public void AdvanceTimeIndefinitely()
+        {
+            TriggerActions(-1);
         }
 
         public long CurrentTimestamp { get; private set; }
 
-        private void TriggerActions()
+        private void TriggerActions(long stoppageTimestamp)
         {
             // invoke task queue actions starting with head of queue
             // and stop if item's time is in the future.
             while (_taskQueue.Count > 0)
             {
                 var firstTask = _taskQueue[0];
-                if (firstTask.ScheduledAt > CurrentTimestamp)
+                if (stoppageTimestamp >= 0 && firstTask.ScheduledAt > stoppageTimestamp)
                 {
                     break;
                 }
                 _taskQueue.RemoveAt(0);
+                CurrentTimestamp = firstTask.ScheduledAt;
                 firstTask.Callback.Invoke();
             }
         }
