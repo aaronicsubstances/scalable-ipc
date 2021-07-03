@@ -8,7 +8,6 @@ using Xunit;
 
 namespace ScalableIPC.IntegrationTests.Core.Concurrency
 {
-    [Collection("SequentialTests")]
     public class DefaultEventLoopApiTest
     {
         [Fact]

@@ -5,6 +5,10 @@ using System.Text;
 
 namespace ScalableIPC.Core.Concurrency
 {
+    /// <summary>
+    /// Event loop implementation which doesn't use real time.
+    /// Useful for testing main components of protocol implementation.
+    /// </summary>
     public class FakeEventLoopApi: EventLoopApi
     {
         public class TaskDescriptor
