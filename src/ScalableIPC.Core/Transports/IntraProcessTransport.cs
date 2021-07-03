@@ -27,7 +27,7 @@ namespace ScalableIPC.Core.Transports
 
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
         public TransportProcessorApi EndpointDataProcessor { get; set; }
-        public Dictionary<GenericNetworkIdentifier, Connection> Connections { get; set; }
+        public Dictionary<GenericNetworkIdentifier, Connection> Connections { get; }
         public EventLoopApi EventLoop { get; set; }
 
         public void BeginSend(GenericNetworkIdentifier remoteEndpoint,

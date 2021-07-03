@@ -8,16 +8,15 @@ namespace ScalableIPC.Core.Abstractions
     /// 1. blocking I/O and multi-threaded
     /// 2. non-blocking I/O and single-threaded
     /// 3. non-blocking I/O and multi-threaded
-    /// The required constraints on an event loop implementation in summary are that it should be equivalent to
-    /// single-threaded program execution of tasks in a queue, and provide async timeouts. In particular,
-    ///  1. Tasks should be run serially, ie one at a time. Even if there are multiple threads, there must be only ONE
-    ///     degree of parallelism. If a running task schedules another task, that task must be guaranteed to execute
-    ///     after the current one is done running.
-    ///  2. Side-effects of executed tasks must be visible to tasks which will be run later.
-    ///  3. Provide timeouts asynchronously without using dedicated timer thread.
+    /// The required constraints on an event loop implementation in summary are that it should be execute tasks 
+    /// asynchronously and provide async timeouts. In particular,
+    ///  1. Caller submitting tasks should not be blocked during task execution.
+    ///  2. Provide timeouts asynchronously without using dedicated timer thread.
+    ///  3. Supply current time. This enables use of virtual times for testing.
     /// </summary>
     public interface EventLoopApi
     {
+        long CurrentTimestamp { get; }
         void PostCallback(Action cb);
         object ScheduleTimeout(int millis, Action cb);
         void CancelTimeout(object id);

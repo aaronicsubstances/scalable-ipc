@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ScalableIPC.Core.UnitTests.Concurrency
+namespace ScalableIPC.Core.Concurrency
 {
     public class FakeEventLoopApi: EventLoopApi
     {
@@ -46,8 +46,6 @@ namespace ScalableIPC.Core.UnitTests.Concurrency
 
         private readonly List<TaskDescriptor> _taskQueue = new List<TaskDescriptor>();
 
-        public bool RunImmediateCallbacksWithoutAdvance { get; set; } = false;
-
         public void AdvanceTimeBy(long delay)
         {
             if (delay < 0)
@@ -86,12 +84,6 @@ namespace ScalableIPC.Core.UnitTests.Concurrency
             if (millis < 0)
             {
                 throw new ArgumentException("cannot be negative", nameof(millis));
-            }
-            // run immediately if so configured.
-            if (millis == 0 && RunImmediateCallbacksWithoutAdvance)
-            {
-                cb.Invoke();
-                return null;
             }
             var taskDescriptor = new TaskDescriptor(cb, CurrentTimestamp + millis);
             _taskQueue.Add(taskDescriptor);

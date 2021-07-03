@@ -1,4 +1,5 @@
 ﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -7,6 +8,16 @@ using System.Threading.Tasks;
 
 namespace ScalableIPC.Core.Concurrency
 {
+    /// <summary>
+    /// Provides single thread implementation of event loop, and is the event loop implementation to use
+    /// in production for the single thread event-driven framework employed by the standard transport processor.
+    /// The required constraints on this event loop implementation in summary are that it should be equivalent to
+    /// single-threaded program execution of tasks in a queue. In particular,
+    ///  1. Tasks should be run serially, ie one at a time. Even if there are multiple threads, there must be only ONE
+    ///     degree of parallelism. If a running task schedules another task, that task must be guaranteed to execute
+    ///     after the current one is done running.
+    ///  2. Side-effects of executed tasks must be visible to tasks which will be run later.
+    /// </summary>
     public class DefaultEventLoopApi : EventLoopApi
     {
         private readonly LimitedConcurrencyLevelTaskScheduler _throttledTaskScheduler;
@@ -29,14 +40,21 @@ namespace ScalableIPC.Core.Concurrency
             _throttledTaskScheduler = new LimitedConcurrencyLevelTaskScheduler(1);
         }
 
+        public long CurrentTimestamp => DateTimeUtils.UnixTimeMillis;
+
         public void PostCallback(Action cb)
+        {
+            PostCallback(cb, CancellationToken.None);
+        }
+
+        private void PostCallback(Action cb, CancellationToken cancellationToken)
         {
             Task.Factory.StartNew(() => {
                 lock (this)
                 {
                     cb();
                 }
-            }, CancellationToken.None, TaskCreationOptions.None, _throttledTaskScheduler);
+            }, cancellationToken, TaskCreationOptions.None, _throttledTaskScheduler);
         }
 
         public object ScheduleTimeout(int millis, Action cb)
@@ -44,12 +62,7 @@ namespace ScalableIPC.Core.Concurrency
             var cts = new CancellationTokenSource();
             Task.Delay(millis, cts.Token).ContinueWith(t =>
             {
-                Task.Factory.StartNew(() => {
-                    lock (this)
-                    {
-                        cb();
-                    }
-                }, cts.Token, TaskCreationOptions.None, _throttledTaskScheduler);
+                PostCallback(cb, cts.Token);
             }, TaskContinuationOptions.OnlyOnRanToCompletion);
             return cts;
         }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ScalableIPC.Core.Concurrency;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Xunit;
@@ -25,16 +26,6 @@ namespace ScalableIPC.Core.UnitTests.Concurrency
             instance.PostCallback(() => callbackLogs.Add("757d903d-376f-4e5f-accf-371fd5f06c3d"));
             instance.PostCallback(() => callbackLogs.Add("245bd145-a538-49b8-b7c8-733f77e5d245"));
             instance.AdvanceTimeBy(0);
-            Assert.Equal(10, instance.CurrentTimestamp);
-            Assert.Equal(new List<string> {
-                "cac4e224-15b6-45af-8df4-0a4d43b2ae05", "757d903d-376f-4e5f-accf-371fd5f06c3d",
-                "245bd145-a538-49b8-b7c8-733f77e5d245" }, callbackLogs);
-
-            callbackLogs.Clear();
-            instance.RunImmediateCallbacksWithoutAdvance = true;
-            instance.PostCallback(() => callbackLogs.Add("cac4e224-15b6-45af-8df4-0a4d43b2ae05"));
-            instance.PostCallback(() => callbackLogs.Add("757d903d-376f-4e5f-accf-371fd5f06c3d"));
-            instance.PostCallback(() => callbackLogs.Add("245bd145-a538-49b8-b7c8-733f77e5d245"));
             Assert.Equal(10, instance.CurrentTimestamp);
             Assert.Equal(new List<string> {
                 "cac4e224-15b6-45af-8df4-0a4d43b2ae05", "757d903d-376f-4e5f-accf-371fd5f06c3d",
@@ -74,7 +65,6 @@ namespace ScalableIPC.Core.UnitTests.Concurrency
             Assert.Equal(new List<string>(), callbackLogs);
 
             callbackLogs.Clear();
-            instance.RunImmediateCallbacksWithoutAdvance = false;
             instance.CancelTimeout(testTimeoutId);
             // test repeated cancellation of same id doesn't cause problems.
             instance.CancelTimeout(testTimeoutId);
@@ -105,7 +95,6 @@ namespace ScalableIPC.Core.UnitTests.Concurrency
                 "2f7deeb1-f857-4f29-82de-b4168133f093" }, callbackLogs);
 
             callbackLogs.Clear();
-            instance.RunImmediateCallbacksWithoutAdvance = true;
             instance.CancelTimeout(testTimeoutId);
             // test repeated cancellation of same id doesn't cause problems.
             instance.CancelTimeout(testTimeoutId);
@@ -121,10 +110,7 @@ namespace ScalableIPC.Core.UnitTests.Concurrency
                 callbackLogs.Add("9b463fec-6a9c-44cc-8165-e106080b18fc"));
             instance.PostCallback(() =>
                 callbackLogs.Add("56805433-1f02-4327-b190-50862c0ba93e"));
-            Assert.Equal(new List<string> {
-                "6d3a5586-b81d-4ca5-880b-2b711881a14e",
-                "9b463fec-6a9c-44cc-8165-e106080b18fc",
-                "56805433-1f02-4327-b190-50862c0ba93e" }, callbackLogs);
+            Assert.Equal(new List<string>(), callbackLogs);
             instance.AdvanceTimeBy(5);
             Assert.Equal(30, instance.CurrentTimestamp);
             Assert.Equal(new List<string> {
