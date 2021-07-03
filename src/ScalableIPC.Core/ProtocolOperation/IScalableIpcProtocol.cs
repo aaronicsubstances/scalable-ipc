@@ -1,14 +1,15 @@
-﻿using System;
+﻿using ScalableIPC.Core.Abstractions;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ScalableIPC.Core.Abstractions
+namespace ScalableIPC.Core.ProtocolOperation
 {
     /// <summary>
     /// Purpose of this interface is to guide porting to other programming languages by differentiating between
     /// common properties and methods and implementation-specific helper properties and methods.
     /// </summary>
-    internal interface IStandardTransportProcessor: TransportProcessorApi
+    internal interface IScalableIpcProtocol: TransportApiCallbacks
     {
         string EndpointOwnerId { get; }
         int PduSizeLimit { get; set; }
@@ -19,7 +20,7 @@ namespace ScalableIPC.Core.Abstractions
         int DataReceiveTimeout { get; set; }
         int ProcessedMessageDisposalWaitTime { get; set;}
         bool UsePduTimestamp { get; set; }
-        StandardTransportProcessorEventListener EventListener { get; set; }
+        ScalableIpcProtocolListener EventListener { get; set; }
         TransportApi UnderlyingTransport { get; set; }
         EventLoopApi EventLoop { get; set; }
         string BeginSend(GenericNetworkIdentifier remoteEndpoint,

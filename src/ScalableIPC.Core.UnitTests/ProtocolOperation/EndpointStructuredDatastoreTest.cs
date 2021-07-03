@@ -1,10 +1,10 @@
-﻿using ScalableIPC.Core.EndpointManagement;
+﻿using ScalableIPC.Core.ProtocolOperation;
 using System;
 using System.Collections.Generic;
 using System.Text;
 using Xunit;
 
-namespace ScalableIPC.Core.UnitTests.EndpointManagement
+namespace ScalableIPC.Core.UnitTests.ProtocolOperation
 {
     public class EndpointStructuredDatastoreTest
     {

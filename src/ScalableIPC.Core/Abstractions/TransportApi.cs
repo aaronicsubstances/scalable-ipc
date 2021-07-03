@@ -17,7 +17,7 @@ namespace ScalableIPC.Core.Abstractions
     public interface TransportApi
     {
         GenericNetworkIdentifier LocalEndpoint { get; set; }
-        TransportProcessorApi EndpointDataProcessor { get; set; }
+        TransportApiCallbacks Callbacks { get; set; }
         void BeginSend(GenericNetworkIdentifier remoteEndpoint,
             byte[] data, int offset, int length, Action<ProtocolOperationException> cb);
     }

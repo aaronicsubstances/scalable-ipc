@@ -1,5 +1,6 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Helpers;
+using ScalableIPC.Core.ProtocolOperation;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -10,12 +11,12 @@ using System.Text;
 
 namespace ScalableIPC.Core
 {
-    public class StandardTransportProcessor: IStandardTransportProcessor
+    public class ScalableIpcProtocol: IScalableIpcProtocol
     {
         public const int MinimumMessageSizeLimit = 65_536;
         public const int MinimumPduSizeLimit = 512;
 
-        public StandardTransportProcessor()
+        public ScalableIpcProtocol()
         {
             EndpointOwnerId = ByteUtils.GenerateUuid();
         }
@@ -29,7 +30,7 @@ namespace ScalableIPC.Core
         public int DataReceiveTimeout { get; set; }
         public int ProcessedMessageDisposalWaitTime { get; set; }
         public bool UsePduTimestamp { get; set; }
-        public StandardTransportProcessorEventListener EventListener { get; set; }
+        public ScalableIpcProtocolListener EventListener { get; set; }
         public TransportApi UnderlyingTransport { get; set; }
         public EventLoopApi EventLoop { get; set; }
 

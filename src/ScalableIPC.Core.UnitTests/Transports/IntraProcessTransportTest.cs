@@ -18,14 +18,14 @@ namespace ScalableIPC.Core.UnitTests.Transports
             var accraEndpoint = new IntraProcessTransport
             {
                 LocalEndpoint = accraAddr,
-                EndpointDataProcessor = new TestTransportProcessor(logs, testEventLoop),
+                Callbacks = new TestTransportProcessor(logs, testEventLoop),
                 EventLoop = testEventLoop
             };
             var kumasiAddr = new GenericNetworkIdentifier { HostName = "kumasi" };
             var kumasiEndpoint = new IntraProcessTransport
             {
                 LocalEndpoint = kumasiAddr,
-                EndpointDataProcessor = new TestTransportProcessor(logs, testEventLoop),
+                Callbacks = new TestTransportProcessor(logs, testEventLoop),
                 EventLoop = testEventLoop
 
             };
@@ -111,7 +111,7 @@ namespace ScalableIPC.Core.UnitTests.Transports
             var transportA = new IntraProcessTransport
             {
                 LocalEndpoint = addrA,
-                EndpointDataProcessor = new TestTransportProcessor(actual, eventLoop),
+                Callbacks = new TestTransportProcessor(actual, eventLoop),
                 EventLoop = eventLoop
 
             };
@@ -119,7 +119,7 @@ namespace ScalableIPC.Core.UnitTests.Transports
             var transportB = new IntraProcessTransport
             {
                 LocalEndpoint = addrB,
-                EndpointDataProcessor = new TestTransportProcessor(actual, eventLoop),
+                Callbacks = new TestTransportProcessor(actual, eventLoop),
                 EventLoop = eventLoop
 
             };
@@ -241,7 +241,7 @@ namespace ScalableIPC.Core.UnitTests.Transports
             var transportA = new IntraProcessTransport
             {
                 LocalEndpoint = addrA,
-                EndpointDataProcessor = new TestTransportProcessor(logs, eventLoop),
+                Callbacks = new TestTransportProcessor(logs, eventLoop),
                 EventLoop = eventLoop
 
             };
@@ -249,7 +249,7 @@ namespace ScalableIPC.Core.UnitTests.Transports
             var transportB = new IntraProcessTransport
             {
                 LocalEndpoint = addrB,
-                EndpointDataProcessor = new TestTransportProcessor(logs, eventLoop),
+                Callbacks = new TestTransportProcessor(logs, eventLoop),
                 EventLoop = eventLoop
             };
             transportA.Connections.Add(addrB, new IntraProcessTransport.Connection

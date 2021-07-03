@@ -28,7 +28,7 @@ namespace ScalableIPC.Core.Transports
         }
 
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
-        public TransportProcessorApi EndpointDataProcessor { get; set; }
+        public TransportApiCallbacks Callbacks { get; set; }
         public Dictionary<GenericNetworkIdentifier, Connection> Connections { get; }
         internal EventLoopApi EventLoop { get; set; }
 
@@ -61,7 +61,7 @@ namespace ScalableIPC.Core.Transports
         {
             try
             {
-                EventLoop.ScheduleTimeout(delay, () => EndpointDataProcessor.BeginReceive(
+                EventLoop.ScheduleTimeout(delay, () => Callbacks.BeginReceive(
                     remoteEndpoint, data, offset, length));
             }
             catch (Exception)

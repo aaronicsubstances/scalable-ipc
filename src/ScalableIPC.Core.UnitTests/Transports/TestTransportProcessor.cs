@@ -5,7 +5,7 @@ using System.Text;
 
 namespace ScalableIPC.Core.UnitTests.Transports
 {
-    public class TestTransportProcessor : TransportProcessorApi
+    public class TestTransportProcessor : TransportApiCallbacks
     {
         private readonly List<string> logs;
         private readonly EventLoopApi eventLoop;
