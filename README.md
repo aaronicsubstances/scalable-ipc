@@ -21,7 +21,7 @@ The initial motivation for this protocol came from deliberations on IPC efficien
        - A workaround for C#.NET Core (applicable to Java as well) is available [here](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler?view=netcore-3.1).
        - A workaround for PHP is available [here](https://reactphp.org).
 
-## Implementation Requirements
+## Protocol Design
 
   * Use UDP as the standard transport for same host communications.
   * Use TCP/TLS as the standard transport for communications on the Internet.
@@ -29,26 +29,25 @@ The initial motivation for this protocol came from deliberations on IPC efficien
   * Also assume underlying transport handles congestion on its own.
   * Simple error control by continuously retrying within a fixed time period with random backoff strategy. Underlying transport is at liberty to use more complicated backoff strategies behind the scenes.
   * Simple flow control with stop-and-wait. Underlying transport is at liberty to transparently use more complicated flow control mechanisms behind the scenes together with fragmenting PDUs.
-  * Employ in-memory database to save already processed message ids. Necessary for preventing repeated data processing during lifetime of process.
   * Non-negotiable configuration parameters
-       - Maximum transfer unit (MTU). Should be at least 512.
        - Maximum receivable message size. Should be at least 64 kilobytes (65536 bytes).
+       - Endpoint owner id. Necessary for preventing repeated data processing during process restarts. Should be set differently at every start of the process which creates network endpoint.
+       - Receive timeout of data PDUs. Necessary for cleaning up abandoned data transfers.
+       - Time to wait before cleaning up received message ids.
+       - Maximum transfer unit (MTU). Should be at least 512.
+       - Whether or not to set timestamps in PDUs.
        - Minimum and maximum random backoff period between retries.
        - Receive timeout of acknowledgment PDUs. This becomes the time available for retries.
-       - Receive timeout of data PDUs. Necessary for cleaning up abandoned data transfers.
-       - Endpoint owner id. Necessary for preventing repeated data processing during process restarts. Should be set differently at every start of the process which creates network endpoint.
-       - Time to wait before cleaning up processed data transfers.
-       - Whether or not to set timestamps in PDUs.
 
 ## PDU Structure
 
 In the case of UDP, the datagram length indicates the length of the PDU.
 In the case of TCP/TLS, the PDU must be wrapped in a TLV format.
 
-data transfer length, pdu length, and sequence numbers are signed 32-bit integers.
+message length, sequence number are signed 32-bit integers.
 timestamp is 64-bit signed integer.
 
-protocol version, opcode, error_code, message id and owner id cannot be all zeros.
+with the exception of the data payload, no field can be all zeros.
 
 all strings are utf8-encoded.
 
@@ -61,7 +60,7 @@ opcodes
 Beginning members
    - opcode - 1 byte
    - protocol version - 1 byte
-   - send time - 8 bytes (unix epoch in seconds)
+   - send time - 8 bytes (unix epoch in milliseconds)
    - reserved - 4 bytes
 
 HEADER members
@@ -86,74 +85,38 @@ DATA_ACK members
    - sequence number - 4 bytes
    - error code - 2 bytes
 
-## Receive Operation
+## Requirements of Receive Message Implementation
 
-Upon receipt of a PDU,
+  * receiver of message expects to get a header pdu, followed by 1 or more data pdus until message length indicated in header pdu is fully accumulated.
+  * for receiver to process a header pdu, the following conditions must be met:
+     * message id is not already being received.
+     * message length is acceptable
+     * there is enough space in receiver for message.
+  * once these conditions are met, receiver proceeds to accept header pdu, and then waits to receive 1 or more data pdus.
+  * for each header or data pdu received, receiver must respond with a header_ack or data_ack pdu. receiver should neither wait for or care about success of ack sending.
+  * for each data pdu being waited for, receiver must set a timeout on it, in order to discard abandoned message transfers by sender.
+  * the following conditions apply to processing of data and header pdus:
+     * message id has not already been processed.
+     * message destination id matches endpoint id at receiver.
+     * timestamp if positive, must differ from current timestamp  by less than *time to wait before discarding processed message ids*.
+  * if conditions are not met during processing of a header or data pdu, receiver must respond with a header_ack or data_ack pdu with appropriate error_code set.
+  * if header pdu is received again, while no data pdu has yet to be received, then receiver must respond by sending back the last header_ack sent.
+  * after receiving header pdu, receiver must only accept data pdu with the expected sequence number, which starts from 1 and is incremented each time a data pdu is successfully received. Where a data pdu with the previous sequence number is received, receiver must respond by sending back the last data_ack sent.
+  * once a message is successfully received in full, receiver must consider it processed and hold on to its id for some time (i.e. time to wait), before discarding it. By so doing repeated message processing will be avoided as long as duplicate pdus arrive at receiver before time to wait expires.
+  * if a message is processed and awaiting discarding, and a data pdu is received whose sequence number matches the last sequence number received in the processed message, then receiver must respond by sending back the last data_ack sent.
+  * if a timeout occurs while waiting for a data pdu, then receiver must consider the message processed and failed.
+  * if a data pdu is received such that its addition will cause the message length to be exceeded, then receiver must pick the prefix of the data pdu required to satisfy the message length.
 
-  * Validate opcode.
-  * Validate protocol version.
-  * Validate timestamp, unless timestamp is not a positive value. Only accept timestamps which differ from seconds of current unix epoch by less than time to wait.
-  * Look in processed transfers for given message id and remote endpoint. If found, reply header/data pdus and ignore acks.
-  * Remainder of processing depends on opcode.
+## Requirements of Send Message Implementation
 
-For header pdu,
-  * Look in incoming transfers for given message id and source endpoint. if incoming transfer is already present, then discard. unless expected seq number is 0, in which case reply with header_ack.
-  * Validate total data transfer length. Must be positive. reply with message_too_large error pdu if needed.
-  * Check if there is space to accept incoming transfer. reply with out_of_space error pdu if needed.
-  * Validate message destination id against owner id. if invalid, reply with invalid_dest_id error pdu.
-  * else no error so
-  * respond with header_ack. ignore send error.
-  * create incoming transfer for message id, and make expected seq number of subsequent data pdu 0.
-  * set receive data timeout.
-
-For data pdu,
-  * Look in incoming transfers for given message id and source endpoint.
-  * validate seq number. For invalid case where seq number is the previous one, end by replying with
-    data_ack with previous seq number.
-  * respond with overflow error pdu if addition of data pdu will cause already accumulated data to overflow.
-  * else no error so
-  * cancel receive data timeout.
-  * respond with data_ack. ignore send error.
-  * Add to already accumulated data for incoming transfer.
-  * If total expected is received, remove from incoming transfers, add message id to processed transfers, and schedule for removal after time to wait. Notify application receipt handler with message id and total bytes.
-  * Else not done, so increase expected seq number, and set receive data timeout.
-  
-For header_ack and data_ack pdus,
-  * Look in outgoing transfers for given message id and destination endpoint.
-  * Validate seq number.
-  * else no error so
-  * cancel receive ack timeout.
-  * notify outgoing transfer handler.
-
-Upon receive data timeout,
-  * Mark incoming transfer as failed, unless it has succeeded already.
-  * don't respond with an ack.
-  * remove from incoming transfers, and add message id to processed transfers. Schedule for removal after time to wait.
-
-## Send Operation
-
-  * receive message to send, destination endpoint, and a callback which will be notified of the outcome.
-  * assign a random uuid as message id to outgoing transfer and return id to application.
-  * create outgoing transfer handler.
-
-In outgoing transfer handler,
-  * split message into pdus using MTU size.
-  * set message destination id from message source id of last received ack. If the very first time, use any id.
-  * to handle retries, have a dedicated retry handler per pdu, and set receive ack timeout before starting each.
-  * if ack is received, cancel retry handler.
-  * if ack timeout fires or an error_code is received, then it almost certainly means outgoing transfer has failed. Cancel retry handler, and notify send operation callback. remove from outgoing transfers.
-  * Except for transient error cases like invalid_dest_id, and even that for header ack case. in that case set message destination id to use subsequently.
-  * only if ack doesn't indicate error, should ack timeout be cancelled.
-  * create next retry handler for next pdu.
-  * if all pdus are done sending, remove from outgoing transfers, add message id to processed transfers, and schedule for removal after time to wait. Notify send operation callback.
-
-In retry handler, given a pdu, repeat the following until cancellation.
-  * set timestamp if configuration permits, and send pdu asynchronously.
-  * wait for success or error. ignore send errors.
-  * generate backoff time randomly
-  * pause
-
-Upon receive ack timeout,
-  * remove from outgoing transfers unless it has succeeded already
-  * Cancel retry handler
-  * notify send operation callback with send timeout error.
+  * sender of message expects to receive acks for each pdu it sends, within a certain timeout per ack, in order for its data transfer to succeed.
+  * the first pdu the sender must send should be a header pdu, with the length of the entire message set in it.
+  * all subsequent ones must be data pdus with sequence numbers set to start from 1.
+  * Any message destination id can be set for the first pdu, including previously received message destination ids for that endpoint.
+  * size of each pdu must not exceed MTU of underlying transport, in order that pdu is not fragmented or rejected.
+  * if clock at sender doesn't differ significantly from that of receiver, then sender should set timestamps in pdus, to increase probability of detecting stale pdus.
+  * while sender is waiting for an ack, sender must continuously resend the current pdu awaiting the ack, with a random delay in between resends. Delay and resend must occur after the send pdu outcome is received, regardless of success of send pdu.
+  * sender must discard acks which cannot be processed. e.g. because opcode or sequence number is unexpected.
+  * once an ack with the expected opcode or sequence number is received, the sender must consider as irrelevant the outcome of the sending and resending of the current pdu being awaited, and proceed to send the next pdu or end the data transfer successfully.
+  * if an ack indicates that the message destination id set is invalid, and the current pdu awaiting ack is a header pdu, and the message destination id being used is different, then sender must subsequenatly send pdus with the message source id of the ack as the message destination id to use.
+  * in all other cases of receiving an error code, or receiving an ack timeout, sender must abort the data transfer.
