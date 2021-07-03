@@ -14,7 +14,7 @@ namespace ScalableIPC.Core
 
         public const byte ProtocolVersion1_0 = 0x10;
 
-        public const int MinDatagramSize = 46;
+        public const int MinDatagramSize = 38;
 
         public byte OpCode { get; set; }
         public byte Version { get; set; }
@@ -69,9 +69,6 @@ namespace ScalableIPC.Core
             parsedDatagram.Version = rawBytes[offset];
             offset += 1;
 
-            parsedDatagram.SentAt = ByteUtils.DeserializeInt64BigEndian(rawBytes, offset);
-            offset += 8;
-
             parsedDatagram.Reserved = ByteUtils.DeserializeInt32BigEndian(rawBytes, offset);
             offset += 4;
 
@@ -117,11 +114,14 @@ namespace ScalableIPC.Core
             {
                 parsedDatagram.MessageDestinationId = ByteUtils.ConvertBytesToHex(rawBytes, offset, 16);
                 offset += 16;
-                if (endOffset - offset < 4)
+                if (endOffset - offset < 8+4)
                 {
                     throw new Exception("4121da80-a008-4a7a-a843-aa93656f6a30: " +
                         "datagram too small for header op code");
                 }
+
+                parsedDatagram.SentAt = ByteUtils.DeserializeInt64BigEndian(rawBytes, offset);
+                offset += 8;
                 parsedDatagram.MessageLength = ByteUtils.DeserializeInt32BigEndian(rawBytes, offset);
                 offset += 4;
             }
@@ -153,11 +153,13 @@ namespace ScalableIPC.Core
             {
                 parsedDatagram.MessageDestinationId = ByteUtils.ConvertBytesToHex(rawBytes, offset, 16);
                 offset += 16;
-                if (endOffset - offset < 4)
+                if (endOffset - offset < 8+4)
                 {
                     throw new Exception("340093ec-041f-44fe-a5e1-e53bcb1b500b: " +
                         "datagram too small for data op code");
                 }
+                parsedDatagram.SentAt = ByteUtils.DeserializeInt64BigEndian(rawBytes, offset);
+                offset += 8;
                 parsedDatagram.SequenceNumber = ByteUtils.DeserializeInt32BigEndian(rawBytes, offset);
                 offset += 4;
             }
@@ -171,7 +173,7 @@ namespace ScalableIPC.Core
             {
                 parsedDatagram.MessageSourceId = ByteUtils.ConvertBytesToHex(rawBytes, offset, 16);
                 offset += 16;
-                if (endOffset - offset < 6)
+                if (endOffset - offset < 4+2)
                 {
                     throw new Exception("2643d9ea-c82f-4f21-90ea-576b591fd294: " +
                         "datagram too small for data ack op code");
@@ -245,8 +247,6 @@ namespace ScalableIPC.Core
             offset += 1;
             rawBytes[offset] = Version;
             offset += 1;
-            ByteUtils.SerializeInt64BigEndian(SentAt, rawBytes, offset);
-            offset += 8;
             ByteUtils.SerializeInt32BigEndian(Reserved, rawBytes, offset);
             offset += 4;
             ByteUtils.ConvertHexToBytes(MessageId, rawBytes, offset);
@@ -267,10 +267,12 @@ namespace ScalableIPC.Core
                     "message destination id must consist of 32 hexadecimal characters");
             }
 
-            byte[] rawBytes = new byte[MinDatagramSize + 4];
+            byte[] rawBytes = new byte[MinDatagramSize + 8 + 4];
             int offset = SerializeBeginningMembers(rawBytes);
             ByteUtils.ConvertHexToBytes(MessageDestinationId, rawBytes, offset);
             offset += 16;
+            ByteUtils.SerializeInt64BigEndian(SentAt, rawBytes, offset);
+            offset += 8;
             ByteUtils.SerializeInt32BigEndian(MessageLength, rawBytes, offset);
             offset += 4;
             if (offset != rawBytes.Length)
@@ -319,10 +321,12 @@ namespace ScalableIPC.Core
                     "message destination id must consist of 32 hexadecimal characters");
             }
 
-            byte[] rawBytes = new byte[MinDatagramSize + 4 + DataLength];
+            byte[] rawBytes = new byte[MinDatagramSize + 8 + 4 + DataLength];
             int offset = SerializeBeginningMembers(rawBytes);
             ByteUtils.ConvertHexToBytes(MessageDestinationId, rawBytes, offset);
             offset += 16;
+            ByteUtils.SerializeInt64BigEndian(SentAt, rawBytes, offset);
+            offset += 8;
             ByteUtils.SerializeInt32BigEndian(SequenceNumber, rawBytes, offset);
             offset += 4;
             Array.Copy(Data, DataOffset, rawBytes, offset, DataLength);
@@ -347,7 +351,7 @@ namespace ScalableIPC.Core
                     "message source id must consist of 32 hexadecimal characters");
             }
 
-            byte[] rawBytes = new byte[MinDatagramSize + 6];
+            byte[] rawBytes = new byte[MinDatagramSize + 4 + 2];
             int offset = SerializeBeginningMembers(rawBytes);
             ByteUtils.ConvertHexToBytes(MessageSourceId, rawBytes, offset);
             offset += 16;

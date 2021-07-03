@@ -60,27 +60,25 @@ opcodes
 Beginning members
    - opcode - 1 byte
    - protocol version - 1 byte
-   - send time - 8 bytes (unix epoch in milliseconds)
    - reserved - 4 bytes
+   - message id - 16 bytes (uuid)
 
 HEADER members
-   - message id - 16 bytes (uuid)
    - message destination id - 16 bytes (uuid)
+   - send time - 8 bytes (unix epoch in milliseconds)
    - message length - 4 bytes
 
 HEADER_ACK members
-   - message id - 16 bytes
    - message source id - 16 bytes (uuid)
    - error code - 2 bytes
 
 DATA members
-   - message id - 16 bytes
    - message destination id - 16 bytes (uuid)
+   - send time - 8 bytes (unix epoch in milliseconds)
    - sequence number - 4 bytes
    - (payload, cannot be empty)
 
 DATA_ACK members
-   - message id - 16 bytes
    - message source id - 16 bytes (uuid)
    - sequence number - 4 bytes
    - error code - 2 bytes
