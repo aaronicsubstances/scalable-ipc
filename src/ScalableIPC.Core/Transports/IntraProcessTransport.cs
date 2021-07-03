@@ -1,4 +1,5 @@
 ﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Concurrency;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -23,56 +24,50 @@ namespace ScalableIPC.Core.Transports
         public IntraProcessTransport()
         {
             Connections = new Dictionary<GenericNetworkIdentifier, Connection>();
+            EventLoop = new UnsynchronizedEventLoopApi();
         }
 
         public GenericNetworkIdentifier LocalEndpoint { get; set; }
         public TransportProcessorApi EndpointDataProcessor { get; set; }
         public Dictionary<GenericNetworkIdentifier, Connection> Connections { get; }
-        public EventLoopApi EventLoop { get; set; }
+        internal EventLoopApi EventLoop { get; set; }
 
         public void BeginSend(GenericNetworkIdentifier remoteEndpoint,
             byte[] data, int offset, int length, Action<ProtocolOperationException> cb)
         {
-            try
+            // ensure connected transport for target endpoint.
+            var remoteConnection = Connections[remoteEndpoint];
+            var sendConfig = remoteConnection.SendBehaviour();
+
+            // simulate sending out datagram
+            if (cb != null)
             {
-                // ensure connected transport for target endpoint.
-                var remoteConnection = Connections[remoteEndpoint];
-                var sendConfig = remoteConnection.SendBehaviour();
-
-                // simulate sending out datagram
-                if (cb != null)
-                {
-                    var sendDelay = sendConfig?.SendDelay ?? 0;
-                    var sendError = sendConfig?.SendError;
-                    EventLoop.ScheduleTimeout(sendDelay, () => cb.Invoke(sendError));
-                }
-
-                // simulate transmission behaviour of delays and duplication of
-                // datagrams by physical networks
-                var transmissionDelays = sendConfig?.DuplicateTransmissionDelays ?? new int[] { 0 };
-                foreach (int transmissionDelay in transmissionDelays)
-                {
-                    remoteConnection.ConnectedTransport.SimulateReceive(transmissionDelay, LocalEndpoint,
-                        data, offset, length);
-                }
+                var sendDelay = sendConfig?.SendDelay ?? 0;
+                var sendError = sendConfig?.SendError;
+                EventLoop.ScheduleTimeout(sendDelay, () => cb.Invoke(sendError));
             }
-            catch (Exception ex)
+
+            // simulate transmission behaviour of delays and duplication of
+            // datagrams by physical networks
+            var transmissionDelays = sendConfig?.DuplicateTransmissionDelays ?? new int[] { 0 };
+            foreach (int transmissionDelay in transmissionDelays)
             {
-                if (cb == null)
-                {
-                    throw ex;
-                }
-                else
-                {
-                    cb.Invoke(new ProtocolOperationException(ex));
-                }
+                remoteConnection.ConnectedTransport.SimulateReceive(transmissionDelay, LocalEndpoint,
+                    data, offset, length);
             }
         }
 
         public void SimulateReceive(int delay, GenericNetworkIdentifier remoteEndpoint, byte[] data, int offset, int length)
         {
-            EventLoop.ScheduleTimeout(delay, () => EndpointDataProcessor.BeginReceive(
-                remoteEndpoint, data, offset, length, null));
+            try
+            {
+                EventLoop.ScheduleTimeout(delay, () => EndpointDataProcessor.BeginReceive(
+                    remoteEndpoint, data, offset, length));
+            }
+            catch (Exception)
+            {
+                // ignore
+            }
         }
     }
 }
