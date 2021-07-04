@@ -18,7 +18,6 @@ namespace ScalableIPC.Core
 
         public byte OpCode { get; set; }
         public byte Version { get; set; }
-        public long SentAt { get; set; }
         public int Reserved { get; set; }
         public string MessageId { get; set; }
         public string MessageSourceId { get; set; }
@@ -114,14 +113,11 @@ namespace ScalableIPC.Core
             {
                 parsedDatagram.MessageDestinationId = ByteUtils.ConvertBytesToHex(rawBytes, offset, 16);
                 offset += 16;
-                if (endOffset - offset < 8+4)
+                if (endOffset - offset < 4)
                 {
                     throw new Exception("4121da80-a008-4a7a-a843-aa93656f6a30: " +
                         "datagram too small for header op code");
                 }
-
-                parsedDatagram.SentAt = ByteUtils.DeserializeInt64BigEndian(rawBytes, offset);
-                offset += 8;
                 parsedDatagram.MessageLength = ByteUtils.DeserializeInt32BigEndian(rawBytes, offset);
                 offset += 4;
             }
@@ -153,13 +149,11 @@ namespace ScalableIPC.Core
             {
                 parsedDatagram.MessageDestinationId = ByteUtils.ConvertBytesToHex(rawBytes, offset, 16);
                 offset += 16;
-                if (endOffset - offset < 8+4)
+                if (endOffset - offset < 4)
                 {
                     throw new Exception("340093ec-041f-44fe-a5e1-e53bcb1b500b: " +
                         "datagram too small for data op code");
                 }
-                parsedDatagram.SentAt = ByteUtils.DeserializeInt64BigEndian(rawBytes, offset);
-                offset += 8;
                 parsedDatagram.SequenceNumber = ByteUtils.DeserializeInt32BigEndian(rawBytes, offset);
                 offset += 4;
             }
@@ -267,12 +261,10 @@ namespace ScalableIPC.Core
                     "message destination id must consist of 32 hexadecimal characters");
             }
 
-            byte[] rawBytes = new byte[MinDatagramSize + 8 + 4];
+            byte[] rawBytes = new byte[MinDatagramSize + 4];
             int offset = SerializeBeginningMembers(rawBytes);
             ByteUtils.ConvertHexToBytes(MessageDestinationId, rawBytes, offset);
             offset += 16;
-            ByteUtils.SerializeInt64BigEndian(SentAt, rawBytes, offset);
-            offset += 8;
             ByteUtils.SerializeInt32BigEndian(MessageLength, rawBytes, offset);
             offset += 4;
             if (offset != rawBytes.Length)
@@ -321,12 +313,10 @@ namespace ScalableIPC.Core
                     "message destination id must consist of 32 hexadecimal characters");
             }
 
-            byte[] rawBytes = new byte[MinDatagramSize + 8 + 4 + DataLength];
+            byte[] rawBytes = new byte[MinDatagramSize + 4 + DataLength];
             int offset = SerializeBeginningMembers(rawBytes);
             ByteUtils.ConvertHexToBytes(MessageDestinationId, rawBytes, offset);
             offset += 16;
-            ByteUtils.SerializeInt64BigEndian(SentAt, rawBytes, offset);
-            offset += 8;
             ByteUtils.SerializeInt32BigEndian(SequenceNumber, rawBytes, offset);
             offset += 4;
             Array.Copy(Data, DataOffset, rawBytes, offset, DataLength);
@@ -371,7 +361,6 @@ namespace ScalableIPC.Core
             return obj is ProtocolDatagram datagram &&
                    OpCode == datagram.OpCode &&
                    Version == datagram.Version &&
-                   SentAt == datagram.SentAt &&
                    Reserved == datagram.Reserved &&
                    MessageId == datagram.MessageId &&
                    MessageSourceId == datagram.MessageSourceId &&
@@ -389,7 +378,6 @@ namespace ScalableIPC.Core
             int hashCode = -2063747072;
             hashCode = hashCode * -1521134295 + OpCode.GetHashCode();
             hashCode = hashCode * -1521134295 + Version.GetHashCode();
-            hashCode = hashCode * -1521134295 + SentAt.GetHashCode();
             hashCode = hashCode * -1521134295 + Reserved.GetHashCode();
             hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(MessageId);
             hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(MessageSourceId);

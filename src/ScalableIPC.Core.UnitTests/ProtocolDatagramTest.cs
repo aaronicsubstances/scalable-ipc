@@ -25,7 +25,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1625087321,
                 Reserved = 0x03,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -46,8 +45,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x55, 0x55, 0x55, 0x55,
                 0x55, 0x55, 0x55, 0x55,
                 0x55, 0x55, 0x55, 0x55,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x60, 0xDC, 0xDD, 0x59,
                 0x00, 0x00, 0x00, 0x14, // sequence number
                 0x68, 0x65, 0x6c, 0x6c, // data
                 0x6f,
@@ -60,7 +57,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 0,
                 Reserved = 0,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -81,8 +77,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x75, 0xaf, 0x40, 0x42,
                 0x86, 0x19, 0x6d, 0x2f,
                 0xc8, 0x3e, 0x62, 0xdb,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, // sequence number
                 0x6f, // data
             };
@@ -123,7 +117,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeHeader,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1_625_119_002,
                 Reserved = 0,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -141,8 +134,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x6e, 0x57, 0x40, 0x79,
                 0xb5, 0x50, 0x95, 0x55,
                 0x92, 0x3d, 0xf7, 0x2e,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x60, 0xdd, 0x59, 0x1a,
                 0x00, 0x00, 0x4f, 0x8f, // message length
             };
             testData.Add(new object[] { instance, expected });
@@ -202,8 +193,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x96, 0xf5, 0x45, 0x50,
                 0xba, 0x59, 0x52, 0x9c,
                 0x2b, 0x5d, 0x0d, 0x0e,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x60, 0xDC, 0xDD, 0x59,
                 0x00, 0x00, 0x00, 0x14, // sequence number
                 0x68, 0x65, 0x6c, 0x6c, // data
                 0x6f,
@@ -214,7 +203,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1625087321,
                 Reserved = 0x03,
                 MessageId = "e6a6a7e3ae7c4842bda699b9ef2caad7",
                 MessageDestinationId = "1313b5a696f54550ba59529c2b5d0d0e",
@@ -238,8 +226,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x75, 0xaf, 0x40, 0x42,
                 0x86, 0x19, 0x6d, 0x2f,
                 0xc8, 0x3e, 0x62, 0xdb,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, // sequence number
                 0x6f, // data
                 0x70, // extraneous exclusion
@@ -250,7 +236,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 0,
                 Reserved = 0,
                 MessageId = "b3d16e39aa534fee9f335ba9b5845c8e",
                 MessageDestinationId = "567cb07c75af404286196d2fc83e62db",
@@ -335,8 +320,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x6e, 0x57, 0x40, 0x79,
                 0xb5, 0x50, 0x95, 0x55,
                 0x92, 0x3d, 0xf7, 0x2e,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x60, 0xdd, 0x59, 0x1a,
                 0x00, 0x00, 0x4f, 0x8f, // message length
             };
             offset = 0;
@@ -345,7 +328,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeHeader,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1_625_119_002,
                 Reserved = 0,
                 MessageId = "be1778d1cc2a4f54ada8ec05392fcb86",
                 MessageDestinationId = "9bd0cc9e6e574079b5509555923df72e",
@@ -366,8 +348,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x6e, 0x57, 0x40, 0x79,
                 0xb5, 0x50, 0x95, 0x55,
                 0x92, 0x3d, 0xf7, 0x2e,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x60, 0xdd, 0x59, 0x1a,
                 0x00, 0x00, 0x4f, 0x8f, // message length
                 0x90, 0x41, // extraneous inclusion
             };
@@ -377,7 +357,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeHeader,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1_625_119_002,
                 Reserved = 0,
                 MessageId = "be1778d1cc2a4f54ada8ec05392fcb86",
                 MessageDestinationId = "9bd0cc9e6e574079b5509555923df72e",
@@ -467,7 +446,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1625087321,
                 Reserved = 0x03,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -486,7 +464,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1625087321,
                 Reserved = 0x03,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -505,7 +482,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1625087321,
                 Reserved = 0x03,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -524,7 +500,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1625087321,
                 Reserved = 0x03,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -543,7 +518,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1625087321,
                 Reserved = 0x03,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -562,7 +536,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1625087321,
                 Reserved = 0x03,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -581,7 +554,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1625087321,
                 Reserved = 0x03,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -600,7 +572,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeData,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1625087321,
                 Reserved = 0x03,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -651,7 +622,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeHeader,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1_625_119_002,
                 Reserved = 0,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -667,7 +637,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = ProtocolDatagram.OpCodeHeader,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
-                SentAt = 1_625_119_002,
                 Reserved = 0,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
@@ -713,7 +682,6 @@ namespace ScalableIPC.Core.UnitTests
             {
                 OpCode = 0,
                 Version = 0,
-                SentAt = 0,
                 Reserved = 0,
                 MessageId = msgId,
                 MessageSourceId = endpointId,
@@ -776,8 +744,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x55, 0x55, 0x55, 0x55,
                 0x55, 0x55, 0x55, 0x55,
                 0x55, 0x55, 0x55, 0x55,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x60, 0xDC, 0xDD, 0x59,
                 0x00, 0x00, 0x00, 0x14, // sequence number
                 0x68, 0x65, 0x6c, 0x6c, // data
                 0x6f,
@@ -800,8 +766,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x55, 0x55, 0x55, 0x55,
                 0x55, 0x55, 0x55, 0x55,
                 0x55, 0x55, 0x55, 0x55,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x60, 0xDC, 0xDD, 0x59,
                 0x00, 0x00, 0x00, 0x14, // sequence number
                 0x68, 0x65, 0x6c, 0x6c, // data
                 0x6f,
@@ -825,8 +789,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x75, 0xaf, 0x40, 0x42,
                 0x86, 0x19, 0x6d, 0x2f,
                 0xc8, 0x3e, 0x62, 0xdb,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, // sequence number
                 0x6f, // data
                 0x70, // extraneous exclusion
@@ -850,8 +812,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x75, 0xaf, 0x40, 0x42,
                 0x86, 0x19, 0x6d, 0x2f,
                 0xc8, 0x3e, 0x62, 0xdb,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x00, 0x00, 0x00, 0x00,
             };
             offset = 2;
             length = rawBytes.Length - 2;
@@ -890,8 +850,6 @@ namespace ScalableIPC.Core.UnitTests
                 0x6e, 0x57, 0x40, 0x79,
                 0xb5, 0x50, 0x95, 0x55,
                 0x92, 0x3d, 0xf7, 0x2e,
-                0x00, 0x00, 0x00, 0x00, // send timestamp
-                0x60, 0xdd, 0x59, 0x1a,
             };
             offset = 0;
             length = rawBytes.Length;

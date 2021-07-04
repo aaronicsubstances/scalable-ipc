@@ -29,7 +29,7 @@ namespace ScalableIPC.Core
         public int AckReceiveTimeout { get; set; }
         public int DataReceiveTimeout { get; set; }
         public int ProcessedMessageDisposalWaitTime { get; set; }
-        public bool UsePduTimestamp { get; set; }
+        public bool VaryMessageSourceIds { get; set; }
         public ScalableIpcProtocolListener EventListener { get; set; }
         public TransportApi UnderlyingTransport { get; set; }
         public EventLoopApi EventLoop { get; set; }

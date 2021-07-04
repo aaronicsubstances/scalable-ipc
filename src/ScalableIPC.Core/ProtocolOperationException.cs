@@ -11,9 +11,8 @@ namespace ScalableIPC.Core
         public const int ErrorCodeProcessingError = 1;
         public const int ErrorCodeInvalidDestinationEndpointId = 2;
         public const int ErrorCodeMessageTooLarge = 3;
-        public const int ErrorCodeOutOfBufferSpace = 4;
-        public const int ErrorCodeReceiveBufferOverflow = 5;
-        public const int ErrorCodeReceiveTimeout = 6;
+        public const int ErrorCodeReceiveTimeout = 4;
+        public const int ErrorCodeOutOfBufferSpace = 5;
 
         // The following error codes are not meant to be used for network
         // communications. As such they are negative.
@@ -34,8 +33,6 @@ namespace ScalableIPC.Core
         {
             if (code == 0)
                 return "NONE";
-            else if (code == ErrorCodeReceiveBufferOverflow)
-                return "RECEIVE_BUFFER_OVERFLOW";
             else if (code == ErrorCodeMessageTooLarge)
                 return "MESSAGE_TOO_LARGE";
             else if (code == ErrorCodeOutOfBufferSpace)

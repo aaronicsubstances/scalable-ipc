@@ -21,7 +21,11 @@ The initial motivation for this protocol came from deliberations on IPC efficien
        - A workaround for C#.NET Core (applicable to Java as well) is available [here](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler?view=netcore-3.1).
        - A workaround for PHP is available [here](https://reactphp.org).
 
-## Protocol Design
+## Protocol Specification
+
+*NB*: The keywords “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”, “RECOMMENDED”, “MAY”, and “OPTIONAL” in this section are to be interpreted as described in [RFC 2119](http://tools.ietf.org/html/rfc2119).
+
+### Design Decisions
 
   * Use UDP as the standard transport for same host communications.
   * Use TCP/TLS as the standard transport for communications on the Internet.
@@ -29,25 +33,25 @@ The initial motivation for this protocol came from deliberations on IPC efficien
   * Also assume underlying transport handles congestion on its own.
   * Simple error control by continuously retrying within a fixed time period with random backoff strategy. Underlying transport is at liberty to use more complicated backoff strategies behind the scenes.
   * Simple flow control with stop-and-wait. Underlying transport is at liberty to transparently use more complicated flow control mechanisms behind the scenes together with fragmenting PDUs.
-  * Non-negotiable configuration parameters
-       - Maximum receivable message size. Should be at least 64 kilobytes (65536 bytes).
-       - Endpoint owner id. Necessary for preventing repeated data processing during process restarts. Should be set differently at every start of the process which creates network endpoint.
+  * Use non-negotiable configuration parameters:
+       - Maximum receivable message size. Must be at least 64 kilobytes (65536 bytes).
+       - Endpoint owner id. Necessary for preventing repeated data processing during process restarts. Must be set differently at every start of the process which creates network endpoint.
+       - Whether to use endpoint owner id as the constant message source id, or generate a new one per received message. Needed to handle any extent of delays and/or duplication of pdus.
        - Receive timeout of data PDUs. Necessary for cleaning up abandoned data transfers.
        - Time to wait before cleaning up received message ids.
-       - Maximum transfer unit (MTU). Should be at least 512.
-       - Whether or not to set timestamps in PDUs.
+       - Maximum transfer unit (MTU). Must be at least 512.
        - Minimum and maximum random backoff period between retries.
        - Receive timeout of acknowledgment PDUs. This becomes the time available for retries.
 
-## PDU Structure
+
+### PDU Structure
 
 In the case of UDP, the datagram length indicates the length of the PDU.
 In the case of TCP/TLS, the PDU must be wrapped in a TLV format.
 
-message length, sequence number are signed 32-bit integers.
-timestamp is 64-bit signed integer.
+message length, sequence number are signed 32-bit big endian integers. error code is signed 16-bit big endian integer.
 
-with the exception of the data payload, no field can be all zeros.
+with the exception of reserved, data payload, error code, no other field can be all zeros.
 
 all strings are utf8-encoded.
 
@@ -65,7 +69,6 @@ Beginning members
 
 HEADER members
    - message destination id - 16 bytes (uuid)
-   - send time - 8 bytes (unix epoch in milliseconds)
    - message length - 4 bytes
 
 HEADER_ACK members
@@ -74,7 +77,6 @@ HEADER_ACK members
 
 DATA members
    - message destination id - 16 bytes (uuid)
-   - send time - 8 bytes (unix epoch in milliseconds)
    - sequence number - 4 bytes
    - (payload, cannot be empty)
 
@@ -83,20 +85,21 @@ DATA_ACK members
    - sequence number - 4 bytes
    - error code - 2 bytes
 
-## Requirements of Receive Message Implementation
+### Receive Message Operation
 
   * receiver of message expects to get a header pdu, followed by 1 or more data pdus until message length indicated in header pdu is fully accumulated.
   * for receiver to process a header pdu, the following conditions must be met:
      * message id is not already being received.
      * message length is acceptable
-     * there is enough space in receiver for message.
   * once these conditions are met, receiver proceeds to accept header pdu, and then waits to receive 1 or more data pdus.
   * for each header or data pdu received, receiver must respond with a header_ack or data_ack pdu. receiver should neither wait for or care about success of ack sending.
   * for each data pdu being waited for, receiver must set a timeout on it, in order to discard abandoned message transfers by sender.
   * the following conditions apply to processing of data and header pdus:
      * message id has not already been processed.
-     * message destination id matches endpoint id at receiver.
-     * timestamp if positive, must differ from current timestamp  by less than *time to wait before discarding processed message ids*.
+     * message destination id matches message source id at receiver.
+     * there is enough space in receiver for pdu.
+  * receiver must either use one message source id for all messages received in its lifetime, or dedicate a new one for each message.
+  * In the case every message gets its own source id, then receiving an invalid message destination id in a header pdu should lead to an association of generated message source id with that message id (unless that association exists already). This association should be cleaned up after receive data timeout.
   * if conditions are not met during processing of a header or data pdu, receiver must respond with a header_ack or data_ack pdu with appropriate error_code set.
   * if header pdu is received again, while no data pdu has yet to be received, then receiver must respond by sending back the last header_ack sent.
   * after receiving header pdu, receiver must only accept data pdu with the expected sequence number, which starts from 1 and is incremented each time a data pdu is successfully received. Where a data pdu with the previous sequence number is received, receiver must respond by sending back the last data_ack sent.
@@ -105,16 +108,17 @@ DATA_ACK members
   * if a timeout occurs while waiting for a data pdu, then receiver must consider the message processed and failed.
   * if a data pdu is received such that its addition will cause the message length to be exceeded, then receiver must pick the prefix of the data pdu required to satisfy the message length.
 
-## Requirements of Send Message Implementation
+### Send Message Operation
 
   * sender of message expects to receive acks for each pdu it sends, within a certain timeout per ack, in order for its data transfer to succeed.
+  * Sender must be prepared to use different message destination ids for each message being sent.
   * the first pdu the sender must send should be a header pdu, with the length of the entire message set in it.
   * all subsequent ones must be data pdus with sequence numbers set to start from 1.
   * Any message destination id can be set for the first pdu, including previously received message destination ids for that endpoint.
   * size of each pdu must not exceed MTU of underlying transport, in order that pdu is not fragmented or rejected.
-  * if clock at sender doesn't differ significantly from that of receiver, then sender should set timestamps in pdus, to increase probability of detecting stale pdus.
-  * while sender is waiting for an ack, sender must continuously resend the current pdu awaiting the ack, with a random delay in between resends. Delay and resend must occur after the send pdu outcome is received, regardless of success of send pdu.
+  * while sender is waiting for an ack, sender must continuously resend the current pdu awaiting the ack, with a random delay in between resends. Sender must wait for outcome of sending current pdu (but ignore awaited outcome whether it is success or error), before pausing to resend pdu again.
   * sender must discard acks which cannot be processed. e.g. because opcode or sequence number is unexpected.
-  * once an ack with the expected opcode or sequence number is received, the sender must consider as irrelevant the outcome of the sending and resending of the current pdu being awaited, and proceed to send the next pdu or end the data transfer successfully.
+  * once an ack with the expected opcode or sequence number is received, the sender must cancel (or consider as irrelevant the outcome of) the sending and resending of the current pdu being awaited, and proceed to send the next pdu or end the data transfer successfully.
   * if an ack indicates that the message destination id set is invalid, and the current pdu awaiting ack is a header pdu, and the message destination id being used is different, then sender must subsequenatly send pdus with the message source id of the ack as the message destination id to use.
+  * if an ack indicates that receiver is running out of buffer space ... sender may choose to ignore error and keep trying to send current pdu.
   * in all other cases of receiving an error code, or receiving an ack timeout, sender must abort the data transfer.
