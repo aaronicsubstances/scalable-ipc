@@ -120,7 +120,10 @@ namespace ScalableIPC.Core.UnitTests
                 Reserved = 0,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
-                MessageLength = 20367
+                MessageLength = 20367,
+                Data = new byte[] { 0x68, 0x65, 0x6c, 0x6c, 0x6f }, // hello
+                DataOffset = 0,
+                DataLength = 5
             };
             expected = new byte[]
             {
@@ -135,6 +138,39 @@ namespace ScalableIPC.Core.UnitTests
                 0xb5, 0x50, 0x95, 0x55,
                 0x92, 0x3d, 0xf7, 0x2e,
                 0x00, 0x00, 0x4f, 0x8f, // message length
+                0x68, 0x65, 0x6c, 0x6c, // data
+                0x6f,
+            };
+            testData.Add(new object[] { instance, expected });
+
+            msgId = "556a4c75e28643969db84fc6960d6d85";
+            endpointId = "fbf3220a70804dfc92ceb2275b036150";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeHeader,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                Reserved = 1_033_690_093,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                MessageLength = 1_081_692_903,
+                Data = new byte[] { 0x68, 0x65, 0x6c, 0x6c, 0x6f }, // hello
+                DataOffset = 1,
+                DataLength = 3
+            };
+            expected = new byte[]
+            {
+                0x03, 0x10,  // opcode and version
+                0x3d, 0x9c, 0xdb, 0xed, // reserved
+                0x55, 0x6a, 0x4c, 0x75, // message id
+                0xe2, 0x86, 0x43, 0x96,
+                0x9d, 0xb8, 0x4f, 0xc6,
+                0x96, 0x0d, 0x6d, 0x85,
+                0xfb, 0xf3, 0x22, 0x0a, // message dest id
+                0x70, 0x80, 0x4d, 0xfc,
+                0x92, 0xce, 0xb2, 0x27,
+                0x5b, 0x03, 0x61, 0x50,
+                0x40, 0x79, 0x52, 0xe7, // message length
+                0x65, 0x6c, 0x6c // data
             };
             testData.Add(new object[] { instance, expected });
 
@@ -331,7 +367,10 @@ namespace ScalableIPC.Core.UnitTests
                 Reserved = 0,
                 MessageId = "be1778d1cc2a4f54ada8ec05392fcb86",
                 MessageDestinationId = "9bd0cc9e6e574079b5509555923df72e",
-                MessageLength = 20367
+                MessageLength = 20367,
+                Data = rawBytes,
+                DataOffset = rawBytes.Length,
+                DataLength = 0
             };
             testData.Add(new object[] { rawBytes, offset, length, expected });
 
@@ -349,10 +388,11 @@ namespace ScalableIPC.Core.UnitTests
                 0xb5, 0x50, 0x95, 0x55,
                 0x92, 0x3d, 0xf7, 0x2e,
                 0x00, 0x00, 0x4f, 0x8f, // message length
-                0x90, 0x41, // extraneous inclusion
+                0x90, 0x5c, // data
+                0x90, 0x41, // extraneous exclusion
             };
             offset = 1;
-            length = rawBytes.Length - 1;
+            length = rawBytes.Length - 3;
             expected = new ProtocolDatagram
             {
                 OpCode = ProtocolDatagram.OpCodeHeader,
@@ -360,7 +400,10 @@ namespace ScalableIPC.Core.UnitTests
                 Reserved = 0,
                 MessageId = "be1778d1cc2a4f54ada8ec05392fcb86",
                 MessageDestinationId = "9bd0cc9e6e574079b5509555923df72e",
-                MessageLength = 20367
+                MessageLength = 20367,
+                Data = rawBytes,
+                DataOffset = rawBytes.Length - 4,
+                DataLength = 2
             };
             testData.Add(new object[] { rawBytes, offset, length, expected });
 
@@ -615,6 +658,21 @@ namespace ScalableIPC.Core.UnitTests
             expected = "3fd5c735-c487-4cef-976d-f8a0c52a06a3";
             testData.Add(new object[] { instance, expected });
 
+            // test for null data
+            msgId = "6fc733dcfc264dbebc363ac5b2c7e466";
+            endpointId = null;
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeHeader,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                Reserved = 0,
+                MessageId = msgId,
+                MessageDestinationId = endpointId,
+                MessageLength = 20367
+            };
+            expected = "f414e24d-d8bb-44dc-afb4-d34773d28e9a";
+            testData.Add(new object[] { instance, expected });
+
             // test null msg dest id.
             msgId = "be1778d1cc2a4f54ada8ec05392fcb86";
             endpointId = null;
@@ -625,7 +683,9 @@ namespace ScalableIPC.Core.UnitTests
                 Reserved = 0,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
-                MessageLength = 20367
+                MessageLength = 20367,
+                Data = new byte[1],
+                DataLength = 1
             };
             expected = "39d799a9-98ee-4477-bd28-f126b38212ac";
             testData.Add(new object[] { instance, expected });
@@ -640,7 +700,9 @@ namespace ScalableIPC.Core.UnitTests
                 Reserved = 0,
                 MessageId = msgId,
                 MessageDestinationId = endpointId,
-                MessageLength = 20367
+                MessageLength = 20367,
+                Data = new byte[1],
+                DataLength = 1
             };
             expected = "39d799a9-98ee-4477-bd28-f126b38212ac";
             testData.Add(new object[] { instance, expected });

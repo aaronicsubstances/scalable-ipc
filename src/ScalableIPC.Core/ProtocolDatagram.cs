@@ -96,7 +96,7 @@ namespace ScalableIPC.Core
             }
             offset = newOffset;
 
-            if (parsedDatagram.OpCode == OpCodeData)
+            if (parsedDatagram.OpCode == OpCodeData || parsedDatagram.OpCode == OpCodeHeader)
             {
                 parsedDatagram.Data = rawBytes;
                 parsedDatagram.DataOffset = offset;
@@ -188,7 +188,7 @@ namespace ScalableIPC.Core
                 throw new Exception("e47fc3b1-f391-4f1a-aa82-814c01be6bea: " +
                     "message id must consist of 32 hexadecimal characters");
             }
-            if (OpCode == OpCodeData)
+            if (OpCode == OpCodeData || OpCode == OpCodeHeader)
             {
                 if (Data == null)
                 {
@@ -261,12 +261,14 @@ namespace ScalableIPC.Core
                     "message destination id must consist of 32 hexadecimal characters");
             }
 
-            byte[] rawBytes = new byte[MinDatagramSize + 4];
+            byte[] rawBytes = new byte[MinDatagramSize + 4 + DataLength];
             int offset = SerializeBeginningMembers(rawBytes);
             ByteUtils.ConvertHexToBytes(MessageDestinationId, rawBytes, offset);
             offset += 16;
             ByteUtils.SerializeInt32BigEndian(MessageLength, rawBytes, offset);
             offset += 4;
+            Array.Copy(Data, DataOffset, rawBytes, offset, DataLength);
+            offset += DataLength;
             if (offset != rawBytes.Length)
             {
                 throw new Exception("serialization failure");

@@ -70,6 +70,7 @@ Beginning members
 HEADER members
    - message destination id - 16 bytes (uuid)
    - message length - 4 bytes
+   - (payload, cannot be empty)
 
 HEADER_ACK members
    - message source id - 16 bytes (uuid)
@@ -87,11 +88,12 @@ DATA_ACK members
 
 ### Receive Message Operation
 
-  * receiver of message expects to get a header pdu, followed by 1 or more data pdus until message length indicated in header pdu is fully accumulated.
+  * receiver of message expects to get a header pdu, followed by 0 or more data pdus until message length indicated in header pdu is fully accumulated.
   * for receiver to process a header pdu, the following conditions must be met:
      * message id is not already being received.
      * message length is acceptable
-  * once these conditions are met, receiver proceeds to accept header pdu, and then waits to receive 1 or more data pdus.
+     * there is enough space in receiver for message.
+  * once these conditions are met, receiver proceeds to accept header pdu, and then waits to receive 0 or more data pdus.
   * for each header or data pdu received, receiver must respond with a header_ack or data_ack pdu. receiver should neither wait for or care about success of ack sending.
   * for each data pdu being waited for, receiver must set a timeout on it, in order to discard abandoned message transfers by sender.
   * the following conditions apply to processing of data and header pdus:
@@ -104,9 +106,9 @@ DATA_ACK members
   * if header pdu is received again, while no data pdu has yet to be received, then receiver must respond by sending back the last header_ack sent.
   * after receiving header pdu, receiver must only accept data pdu with the expected sequence number, which starts from 1 and is incremented each time a data pdu is successfully received. Where a data pdu with the previous sequence number is received, receiver must respond by sending back the last data_ack sent.
   * once a message is successfully received in full, receiver must consider it processed and hold on to its id for some time (i.e. time to wait), before discarding it. By so doing repeated message processing will be avoided as long as duplicate pdus arrive at receiver before time to wait expires.
-  * if a message is processed and awaiting discarding, and a data pdu is received whose sequence number matches the last sequence number received in the processed message, then receiver must respond by sending back the last data_ack sent.
+  * if a message is processed and awaiting discarding, and a header or data pdu is received whose sequence number matches the last sequence number (0 for header pdus) received in the processed message, then receiver must respond by sending back the last header_ack or data_ack sent.
   * if a timeout occurs while waiting for a data pdu, then receiver must consider the message processed and failed.
-  * if a data pdu is received such that its addition will cause the message length to be exceeded, then receiver must pick the prefix of the data pdu required to satisfy the message length.
+  * if a header or data pdu is received such that its addition will cause the message length to be exceeded, then receiver must pick the prefix of the pdu required to satisfy the message length.
 
 ### Send Message Operation
 
