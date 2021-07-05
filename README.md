@@ -51,7 +51,7 @@ In the case of TCP/TLS, the PDU must be wrapped in a TLV format.
 
 message length, sequence number are signed 32-bit big endian integers. error code is signed 16-bit big endian integer.
 
-with the exception of reserved, data payload, error code, no other field can be all zeros.
+sequence number, protocol version, opcode, message ids, message source and destination ids, cannot be all zeros.
 
 all strings are utf8-encoded.
 
@@ -70,7 +70,7 @@ Beginning members
 HEADER members
    - message destination id - 16 bytes (uuid)
    - message length - 4 bytes
-   - (payload, cannot be empty)
+   - (payload, can be empty)
 
 HEADER_ACK members
    - message source id - 16 bytes (uuid)
@@ -79,7 +79,7 @@ HEADER_ACK members
 DATA members
    - message destination id - 16 bytes (uuid)
    - sequence number - 4 bytes
-   - (payload, cannot be empty)
+   - (payload, can be empty)
 
 DATA_ACK members
    - message source id - 16 bytes (uuid)
@@ -90,12 +90,12 @@ DATA_ACK members
 
   * receiver of message expects to get a header pdu, followed by 0 or more data pdus until message length indicated in header pdu is fully accumulated.
   * for receiver to process a header pdu, the following conditions must be met:
-     * message id is not already being received.
+     * expected sequence number is not positive. 
      * message length is acceptable
      * there is enough space in receiver for message.
   * once these conditions are met, receiver proceeds to accept header pdu, and then waits to receive 0 or more data pdus.
   * for each header or data pdu received, receiver must respond with a header_ack or data_ack pdu. receiver should neither wait for or care about success of ack sending.
-  * for each data pdu being waited for, receiver must set a timeout on it, in order to discard abandoned message transfers by sender.
+  * for each pdu being waited for, receiver must set a timeout on it, in order to discard abandoned message transfers by sender.
   * the following conditions apply to processing of data and header pdus:
      * message id has not already been processed.
      * message destination id matches message source id at receiver.

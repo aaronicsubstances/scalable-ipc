@@ -8,5 +8,7 @@ namespace ScalableIPC.Core.Abstractions
     {
         void OnMessageReceived(GenericNetworkIdentifier remoteEndpoint,
             string messageId,  byte[] data, int offset, int length);
+        void OnProcessingEvent(int eventCode);
+        void OnProcessingError(Exception ex);
     }
 }
