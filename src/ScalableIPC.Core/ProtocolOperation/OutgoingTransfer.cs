@@ -14,8 +14,9 @@ namespace ScalableIPC.Core.ProtocolOperation
         public int StartOffset { get; set; }
         public int EndOffset { get; set; }
         public Action<ProtocolOperationException> SendCallback { get; set; }
-        public object RetryBackoffTimeout { get; set; }
-        public object ReceiveAckTimeout { get; set; }
+        public object RetryBackoffTimeoutId { get; set; }
+        public object ReceiveAckTimeoutId { get; set; }
         public CancellationHandle SendCancellationHandle { get; set; }
+        public int AckTimeout { get; set; }
     }
 }

@@ -7,8 +7,7 @@ namespace ScalableIPC.Core.Abstractions
     public interface ScalableIpcProtocolListener
     {
         void OnMessageReceived(GenericNetworkIdentifier remoteEndpoint,
-            string messageId,  byte[] data, int offset, int length);
-        void OnProcessingEvent(int eventCode);
+            ProtocolMessage msg);
         void OnProcessingError(Exception ex);
     }
 }

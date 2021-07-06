@@ -16,15 +16,15 @@ namespace ScalableIPC.Core.ProtocolOperation
         int MessageSizeLimit { get; set; }
         int MinRetryBackoffPeriod { get; set; }
         int MaxRetryBackoffPeriod { get; set; }
-        int AckReceiveTimeout { get; set; }
+        int DefaultAckTimeout { get; set; }
         int DataReceiveTimeout { get; set; }
         int ProcessedMessageDisposalWaitTime { get; set;}
         bool VaryMessageSourceIds { get; set; }
         ScalableIpcProtocolListener EventListener { get; set; }
         TransportApi UnderlyingTransport { get; set; }
         EventLoopApi EventLoop { get; set; }
-        string BeginSend(GenericNetworkIdentifier remoteEndpoint,
-            byte[] data, int offset, int length, Action<ProtocolOperationException> cb);
+        void BeginSend(GenericNetworkIdentifier remoteEndpoint, ProtocolMessage msg, MessageSendOptions options,
+            Action<ProtocolOperationException> cb);
         void Reset(ProtocolOperationException causeOfReset);
     }
 }

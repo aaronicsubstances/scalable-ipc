@@ -4,7 +4,6 @@ using ScalableIPC.Core.ProtocolOperation;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -35,7 +34,7 @@ namespace ScalableIPC.Core
         public int MessageSizeLimit { get; set; }
         public int MinRetryBackoffPeriod { get; set; }
         public int MaxRetryBackoffPeriod { get; set; }
-        public int AckReceiveTimeout { get; set; }
+        public int DefaultAckTimeout { get; set; }
         public int DataReceiveTimeout { get; set; }
         public int ProcessedMessageDisposalWaitTime { get; set; }
         public bool VaryMessageSourceIds { get; set; }
@@ -43,41 +42,45 @@ namespace ScalableIPC.Core
         public TransportApi UnderlyingTransport { get; set; }
         public EventLoopApi EventLoop { get; set; }
 
-        public string BeginSend(GenericNetworkIdentifier remoteEndpoint,
-            byte[] data, int offset, int length, Action<ProtocolOperationException> cb)
-        {
-            string messageId = ByteUtils.GenerateUuid();
-            var transfer = new OutgoingTransfer
-            {
-                MessageId = messageId,
-                RemoteEndpoint = remoteEndpoint,
-                Data = data,
-                StartOffset = offset,
-                EndOffset = offset + length,
-                SendCallback = cb
-            };
-            EventLoop.PostCallback(() =>
-            {
-                ProcessSendTransfer(transfer);
-            });
-            return messageId;
-        }
-
-        private void ProcessSendTransfer(OutgoingTransfer transfer)
+        public void BeginSend(GenericNetworkIdentifier remoteEndpoint, ProtocolMessage msg,
+            MessageSendOptions options, Action<ProtocolOperationException> cb)
         {
             // validate transfer
-            if (transfer.StartOffset < 0)
+            if (msg.Offset < 0)
             {
                 throw new Exception();
             }
-            if (transfer.EndOffset < transfer.StartOffset)
+            if (msg.Length < 0)
             {
                 throw new Exception();
             }
-            if (transfer.EndOffset > transfer.Data.Length)
+            if (msg.Offset + msg.Length > msg.Data.Length)
             {
                 throw new Exception();
             }
+            msg.Id = ByteUtils.GenerateUuid();
+            var transfer = new OutgoingTransfer
+            {
+                MessageId = msg.Id,
+                RemoteEndpoint = remoteEndpoint,
+                Data = msg.Data,
+                StartOffset = msg.Offset,
+                EndOffset = msg.Offset + msg.Length,
+                SendCallback = cb,
+                AckTimeout = DefaultAckTimeout
+            };
+            if (options != null && options.AckTimeout > 0)
+            {
+                transfer.AckTimeout = options.AckTimeout;
+            }
+            EventLoop.PostCallback(() =>
+            {
+                ProcessMessageSendRequest(transfer);
+            });
+        }
+
+        private void ProcessMessageSendRequest(OutgoingTransfer transfer)
+        {
             outgoingTransfers.Add(transfer.RemoteEndpoint, transfer.MessageId, transfer);
             transfer.MessageDestId = GetKnownMessageDestinationId(transfer.RemoteEndpoint);
             if (transfer.MessageDestId == null)
@@ -86,10 +89,11 @@ namespace ScalableIPC.Core
             }
 
             // start ack timeout
-            transfer.ReceiveAckTimeout = EventLoop.ScheduleTimeout(AckReceiveTimeout,
+            transfer.ReceiveAckTimeoutId = EventLoop.ScheduleTimeout(transfer.AckTimeout,
                 () => AbortSendTransfer(transfer, ProtocolOperationException.ErrorCodeSendTimeout));
 
-            var dataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset, PduSizeLimit);
+            var dataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset,
+                PduSizeLimit - ProtocolDatagram.HeaderPduOverheadSize);
             transfer.PendingPdu = new ProtocolDatagram
             {
                 OpCode = ProtocolDatagram.OpCodeHeader,
@@ -107,11 +111,12 @@ namespace ScalableIPC.Core
         {
             if (!outgoingTransfers.Remove(transfer.RemoteEndpoint, transfer.MessageId))
             {
+                // ignore
                 return;
             }
             transfer.SendCancellationHandle?.Cancel();
-            EventLoop.CancelTimeout(transfer.RetryBackoffTimeout);
-            EventLoop.CancelTimeout(transfer.ReceiveAckTimeout);
+            EventLoop.CancelTimeout(transfer.RetryBackoffTimeoutId);
+            EventLoop.CancelTimeout(transfer.ReceiveAckTimeoutId);
             if (transfer.SendCallback != null)
             {
                 if (abortCode == 0)
@@ -128,7 +133,7 @@ namespace ScalableIPC.Core
         private void ResendPendingPdu(OutgoingTransfer transfer)
         {
             transfer.SendCancellationHandle?.Cancel();
-            EventLoop.CancelTimeout(transfer.RetryBackoffTimeout);
+            EventLoop.CancelTimeout(transfer.RetryBackoffTimeoutId);
             var pduBytes = transfer.PendingPdu.Serialize();
             transfer.SendCancellationHandle = new CancellationHandle();
             var sendCb = WrapForCancellation(transfer.SendCancellationHandle,
@@ -147,31 +152,34 @@ namespace ScalableIPC.Core
             {
                 retryBackoffPeriod += MathUtils.GetRandomInt(MaxRetryBackoffPeriod - MinRetryBackoffPeriod);
             }
-            transfer.RetryBackoffTimeout = EventLoop.ScheduleTimeout(retryBackoffPeriod,
+            transfer.RetryBackoffTimeoutId = EventLoop.ScheduleTimeout(retryBackoffPeriod,
                 () => ResendPendingPdu(transfer));
         }
 
-        private void ProcessAck(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram ack)
+        private void ProcessAckPdu(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram ack)
         {
             OutgoingTransfer transfer = outgoingTransfers.Get(remoteEndpoint, ack.MessageId, null);
             if (transfer == null)
             {
-                throw new Exception($"could not find outgoing transfer of message {ack.MessageId} to {remoteEndpoint}");
-            }
-            if (ack.OpCode != transfer.PendingPdu.OpCode + 1)
-            {
                 // discard.
                 return;
             }
-            if (ack.OpCode == ProtocolDatagram.OpCodeDataAck && ack.SequenceNumber != transfer.PendingPdu.SequenceNumber)
+            if (ack.OpCode == ProtocolDatagram.OpCodeHeaderAck)
             {
-                // discard.
-                return;
+                if (transfer.PendingPdu.OpCode != ProtocolDatagram.OpCodeHeader)
+                {
+                    // discard.
+                    return;
+                }
             }
-            if (ack.ErrorCode < 0)
+            if (ack.OpCode == ProtocolDatagram.OpCodeDataAck)
             {
-                // discard.
-                return;
+                if (transfer.PendingPdu.OpCode != ProtocolDatagram.OpCodeData ||
+                    ack.SequenceNumber != transfer.PendingPdu.SequenceNumber)
+                {
+                    // discard.
+                    return;
+                }
             }
             if (ack.ErrorCode > 0)
             {
@@ -216,12 +224,13 @@ namespace ScalableIPC.Core
                     // not done.
 
                     // reset ack timeout
-                    EventLoop.CancelTimeout(transfer.ReceiveAckTimeout);
-                    transfer.ReceiveAckTimeout = EventLoop.ScheduleTimeout(AckReceiveTimeout,
+                    EventLoop.CancelTimeout(transfer.ReceiveAckTimeoutId);
+                    transfer.ReceiveAckTimeoutId = EventLoop.ScheduleTimeout(transfer.AckTimeout,
                         () => AbortSendTransfer(transfer, ProtocolOperationException.ErrorCodeSendTimeout));
 
                     // prepare to send next pdu
-                    var dataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset, PduSizeLimit);
+                    var dataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset,
+                        PduSizeLimit - ProtocolDatagram.DataPduOverheadSize);
                     int nextSequenceNumber = 1;
                     if (transfer.PendingPdu.OpCode == ProtocolDatagram.OpCodeData)
                     {
@@ -289,19 +298,18 @@ namespace ScalableIPC.Core
             EventLoop.PostCallback(() =>
             {
                 ProtocolDatagram pdu = ProtocolDatagram.Deserialize(data, offset, length);
-                ValidatePdu(pdu);
                 if (pdu.OpCode == ProtocolDatagram.OpCodeHeader)
                 {
-                    ProcessReceivedMessageHeaderPart(remoteEndpoint, pdu, length);
+                    ProcessHeaderPdu(remoteEndpoint, pdu, length);
                 }
                 else if (pdu.OpCode == ProtocolDatagram.OpCodeData)
                 {
-                    ProcessReceivedMessageDataPart(remoteEndpoint, pdu, length);
+                    ProcessDataPdu(remoteEndpoint, pdu, length);
                 }
                 if (pdu.OpCode == ProtocolDatagram.OpCodeHeaderAck ||
                     pdu.OpCode == ProtocolDatagram.OpCodeDataAck)
                 {
-                    ProcessAck(remoteEndpoint, pdu);
+                    ProcessAckPdu(remoteEndpoint, pdu);
                 }
                 else
                 {
@@ -310,39 +318,7 @@ namespace ScalableIPC.Core
             });
         }
 
-        public static void ValidatePdu(ProtocolDatagram pdu)
-        {
-            if (pdu.Version == 0)
-            {
-                throw new Exception();
-            }
-            if (pdu.MessageId.Trim('0').Length == 0)
-            {
-                throw new Exception();
-            }
-            if (pdu.MessageDestinationId != null && pdu.MessageDestinationId.Trim('0').Length == 0)
-            {
-                throw new Exception();
-            }
-            if (pdu.MessageSourceId != null && pdu.MessageSourceId.Trim('0').Length == 0)
-            {
-                throw new Exception();
-            }
-            if (pdu.Data != null && pdu.DataLength == 0)
-            {
-                throw new Exception();
-            }
-            if (pdu.OpCode == ProtocolDatagram.OpCodeHeader && pdu.MessageLength < 0)
-            {
-                throw new Exception();
-            }
-            if (pdu.OpCode == ProtocolDatagram.OpCodeData && pdu.SequenceNumber <= 0)
-            {
-                throw new Exception();
-            }
-        }
-
-        private void ProcessReceivedMessageHeaderPart(GenericNetworkIdentifier remoteEndpoint,
+        private void ProcessHeaderPdu(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram pdu, int serializedPduLength)
         {
             IncomingTransfer transfer = incomingTransfers.Get(remoteEndpoint, pdu.MessageId, null);
@@ -390,7 +366,7 @@ namespace ScalableIPC.Core
                         // transfer may not need to be actually set up.
                         // only add transfer when varying source ids
                         incomingTransfers.Add(remoteEndpoint, pdu.MessageId, transfer);
-                        transfer.ReceiveTimeout = EventLoop.ScheduleTimeout(DataReceiveTimeout,
+                        transfer.ReceiveTimeoutId = EventLoop.ScheduleTimeout(DataReceiveTimeout,
                             () => AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeReceiveTimeout));
                     }
                 }
@@ -422,7 +398,7 @@ namespace ScalableIPC.Core
                         // discard
                     }
                 }
-                else if (pdu.MessageLength > MessageSizeLimit)
+                else if (pdu.MessageLength > MinimumMessageSizeLimit && pdu.MessageLength > MessageSizeLimit)
                 {
                     var ack = new ProtocolDatagram
                     {
@@ -445,52 +421,52 @@ namespace ScalableIPC.Core
                     incomingTransfers.Add(remoteEndpoint, pdu.MessageId, transfer);
                         
                     // reset timeout
-                    EventLoop.CancelTimeout(transfer.ReceiveTimeout);
-                    transfer.ReceiveTimeout = EventLoop.ScheduleTimeout(DataReceiveTimeout,
+                    EventLoop.CancelTimeout(transfer.ReceiveTimeoutId);
+                    transfer.ReceiveTimeoutId = EventLoop.ScheduleTimeout(DataReceiveTimeout,
                         () => AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeReceiveTimeout));
 
                     int dataLengthToUse = Math.Min(pdu.DataLength, transfer.BytesRemaining);
                     transfer.ReceiveBuffer.Write(pdu.Data, pdu.DataOffset, dataLengthToUse);
                     transfer.BytesRemaining -= dataLengthToUse;
-                    if (transfer.BytesRemaining == 0)
+                    if (transfer.BytesRemaining > 0 && serializedPduLength < MinimumPduSizeLimit)
                     {
-                        // mark as processed and successful.
-                        AbortReceiveTransfer(transfer, 0);
+                        // mark as processed and failed.
+                        AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeAbortedFromSender);
                     }
                     else
                     {
-                        if (serializedPduLength < MinimumPduSizeLimit)
+                        if (transfer.BytesRemaining == 0)
                         {
-                            // mark as processed and failed.
-                            AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeAbortedFromSender);
+                            // mark as processed and successful.
+                            AbortReceiveTransfer(transfer, 0);
                         }
                         else
                         {
                             transfer.ExpectedSequenceNumber++;
                         }
+                        transfer.LastAckSent = new ProtocolDatagram
+                        {
+                            OpCode = ProtocolDatagram.OpCodeHeaderAck,
+                            Version = ProtocolDatagram.ProtocolVersion1_0,
+                            MessageId = transfer.MessageId,
+                            MessageSourceId = transfer.MessageSrcId
+                        };
+                        var lastAckBytes = transfer.LastAckSent.Serialize();
+                        // ignore outcome of send.
+                        UnderlyingTransport.BeginSend(remoteEndpoint, lastAckBytes, 0, lastAckBytes.Length, null);
                     }
-                    transfer.LastAckSent = new ProtocolDatagram
-                    {
-                        OpCode = ProtocolDatagram.OpCodeHeaderAck,
-                        Version = ProtocolDatagram.ProtocolVersion1_0,
-                        MessageId = transfer.MessageId,
-                        MessageSourceId = transfer.MessageSrcId
-                    };
-                    var lastAckBytes = transfer.LastAckSent.Serialize();
-                    // ignore outcome of send.
-                    UnderlyingTransport.BeginSend(remoteEndpoint, lastAckBytes, 0, lastAckBytes.Length, null);
                 }
             }
         }
 
-        private void ProcessReceivedMessageDataPart(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram pdu,
+        private void ProcessDataPdu(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram pdu,
             int serializedPduLength)
         {
             IncomingTransfer transfer = incomingTransfers.Get(remoteEndpoint, pdu.MessageId, null);
             if (transfer == null)
             {
-                throw new Exception("could not find existing incoming transfer from " +
-                    $"{remoteEndpoint} for message {pdu.MessageId}");
+                // discard
+                return;
             }
             if (transfer.Processed == true)
             {
@@ -554,66 +530,71 @@ namespace ScalableIPC.Core
                     // all is well.
 
                     // reset timeout
-                    EventLoop.CancelTimeout(transfer.ReceiveTimeout);
-                    transfer.ReceiveTimeout = EventLoop.ScheduleTimeout(DataReceiveTimeout,
+                    EventLoop.CancelTimeout(transfer.ReceiveTimeoutId);
+                    transfer.ReceiveTimeoutId = EventLoop.ScheduleTimeout(DataReceiveTimeout,
                         () => AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeReceiveTimeout));
 
                     int dataLengthToUse = Math.Min(pdu.DataLength, transfer.BytesRemaining);
                     transfer.ReceiveBuffer.Write(pdu.Data, pdu.DataOffset, dataLengthToUse);
                     transfer.BytesRemaining -= dataLengthToUse;
-                    if (transfer.BytesRemaining == 0)
+                    if (transfer.BytesRemaining > 0 && serializedPduLength < MinimumPduSizeLimit)
                     {
-                        // mark as processed and successful.
-                        AbortReceiveTransfer(transfer, 0);
+                        // mark as processed and failed.
+                        AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeAbortedFromSender);
                     }
                     else
                     {
-                        if (serializedPduLength < MinimumPduSizeLimit)
+                        if (transfer.BytesRemaining == 0)
                         {
-                            // mark as processed and failed.
-                            AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeAbortedFromSender);
+                            // mark as processed and successful.
+                            AbortReceiveTransfer(transfer, 0);
                         }
                         else
                         {
                             transfer.ExpectedSequenceNumber++;
                         }
+                        transfer.LastAckSent = new ProtocolDatagram
+                        {
+                            OpCode = ProtocolDatagram.OpCodeDataAck,
+                            Version = ProtocolDatagram.ProtocolVersion1_0,
+                            MessageId = transfer.MessageId,
+                            MessageSourceId = transfer.MessageSrcId,
+                            SequenceNumber = pdu.SequenceNumber
+                        };
+                        var lastAckBytes = transfer.LastAckSent.Serialize();
+                        // ignore outcome of send.
+                        UnderlyingTransport.BeginSend(remoteEndpoint, lastAckBytes, 0, lastAckBytes.Length, null);
                     }
-                    transfer.LastAckSent = new ProtocolDatagram
-                    {
-                        OpCode = ProtocolDatagram.OpCodeDataAck,
-                        Version = ProtocolDatagram.ProtocolVersion1_0,
-                        MessageId = transfer.MessageId,
-                        MessageSourceId = transfer.MessageSrcId,
-                        SequenceNumber = pdu.SequenceNumber
-                    };
-                    var lastAckBytes = transfer.LastAckSent.Serialize();
-                    // ignore outcome of send.
-                    UnderlyingTransport.BeginSend(remoteEndpoint, lastAckBytes, 0, lastAckBytes.Length, null);
                 }
             }
         }
 
         private void AbortReceiveTransfer(IncomingTransfer transfer, short errorCode)
         {
+            if (transfer.Processed)
+            {
+                // ignore.
+                return;
+            }
             // mark as processed.
             transfer.Processed = true;
             transfer.ProcessingErrorCode = errorCode;
-            EventLoop.CancelTimeout(transfer.ReceiveTimeout);
-            if (errorCode == 0)
+            EventLoop.CancelTimeout(transfer.ReceiveTimeoutId);
+            if (errorCode == 0 && EventListener != null)
             {
                 // success. inform event listener.
                 var messageBytes = transfer.ReceiveBuffer.ToArray();
-                EventListener?.OnMessageReceived(transfer.RemoteEndpoint, transfer.MessageId,
-                    messageBytes, 0, messageBytes.Length);
+                var message = new ProtocolMessage
+                {
+                    Id = transfer.MessageId,
+                    Data = messageBytes,
+                    Length = messageBytes.Length
+                };
+                EventListener.OnMessageReceived(transfer.RemoteEndpoint, message);
             }
             transfer.ReceiveBuffer.Dispose();
-            transfer.ExpirationTimeout = EventLoop.ScheduleTimeout(ProcessedMessageDisposalWaitTime,
-                () => ProcessExpiredDataTimeout(transfer));
-        }
-
-        private void ProcessExpiredDataTimeout(IncomingTransfer transfer)
-        {
-            incomingTransfers.Remove(transfer.RemoteEndpoint, transfer.MessageId);
+            transfer.ExpirationTimeoutId = EventLoop.ScheduleTimeout(ProcessedMessageDisposalWaitTime,
+                () => incomingTransfers.Remove(transfer.RemoteEndpoint, transfer.MessageId));
         }
 
         public void Reset(ProtocolOperationException causeOfReset)

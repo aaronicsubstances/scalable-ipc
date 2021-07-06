@@ -15,6 +15,8 @@ namespace ScalableIPC.Core
         public const byte ProtocolVersion1_0 = 0x10;
 
         public const int MinDatagramSize = 38;
+        public const int DataPduOverheadSize = MinDatagramSize + 4;
+        public const int HeaderPduOverheadSize = MinDatagramSize + 4;
 
         public byte OpCode { get; set; }
         public byte Version { get; set; }
@@ -103,6 +105,8 @@ namespace ScalableIPC.Core
                 parsedDatagram.DataLength = endOffset - offset;
             }
 
+            parsedDatagram.Validate();
+
             return parsedDatagram;
         }
 
@@ -178,6 +182,38 @@ namespace ScalableIPC.Core
                 offset += 2;
             }
             return offset;
+        }
+
+        private void Validate()
+        {
+            if (Version == 0)
+            {
+                throw new Exception();
+            }
+            if (MessageId.Trim('0').Length == 0)
+            {
+                throw new Exception();
+            }
+            if (MessageDestinationId != null && MessageDestinationId.Trim('0').Length == 0)
+            {
+                throw new Exception();
+            }
+            if (MessageSourceId != null && MessageSourceId.Trim('0').Length == 0)
+            {
+                throw new Exception();
+            }
+            if (MessageLength < 0)
+            {
+                throw new Exception();
+            }
+            if (SequenceNumber < 0)
+            {
+                throw new Exception();
+            }
+            if (ErrorCode < 0)
+            {
+                throw new Exception();
+            }
         }
 
         public byte[] Serialize()
