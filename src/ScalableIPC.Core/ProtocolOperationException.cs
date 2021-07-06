@@ -13,6 +13,7 @@ namespace ScalableIPC.Core
         public const int ErrorCodeMessageTooLarge = 3;
         public const int ErrorCodeReceiveTimeout = 4;
         public const int ErrorCodeOutOfBufferSpace = 5;
+        public const int ErrorCodeAbortedFromSender = 6;
 
         // The following error codes are not meant to be used for network
         // communications. As such they are negative.
@@ -43,6 +44,8 @@ namespace ScalableIPC.Core
                 return "SEND_TIMEOUT";
             else if (code == ErrorCodeShutdown)
                 return "SHUTDOWN";
+            else if (code == ErrorCodeAbortedFromSender)
+                return "ABORTED_FROM_SENDER";
             else if (code == ErrorCodeReceiveTimeout)
                 return "RECEIVE_TIMEOUT";
             else if (code == ErrorCodeApplicationError)

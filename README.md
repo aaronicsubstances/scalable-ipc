@@ -90,9 +90,8 @@ DATA_ACK members
 
   * receiver of message expects to get a header pdu, followed by 0 or more data pdus until message length indicated in header pdu is fully accumulated.
   * for receiver to process a header pdu, the following conditions must be met:
-     * expected sequence number is not positive. 
-     * message length is acceptable
-     * there is enough space in receiver for message.
+     * expected pdu is header
+     * there is enough space in receiver for message length.
   * once these conditions are met, receiver proceeds to accept header pdu, and then waits to receive 0 or more data pdus.
   * for each header or data pdu received, receiver must respond with a header_ack or data_ack pdu. receiver should neither wait for or care about success of ack sending.
   * for each pdu being waited for, receiver must set a timeout on it, in order to discard abandoned message transfers by sender.
