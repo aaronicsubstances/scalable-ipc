@@ -118,9 +118,10 @@ DATA_ACK members
   * all subsequent ones must be data pdus with sequence numbers set to start from 1.
   * Any message destination id can be set for the first pdu, including previously received message destination ids for that endpoint.
   * size of each pdu must not exceed MTU of underlying transport, in order that pdu is not fragmented or rejected.
-  * while sender is waiting for an ack, sender must continuously resend the current pdu awaiting the ack, with a random delay in between resends. Sender must wait for outcome of sending current pdu (but ignore awaited outcome whether it is success or error), before pausing to resend pdu again.
+  * while sender is waiting for the correct ack, sender must continuously resend the current pdu awaiting the ack, with a random delay in between resends. Sender must wait for outcome of sending current pdu (but ignore awaited outcome whether it is success or error), before pausing to resend pdu again.
   * sender must discard acks which cannot be processed. e.g. because opcode or sequence number is unexpected.
-  * once an ack with the expected opcode or sequence number is received, the sender must cancel (or consider as irrelevant the outcome of) the sending and resending of the current pdu being awaited, and proceed to send the next pdu or end the data transfer successfully.
+  * once an ack with the expected opcode or sequence number is received, the sender must cancel the sending and resending of the current pdu being awaited, and proceed to send the next pdu or end the data transfer successfully.
   * if an ack indicates that the message destination id set is invalid, and the current pdu awaiting ack is a header pdu, and the message destination id being used is different, then sender must subsequenatly send pdus with the message source id of the ack as the message destination id to use.
   * if an ack indicates that receiver is running out of buffer space ... sender may choose to ignore error and keep trying to send current pdu.
-  * in all other cases of receiving an error code, or receiving an ack timeout, sender must abort the data transfer.
+  * in all other cases of receiving an error code, sender should abort the data transfer.
+  * upon receiving an ack timeout, sender must abort the data transfer.
