@@ -12,7 +12,7 @@ using System.Text;
 
 namespace ScalableIPC.Core
 {
-    public class ScalableIpcProtocol: IScalableIpcProtocol
+    public class ScalableIpcProtocol : IScalableIpcProtocol
     {
         public const int UnconfiguredMaximumMessageLength = 65_536;
         public const int MinimumNonTerminatingPduDataSize = 512;
@@ -37,6 +37,7 @@ namespace ScalableIPC.Core
         public int DefaultAckTimeout { get; set; }
         public int DataReceiveTimeout { get; set; }
         public int ProcessedMessageDisposalWaitTime { get; set; }
+        public int KnownMessageDestinationLifeTime { get; set; }
         public bool VaryMessageSourceIds { get; set; }
         public ScalableIpcProtocolListener EventListener { get; set; }
         public TransportApi UnderlyingTransport { get; set; }
@@ -248,6 +249,11 @@ namespace ScalableIPC.Core
 
         private string GetKnownMessageDestinationId(GenericNetworkIdentifier remoteEndpoint)
         {
+            if (VaryMessageSourceIds)
+            {
+                // no need to bother then.
+                return null;
+            }
             if (knownMessageDestinationIds.ContainsKey(remoteEndpoint))
             {
                 return knownMessageDestinationIds[remoteEndpoint];
@@ -260,18 +266,21 @@ namespace ScalableIPC.Core
 
         private void UpdateKnownMessageDestinationIds(GenericNetworkIdentifier remoteEndpoint, string messageSourceId)
         {
+            if (VaryMessageSourceIds)
+            {
+                // no need to save then.
+                return;
+            }
             if (knownMessageDestinationIds.ContainsKey(remoteEndpoint))
             {
                 knownMessageDestinationIds[remoteEndpoint] = messageSourceId;
             }
             else
             {
-                // impose any arbitrary max limit on entries.
-                if (knownMessageDestinationIds.Count > 1000)
-                {
-                    knownMessageDestinationIds.Clear();
-                }
                 knownMessageDestinationIds.Add(remoteEndpoint, messageSourceId);
+                // use absolute expiration to limit size of dictionary.
+                EventLoop.ScheduleTimeout(KnownMessageDestinationLifeTime, () =>
+                    knownMessageDestinationIds.Remove(remoteEndpoint));
             }
         }
 

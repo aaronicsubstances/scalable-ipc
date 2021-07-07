@@ -18,7 +18,8 @@ namespace ScalableIPC.Core.ProtocolOperation
         int MaxRetryBackoffPeriod { get; set; }
         int DefaultAckTimeout { get; set; }
         int DataReceiveTimeout { get; set; }
-        int ProcessedMessageDisposalWaitTime { get; set;}
+        int ProcessedMessageDisposalWaitTime { get; set; }
+        int KnownMessageDestinationLifeTime { get; set; }
         bool VaryMessageSourceIds { get; set; }
         ScalableIpcProtocolListener EventListener { get; set; }
         TransportApi UnderlyingTransport { get; set; }
