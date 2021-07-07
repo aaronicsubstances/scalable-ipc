@@ -8,7 +8,6 @@ namespace ScalableIPC.Core.ProtocolOperation
     {
         public GenericNetworkIdentifier RemoteEndpoint { get; set; }
         public string MessageId { get; set; }
-        public string MessageDestId { get; set; }
         public ProtocolDatagram PendingPdu { get; set; }
         public byte[] Data { get; set; }
         public int StartOffset { get; set; }

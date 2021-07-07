@@ -20,5 +20,10 @@ namespace ScalableIPC.Core.UnitTests.Transports
             string message = Encoding.UTF8.GetString(data, offset, length);
             logs.Add($"{eventLoop.CurrentTimestamp}:received from {remoteEndpoint.HostName}:{message}");
         }
+
+        public void BeginReceive(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram pdu)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

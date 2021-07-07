@@ -12,8 +12,8 @@ namespace ScalableIPC.Core.ProtocolOperation
     internal interface IScalableIpcProtocol: TransportApiCallbacks
     {
         string EndpointOwnerId { get; }
-        int PduSizeLimit { get; set; }
-        int MessageSizeLimit { get; set; }
+        int MaximumPduDataSize { get; set; }
+        int MaximumReceivableMessageLength { get; set; }
         int MinRetryBackoffPeriod { get; set; }
         int MaxRetryBackoffPeriod { get; set; }
         int DefaultAckTimeout { get; set; }

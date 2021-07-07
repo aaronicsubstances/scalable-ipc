@@ -15,8 +15,6 @@ namespace ScalableIPC.Core
         public const byte ProtocolVersion1_0 = 0x10;
 
         public const int MinDatagramSize = 38;
-        public const int DataPduOverheadSize = MinDatagramSize + 4;
-        public const int HeaderPduOverheadSize = MinDatagramSize + 4;
 
         public byte OpCode { get; set; }
         public byte Version { get; set; }
@@ -184,7 +182,7 @@ namespace ScalableIPC.Core
             return offset;
         }
 
-        private void Validate()
+        public void Validate()
         {
             if (Version == 0)
             {

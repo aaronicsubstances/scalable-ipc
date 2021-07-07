@@ -8,5 +8,7 @@ namespace ScalableIPC.Core.Abstractions
     {
         void BeginReceive(GenericNetworkIdentifier remoteEndpoint,
             byte[] data, int offset, int length);
+        void BeginReceive(GenericNetworkIdentifier remoteEndpoint,
+            ProtocolDatagram pdu);
     }
 }
