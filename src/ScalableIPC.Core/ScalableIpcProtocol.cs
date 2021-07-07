@@ -19,14 +19,14 @@ namespace ScalableIPC.Core
 
         private readonly EndpointStructuredDatastore<IncomingTransfer> incomingTransfers;
         private readonly EndpointStructuredDatastore<OutgoingTransfer> outgoingTransfers;
-        private readonly Dictionary<GenericNetworkIdentifier, string> knownMessageDestinationIds;
+        private readonly Dictionary<GenericNetworkIdentifier, EndpointOwnerIdInfo> knownMessageDestinationIds;
 
         public ScalableIpcProtocol()
         {
             EndpointOwnerId = ByteUtils.GenerateUuid();
             incomingTransfers = new EndpointStructuredDatastore<IncomingTransfer>();
             outgoingTransfers = new EndpointStructuredDatastore<OutgoingTransfer>();
-            knownMessageDestinationIds = new Dictionary<GenericNetworkIdentifier, string>();
+            knownMessageDestinationIds = new Dictionary<GenericNetworkIdentifier, EndpointOwnerIdInfo>();
         }
 
         public string EndpointOwnerId { get; }
@@ -256,7 +256,7 @@ namespace ScalableIPC.Core
             }
             if (knownMessageDestinationIds.ContainsKey(remoteEndpoint))
             {
-                return knownMessageDestinationIds[remoteEndpoint];
+                return knownMessageDestinationIds[remoteEndpoint].Id;
             }
             else
             {
@@ -273,13 +273,17 @@ namespace ScalableIPC.Core
             }
             if (knownMessageDestinationIds.ContainsKey(remoteEndpoint))
             {
-                knownMessageDestinationIds[remoteEndpoint] = messageSourceId;
+                knownMessageDestinationIds[remoteEndpoint].Id = messageSourceId;
             }
             else
             {
-                knownMessageDestinationIds.Add(remoteEndpoint, messageSourceId);
+                var newEntry = new EndpointOwnerIdInfo
+                {
+                    Id = messageSourceId
+                };
+                knownMessageDestinationIds.Add(remoteEndpoint, newEntry);
                 // use absolute expiration to limit size of dictionary.
-                EventLoop.ScheduleTimeout(KnownMessageDestinationLifeTime, () =>
+                newEntry.TimeoutId = EventLoop.ScheduleTimeout(KnownMessageDestinationLifeTime, () =>
                     knownMessageDestinationIds.Remove(remoteEndpoint));
             }
         }
@@ -618,7 +622,50 @@ namespace ScalableIPC.Core
 
         public void Reset(ProtocolOperationException causeOfReset)
         {
+            // cancel all outgoing transfers.
+            var endpoints = outgoingTransfers.GetEndpoints();
+            foreach (var endpoint in endpoints)
+            {
+                foreach (var transfer in outgoingTransfers.GetValues(endpoint))
+                {
+                    transfer.SendCancellationHandle.Cancel();
+                    EventLoop.CancelTimeout(transfer.RetryBackoffTimeoutId);
+                    EventLoop.CancelTimeout(transfer.ReceiveAckTimeoutId);
+                    transfer.SendCallback?.Invoke(causeOfReset);
+                    // send pending pdu with empty data to trigger early abort in receiver
+                    // before waiting for full timeout.
+                    transfer.PendingPdu.DataLength = 0;
+                    var pduBytes = transfer.PendingPdu.Serialize();
+                    UnderlyingTransport.BeginSend(transfer.RemoteEndpoint, pduBytes, 0, pduBytes.Length, null);
+                }
+                outgoingTransfers.RemoveAll(endpoint);
+            }
 
+            // cancel all receives
+            endpoints = incomingTransfers.GetEndpoints();
+            foreach (var endpoint in endpoints)
+            {
+                foreach (var transfer in incomingTransfers.GetValues(endpoint))
+                {
+                    if (!transfer.Processed)
+                    {
+                        // mark as processed.
+                        transfer.Processed = true;
+                        transfer.ProcessingErrorCode = ProtocolOperationException.ErrorCodeAbortedFromReceiver;
+                        EventLoop.CancelTimeout(transfer.ReceiveTimeoutId);
+                        transfer.ReceiveBuffer.Dispose();
+                        transfer.ExpirationTimeoutId = EventLoop.ScheduleTimeout(ProcessedMessageDisposalWaitTime,
+                            () => incomingTransfers.Remove(transfer.RemoteEndpoint, transfer.MessageId));
+                    }
+                }
+            }
+
+            // clear endpoint ownership information
+            foreach (var entry in knownMessageDestinationIds.Values)
+            {
+                EventLoop.CancelTimeout(entry.TimeoutId);
+            }
+            knownMessageDestinationIds.Clear();
         }
     }
 }
