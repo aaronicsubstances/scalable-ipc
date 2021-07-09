@@ -15,7 +15,7 @@ namespace ScalableIPC.Core.ProtocolOperation
         public object RetryBackoffTimeoutId { get; set; }
         public object ReceiveAckTimeoutId { get; set; }
         public CancellationHandle SendCancellationHandle { get; set; }
-        public int AckTimeout { get; set; }
+        public int ReceiveAckTimeout { get; set; }
         public string MessageDestinationId { get; set; }
         public int DataLengthToSend { get; set; }
         public int PendingSequenceNumber { get; set; }

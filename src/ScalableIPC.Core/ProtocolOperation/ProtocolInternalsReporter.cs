@@ -6,9 +6,9 @@ namespace ScalableIPC.Core.ProtocolOperation
 {
     internal interface ProtocolInternalsReporter
     {
-
-        void OnReceiveDataTimeoutPostponed(IncomingTransfer transfer);
-        void OnReceiveDataAborted(IncomingTransfer transfer, short errorCode);
-        void OnReceiveDataAbandoned(IncomingTransfer transfer);
+        void OnEndpointOwnerdReset(string endpointOwnerId);
+        void OnKnownMessageDestinatonInfoAbandoned(GenericNetworkIdentifier remoteEndpoint);
+        void OnReceiveDataAborted(IncomingTransfer transfer, int abortCode);
+        void OnSendDataAborted(OutgoingTransfer transfer, int abortCode);
     }
 }

@@ -6,6 +6,6 @@ namespace ScalableIPC.Core
 {
     public class MessageSendOptions
     {
-        public int AckTimeout { get; set; }
+        public int Timeout { get; set; }
     }
 }

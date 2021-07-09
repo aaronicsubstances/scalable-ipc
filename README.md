@@ -35,8 +35,7 @@ The initial motivation for this protocol came from deliberations on IPC efficien
   * Simple flow control with stop-and-wait. Underlying transport is at liberty to transparently use more complicated flow control mechanisms behind the scenes together with fragmenting PDUs.
   * Use non-negotiable configuration parameters:
        - Maximum receivable message size. Must be at least 64 kilobytes (65536 bytes).
-       - Endpoint owner id. Necessary for preventing repeated data processing during process restarts. Must be set differently at every start of the process which creates network endpoint.
-       - Whether to use endpoint owner id as the constant message source id, or generate a new one per received message. Needed to handle any extent of delays and/or duplication of pdus.
+       - Endpoint owner id. Necessary for preventing repeated data processing during process restarts. Must be changed periodically during lifetime of the process which creates network endpoint.
        - Receive timeout of data PDUs. Necessary for cleaning up abandoned data transfers.
        - Time to wait before cleaning up received message ids.
        - Maximum transfer unit (MTU). Must be at least 512.

@@ -12,9 +12,8 @@ namespace ScalableIPC.Core.ProtocolOperation
         public string MessageSrcId { get; set; }
         public int BytesRemaining { get; set; }
         public bool Processed { get; set; }
-        public short ProcessingErrorCode { get; set; } 
-        public object ExpirationTimeoutId { get; set; }
-        public object ReceiveTimeoutId { get; set; }
+        public short ProcessingErrorCode { get; set; }
+        public object ReceiveDataTimeoutId { get; set; }
         public MemoryStream ReceiveBuffer { get; set; }
         public int ExpectedSequenceNumber { get; set; }
         public ProtocolDatagram LastAckSent { get; set; }
