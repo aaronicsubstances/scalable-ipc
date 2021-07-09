@@ -29,7 +29,7 @@ namespace ScalableIPC.Core
             knownMessageDestinationIds = new Dictionary<GenericNetworkIdentifier, EndpointOwnerIdInfo>();
         }
 
-        public string EndpointOwnerId { get; }
+        public string EndpointOwnerId { get; private set; }
         public int MaximumPduDataSize { get; set; }
         public int MaximumReceivableMessageLength { get; set; }
         public int MinRetryBackoffPeriod { get; set; }
@@ -42,6 +42,8 @@ namespace ScalableIPC.Core
         public ScalableIpcProtocolListener EventListener { get; set; }
         public TransportApi UnderlyingTransport { get; set; }
         public EventLoopApi EventLoop { get; set; }
+        
+        internal ProtocolInternalsReporter InternalsReporter { get; set; }
 
         public void BeginSend(GenericNetworkIdentifier remoteEndpoint, ProtocolMessage msg,
             MessageSendOptions options, Action<ProtocolOperationException> cb)
@@ -94,7 +96,8 @@ namespace ScalableIPC.Core
             SendPendingPdu(transfer, true);
         }
 
-        private void AbortSendTransfer(OutgoingTransfer transfer, int abortCode)
+        private void AbortSendTransfer(OutgoingTransfer transfer, int abortCode,
+            ProtocolOperationException ex = null)
         {
             if (!outgoingTransfers.Remove(transfer.RemoteEndpoint, transfer.MessageId))
             {
@@ -112,10 +115,11 @@ namespace ScalableIPC.Core
                 }
                 else
                 {
-                    transfer.SendCallback(new ProtocolOperationException(abortCode));
+                    transfer.SendCallback(ex ?? new ProtocolOperationException(abortCode));
                 }
             }
-            if (abortCode == ProtocolOperationException.ErrorCodeSendTimeout)
+            if (abortCode == ProtocolOperationException.ErrorCodeSendTimeout ||
+                abortCode == ProtocolOperationException.ErrorCodeAbortedFromSender)
             {
                 // send pending pdu with empty data to trigger early abort in receiver
                 // before waiting for full timeout.
@@ -159,7 +163,7 @@ namespace ScalableIPC.Core
 
         private void ProcessSendPduOutcome(OutgoingTransfer transfer, CancellationHandle cancellationHandle)
         {
-            if (!cancellationHandle.Cancelled) return;
+            if (cancellationHandle.Cancelled) return;
 
             int retryBackoffPeriod = MinRetryBackoffPeriod;
             if (MaxRetryBackoffPeriod > MinRetryBackoffPeriod)
@@ -372,8 +376,8 @@ namespace ScalableIPC.Core
                         // transfer may not need to be actually set up.
                         // only add transfer when varying source ids
                         incomingTransfers.Add(remoteEndpoint, pdu.MessageId, transfer);
-                        transfer.ReceiveTimeoutId = EventLoop.ScheduleTimeout(DataReceiveTimeout,
-                            () => AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeReceiveTimeout));
+                        // set timeout
+                        PostponeReceiveDataTimeout(transfer);
                     }
                 }
                 if (transfer.MessageSrcId != pdu.MessageDestinationId)
@@ -418,16 +422,8 @@ namespace ScalableIPC.Core
                 }
                 else
                 {
-                    // all is well.
+                    // all is well...almost
                     transfer.BytesRemaining = pdu.MessageLength;
-
-                    // ensure addition of transfer
-                    incomingTransfers.Add(remoteEndpoint, pdu.MessageId, transfer);
-                        
-                    // reset timeout
-                    EventLoop.CancelTimeout(transfer.ReceiveTimeoutId);
-                    transfer.ReceiveTimeoutId = EventLoop.ScheduleTimeout(DataReceiveTimeout,
-                        () => AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeReceiveTimeout));
 
                     int dataLengthToUse = Math.Min(pdu.DataLength, transfer.BytesRemaining);
                     transfer.ReceiveBuffer.Write(pdu.Data, pdu.DataOffset, dataLengthToUse);
@@ -447,6 +443,11 @@ namespace ScalableIPC.Core
                         else
                         {
                             transfer.ExpectedSequenceNumber++;
+                            // reset timeout
+                            PostponeReceiveDataTimeout(transfer);
+
+                            // ensure addition of transfer
+                            incomingTransfers.Add(remoteEndpoint, pdu.MessageId, transfer);
                         }
                         transfer.LastAckSent = new ProtocolDatagram
                         {
@@ -526,12 +527,7 @@ namespace ScalableIPC.Core
                 }
                 else
                 {
-                    // all is well.
-
-                    // reset timeout
-                    EventLoop.CancelTimeout(transfer.ReceiveTimeoutId);
-                    transfer.ReceiveTimeoutId = EventLoop.ScheduleTimeout(DataReceiveTimeout,
-                        () => AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeReceiveTimeout));
+                    // all is well...almost
 
                     int dataLengthToUse = Math.Min(pdu.DataLength, transfer.BytesRemaining);
                     transfer.ReceiveBuffer.Write(pdu.Data, pdu.DataOffset, dataLengthToUse);
@@ -551,6 +547,8 @@ namespace ScalableIPC.Core
                         else
                         {
                             transfer.ExpectedSequenceNumber++;
+                            // reset timeout
+                            PostponeReceiveDataTimeout(transfer);
                         }
                         transfer.LastAckSent = new ProtocolDatagram
                         {
@@ -568,8 +566,21 @@ namespace ScalableIPC.Core
             }
         }
 
+        private void PostponeReceiveDataTimeout(IncomingTransfer transfer)
+        {
+            EventLoop.CancelTimeout(transfer.ReceiveTimeoutId);
+            transfer.ReceiveTimeoutId = EventLoop.ScheduleTimeout(DataReceiveTimeout,
+                () => AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeReceiveTimeout));
+            InternalsReporter?.OnReceiveDataTimeoutPostponed(transfer);
+        }
+
         private void AbortReceiveTransfer(IncomingTransfer transfer, short errorCode)
         {
+            if (incomingTransfers.Get(transfer.RemoteEndpoint, transfer.MessageId, null) == null)
+            {
+                // ignore.
+                return;
+            }
             if (transfer.Processed)
             {
                 // ignore.
@@ -593,7 +604,14 @@ namespace ScalableIPC.Core
             }
             transfer.ReceiveBuffer.Dispose();
             transfer.ExpirationTimeoutId = EventLoop.ScheduleTimeout(ProcessedMessageDisposalWaitTime,
-                () => incomingTransfers.Remove(transfer.RemoteEndpoint, transfer.MessageId));
+                () => AbandonIncomingTransfer(transfer));
+            InternalsReporter?.OnReceiveDataAborted(transfer, errorCode);
+        }
+
+        private void AbandonIncomingTransfer(IncomingTransfer transfer)
+        {
+            incomingTransfers.Remove(transfer.RemoteEndpoint, transfer.MessageId);
+            InternalsReporter?.OnReceiveDataAbandoned(transfer);
         }
 
         public void Reset(ProtocolOperationException causeOfReset)
@@ -604,16 +622,9 @@ namespace ScalableIPC.Core
             {
                 foreach (var transfer in outgoingTransfers.GetValues(endpoint))
                 {
-                    transfer.SendCancellationHandle.Cancel();
-                    EventLoop.CancelTimeout(transfer.RetryBackoffTimeoutId);
-                    EventLoop.CancelTimeout(transfer.ReceiveAckTimeoutId);
-                    transfer.SendCallback?.Invoke(causeOfReset);
-                    // send pending pdu with empty data to trigger early abort in receiver
-                    // before waiting for full timeout.
-                    transfer.DataLengthToSend = 0;
-                    SendPendingPdu(transfer, false);
+                    AbortSendTransfer(transfer, ProtocolOperationException.ErrorCodeAbortedFromSender,
+                        causeOfReset);
                 }
-                outgoingTransfers.RemoveAll(endpoint);
             }
 
             // cancel all receives
@@ -622,16 +633,7 @@ namespace ScalableIPC.Core
             {
                 foreach (var transfer in incomingTransfers.GetValues(endpoint))
                 {
-                    if (!transfer.Processed)
-                    {
-                        // mark as processed.
-                        transfer.Processed = true;
-                        transfer.ProcessingErrorCode = ProtocolOperationException.ErrorCodeAbortedFromReceiver;
-                        EventLoop.CancelTimeout(transfer.ReceiveTimeoutId);
-                        transfer.ReceiveBuffer.Dispose();
-                        transfer.ExpirationTimeoutId = EventLoop.ScheduleTimeout(ProcessedMessageDisposalWaitTime,
-                            () => incomingTransfers.Remove(transfer.RemoteEndpoint, transfer.MessageId));
-                    }
+                    AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeAbortedFromReceiver);
                 }
             }
 
@@ -641,6 +643,9 @@ namespace ScalableIPC.Core
                 EventLoop.CancelTimeout(entry.TimeoutId);
             }
             knownMessageDestinationIds.Clear();
+
+            // reset for message source ids
+            EndpointOwnerId = ByteUtils.GenerateUuid();
         }
     }
 }

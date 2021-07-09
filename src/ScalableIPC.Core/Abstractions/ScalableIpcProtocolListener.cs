@@ -8,6 +8,6 @@ namespace ScalableIPC.Core.Abstractions
     {
         void OnMessageReceived(GenericNetworkIdentifier remoteEndpoint,
             ProtocolMessage msg);
-        void OnProcessingError(Exception ex);
+        void OnProcessingError(Exception ex, string message);
     }
 }
