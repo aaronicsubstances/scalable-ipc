@@ -33,7 +33,7 @@ namespace ScalableIPC.Core.Transports
         internal EventLoopApi EventLoop { get; set; }
 
         public void BeginSend(GenericNetworkIdentifier remoteEndpoint,
-            byte[] data, int offset, int length, Action<ProtocolOperationException> cb)
+            ProtocolDatagram pdu, Action<ProtocolOperationException> cb)
         {
             // ensure connected transport for target endpoint.
             var remoteConnection = Connections[remoteEndpoint];
@@ -53,16 +53,16 @@ namespace ScalableIPC.Core.Transports
             foreach (int transmissionDelay in transmissionDelays)
             {
                 remoteConnection.ConnectedTransport.SimulateReceive(transmissionDelay, LocalEndpoint,
-                    data, offset, length);
+                    pdu);
             }
         }
 
-        public void SimulateReceive(int delay, GenericNetworkIdentifier remoteEndpoint, byte[] data, int offset, int length)
+        public void SimulateReceive(int delay, GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram pdu)
         {
             try
             {
                 EventLoop.ScheduleTimeout(delay, () => Callbacks.BeginReceive(
-                    remoteEndpoint, data, offset, length));
+                    remoteEndpoint, pdu));
             }
             catch (Exception)
             {

@@ -56,7 +56,12 @@ namespace ScalableIPC.Core.UnitTests.Transports
             // TestAccraToKumasiTransmission
             var msg = "hello";
             var msgBytes = Encoding.UTF8.GetBytes(msg);
-            accraEndpoint.BeginSend(kumasiAddr, msgBytes, 0, msgBytes.Length, ex =>
+            var pdu = new ProtocolDatagram
+            {
+                Data = msgBytes,
+                DataLength = msgBytes.Length
+            };
+            accraEndpoint.BeginSend(kumasiAddr, pdu, ex =>
             {
                 logs.Add($"{testEventLoop.CurrentTimestamp}:received send cb:{ex?.Message ?? "success"}");
             });
@@ -75,7 +80,12 @@ namespace ScalableIPC.Core.UnitTests.Transports
             logs.Clear();
             msg = "yes";
             msgBytes = Encoding.UTF8.GetBytes(msg);
-            kumasiEndpoint.BeginSend(accraAddr, msgBytes, 0, msgBytes.Length, ex =>
+            pdu = new ProtocolDatagram
+            {
+                Data = msgBytes,
+                DataLength = msgBytes.Length
+            };
+            kumasiEndpoint.BeginSend(accraAddr, pdu, ex =>
             {
                 logs.Add($"{testEventLoop.CurrentTimestamp}:received send cb:{ex?.Message ?? "success"}");
             });
@@ -133,7 +143,12 @@ namespace ScalableIPC.Core.UnitTests.Transports
             });
 
             // Now send.
-            transportA.BeginSend(addrB, msgBytes, 0, msgBytes.Length, cb);
+            var pdu = new ProtocolDatagram
+            {
+                Data = msgBytes,
+                DataLength = msgBytes.Length
+            };
+            transportA.BeginSend(addrB, pdu, cb);
 
             // advance time severally
             eventLoop.AdvanceTimeIndefinitely();
@@ -266,9 +281,14 @@ namespace ScalableIPC.Core.UnitTests.Transports
 
             // Now test error cases
 
-            Assert.ThrowsAny<Exception>(() => transportA.BeginSend(addrB, msgBytes, 0, msgBytes.Length, ex => { }));
+            var pdu = new ProtocolDatagram
+            {
+                Data = msgBytes,
+                DataLength = msgBytes.Length
+            };
+            Assert.ThrowsAny<Exception>(() => transportA.BeginSend(addrB, pdu, ex => { }));
 
-            Assert.ThrowsAny<Exception>(() => transportB.BeginSend(addrA, msgBytes, 0, msgBytes.Length, null));
+            Assert.ThrowsAny<Exception>(() => transportB.BeginSend(addrA, pdu, null));
         }
     }
 }

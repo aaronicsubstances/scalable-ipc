@@ -14,16 +14,11 @@ namespace ScalableIPC.Core.UnitTests.Transports
             this.logs = logs;
             this.eventLoop = eventLoop;
         }
-        public void BeginReceive(GenericNetworkIdentifier remoteEndpoint, 
-            byte[] data, int offset, int length)
-        {
-            string message = Encoding.UTF8.GetString(data, offset, length);
-            logs.Add($"{eventLoop.CurrentTimestamp}:received from {remoteEndpoint.HostName}:{message}");
-        }
 
         public void BeginReceive(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram pdu)
         {
-            throw new NotImplementedException();
+            string message = Encoding.UTF8.GetString(pdu.Data, pdu.DataOffset, pdu.DataLength);
+            logs.Add($"{eventLoop.CurrentTimestamp}:received from {remoteEndpoint.HostName}:{message}");
         }
     }
 }
