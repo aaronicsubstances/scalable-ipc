@@ -6,7 +6,7 @@ namespace ScalableIPC.Core.ProtocolOperation
 {
     internal interface ProtocolInternalsReporter
     {
-        void OnEndpointOwnerdReset(string endpointOwnerId);
+        void OnEndpointReset(string endpointOwnerId);
         void OnKnownMessageDestinatonInfoAbandoned(GenericNetworkIdentifier remoteEndpoint);
         void OnReceiveDataAborted(IncomingTransfer transfer, int abortCode);
         void OnSendDataAborted(OutgoingTransfer transfer, int abortCode);

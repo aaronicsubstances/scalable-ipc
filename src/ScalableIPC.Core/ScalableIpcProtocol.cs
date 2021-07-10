@@ -90,7 +90,7 @@ namespace ScalableIPC.Core
             // start ack timeout
             PostponeSendDataTimeout(transfer);
 
-            transfer.DataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset, MaximumPduDataSize);
+            transfer.PendingDataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset, MaximumPduDataSize);
             SendPendingPdu(transfer, true);
         }
 
@@ -121,7 +121,7 @@ namespace ScalableIPC.Core
             {
                 // send pending pdu with empty data to trigger early abort in receiver
                 // before waiting for full timeout.
-                transfer.DataLengthToSend = 0;
+                transfer.PendingDataLengthToSend = 0;
                 SendPendingPdu(transfer, false);
             }
             InternalsReporter?.OnSendDataAborted(transfer, abortCode);
@@ -138,7 +138,7 @@ namespace ScalableIPC.Core
                 MessageLength = transfer.EndOffset - transfer.StartOffset,
                 Data = transfer.Data,
                 DataOffset = transfer.StartOffset,
-                DataLength = transfer.DataLengthToSend,
+                DataLength = transfer.PendingDataLengthToSend,
                 SequenceNumber = transfer.PendingSequenceNumber
             };
             if (transfer.PendingSequenceNumber > 0)
@@ -221,7 +221,7 @@ namespace ScalableIPC.Core
             }
 
             // successfully sent pending pdu.
-            transfer.StartOffset += transfer.DataLengthToSend;
+            transfer.StartOffset += transfer.PendingDataLengthToSend;
 
             // check if we are done.
             if (transfer.StartOffset == transfer.EndOffset)
@@ -238,7 +238,7 @@ namespace ScalableIPC.Core
                 PostponeSendDataTimeout(transfer);
 
                 // prepare to send next pdu
-                transfer.DataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset,
+                transfer.PendingDataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset,
                     MaximumPduDataSize);
                 transfer.PendingSequenceNumber++;
                 SendPendingPdu(transfer, true);
@@ -605,7 +605,7 @@ namespace ScalableIPC.Core
                     }
                 }
             }
-            InternalsReporter?.OnEndpointOwnerdReset(EndpointOwnerId);
+            InternalsReporter?.OnEndpointReset(EndpointOwnerId);
         }
     }
 }

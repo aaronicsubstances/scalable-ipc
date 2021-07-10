@@ -36,8 +36,8 @@ The initial motivation for this protocol came from deliberations on IPC efficien
   * Use non-negotiable configuration parameters:
        - Maximum receivable message size. Must be at least 64 kilobytes (65536 bytes).
        - Endpoint owner id. Necessary for preventing repeated data processing during process restarts. Must be changed periodically during lifetime of the process which creates network endpoint.
+       - Time delay in between resets of endpoint owner ids and cleaning up received message ids.
        - Receive timeout of data PDUs. Necessary for cleaning up abandoned data transfers.
-       - Time to wait before cleaning up received message ids.
        - Maximum transfer unit (MTU). Must be at least 512.
        - Minimum and maximum random backoff period between retries.
        - Receive timeout of acknowledgment PDUs. This becomes the time available for retries.
@@ -85,41 +85,166 @@ DATA_ACK members
    - sequence number - 4 bytes
    - error code - 2 bytes
 
-### Receive Message Operation
+### Receive Operation
 
-  * receiver of message expects to get a header pdu, followed by 0 or more data pdus until message length indicated in header pdu is fully accumulated.
-  * for receiver to process a header pdu, the following conditions must be met:
-     * expected pdu is header
-     * there is enough space in receiver for message length.
-  * once these conditions are met, receiver proceeds to accept header pdu, and then waits to receive 0 or more data pdus.
-  * for each header or data pdu received, receiver must respond with a header_ack or data_ack pdu. receiver should neither wait for or care about success of ack sending.
-  * for each pdu being waited for, receiver must set a timeout on it, in order to discard abandoned message transfers by sender.
-  * the following conditions apply to processing of data and header pdus:
-     * message id has not already been processed.
-     * message destination id matches message source id at receiver.
-     * there is enough space in receiver for pdu.
-  * receiver must either use one message source id for all messages received in its lifetime, or dedicate a new one for each message.
-  * In the case every message gets its own source id, then receiving an invalid message destination id in a header pdu should lead to an association of generated message source id with that message id (unless that association exists already). This association should be cleaned up after receive data timeout.
-  * if conditions are not met during processing of a header or data pdu, receiver must respond with a header_ack or data_ack pdu with appropriate error_code set.
-  * if header pdu is received again, while no data pdu has yet to be received, then receiver must respond by sending back the last header_ack sent.
-  * after receiving header pdu, receiver must only accept data pdu with the expected sequence number, which starts from 1 and is incremented each time a data pdu is successfully received. Where a data pdu with the previous sequence number is received, receiver must respond by sending back the last data_ack sent.
-  * once a message is successfully received in full, receiver must consider it processed and hold on to its id for some time (i.e. time to wait), before discarding it. By so doing repeated message processing will be avoided as long as duplicate pdus arrive at receiver before time to wait expires.
-  * if a message is processed and awaiting discarding, and a header or data pdu is received whose sequence number matches the last sequence number (0 for header pdus) received in the processed message, then receiver must respond by sending back the last header_ack or data_ack sent.
-  * if a timeout occurs while waiting for a data pdu, then receiver must consider the message processed and failed.
-  * if a header or data pdu is received such that its addition will cause the message length to be exceeded, then receiver must pick the prefix of the pdu required to satisfy the message length.
+#### State
 
-### Send Message Operation
+  1. receive buffer 
+  2. filled length
+  1. is processed
+  2. message source id
+  1. expected seq nr
+  2. last ack sent
+  3. receive data handler
 
-  * sender of message expects to receive acks for each pdu it sends, within a certain timeout per ack, in order for its data transfer to succeed.
-  * Sender must be prepared to use different message destination ids for each message being sent.
-  * the first pdu the sender must send should be a header pdu, with the length of the entire message set in it.
-  * all subsequent ones must be data pdus with sequence numbers set to start from 1.
-  * Any message destination id can be set for the first pdu, including previously received message destination ids for that endpoint.
-  * size of each pdu must not exceed MTU of underlying transport, in order that pdu is not fragmented or rejected.
-  * while sender is waiting for the correct ack, sender must continuously resend the current pdu awaiting the ack, with a random delay in between resends. Sender must wait for outcome of sending current pdu (but ignore awaited outcome whether it is success or error), before pausing to resend pdu again.
-  * sender must discard acks which cannot be processed. e.g. because opcode or sequence number is unexpected.
-  * once an ack with the expected opcode or sequence number is received, the sender must cancel the sending and resending of the current pdu being awaited, and proceed to send the next pdu or end the data transfer successfully.
-  * if an ack indicates that the message destination id set is invalid, and the current pdu awaiting ack is a header pdu, and the message destination id being used is different, then sender must subsequenatly send pdus with the message source id of the ack as the message destination id to use.
-  * if an ack indicates that receiver is running out of buffer space ... sender may choose to ignore error and keep trying to send current pdu.
-  * in all other cases of receiving an error code, sender should abort the data transfer.
-  * upon receiving an ack timeout, sender must abort the data transfer.
+#### Events
+
+  1. header pdu received
+  2. data pdu received
+  1. receive data timer elapses
+  2. reset
+  1. reset endpoint owner id timer elapses 
+
+#### Details
+
+NB:
+  1. if a header or data pdu is received such that its addition will cause the message length to be exceeded, then receiver must pick the prefix of the pdu required to satisfy the message length.
+
+
+##### header pdu received
+
+assert that message id is NOT already processed. ignore if otherwise, except  in the case where the expected seq nr is 0 AND message destination id matches msg src id. in that case send back the last ack sent (or construct one for aborted cases).
+
+assert that message id doesn't exist. ignore if otherwise, except in the case where expected seq nr is 1. in that case send back the last ack sent.
+
+assert that message length is within maximum. 0 is allowed. reply with error code if otherwise.
+
+assert that if pdu isn't the last pdu of message, then the data size is at least 512. ignore if otherwise.
+
+assert that pdu data size is within maximum. reply with error code if otherwise.
+
+last assert before success is that message destination id matches endpoint owner id. reply with invalid msg dest id error code is otherwise.
+
+create receive buffer of length the full message length. fill receive buffer with pdu data, and reply with ack. don't wait for ack send outcome.
+
+save endpoint owner id as message source id, just in case a future endpoint owner reset changes it.
+
+if receive buffer is full, notify receive data handler with message id and receive buffer contents, and mark message id as processed.
+
+else set expected seq nr to 1 and set receive data timer.
+
+##### data pdu received
+
+assert that message id is NOT already processed. ignore if otherwise, except  in the case where the expected seq nr is same as data pdu's seq nr AND message destination id matches msg src id. in that case send back the last ack sent (or construct one for aborted cases).
+
+assert that message id exists. ignore if otherwise.
+
+assert that pdu seq nr matches expected seq nr. ignore, except except in the case where expected seq nr is 1 more than pdu seq nr. in that case send back the last ack sent.
+
+assert that pdu data size is within maximum. reply with error code if otherwise.
+
+last assert before success is that message destination id matches msg src id. reply with invalid msg dest id error code is otherwise.
+
+if pdu isn't the last pdu of message, and data size is less than 512, interpret that as intention by sender to abort transfer, and abort receive.
+
+fill receive buffer with pdu data, and reply with ack. don't wait for ack send outcome.
+
+if receive buffer is full, notify receive data handler with message id and receive buffer contents, and mark message id as processed.
+
+else increment expected seq nr by 1 and reset receive data timer.
+
+##### receive data timer elapses, reset
+
+abort receive transfer by cancelling receive data timer.
+
+##### reset endpoint owner id timer elapses
+
+Eject all processed received message ids. Change endpoint owner id.
+
+### Send Operation
+
+#### State
+
+  1. message id
+  2. remote endpoint
+  1. send request callback
+  2. fragmented message
+  1. message destination id
+  2. index of sent pdu whose ack is pending
+
+#### Events
+  
+  1. message send request received
+  2. header ack received
+  1. data ack received
+  2. sent pdu callback invoked
+  1. retry backoff timer elapses
+  2. receive ack timer elapses
+  1. reset
+  2. expiration timer elapses for known message destination id association
+
+#### Details
+
+##### message send request received
+
+if message send request is received for a remote endpoint, save any send request callback supplied.
+
+Generate an id for the message.
+
+Fragment the message into pdus into array of 1 header pdu and 0 or more data pdus. Ensure no pdu's data exceed preconfigured maximum limit.
+
+Determine message destination id to use from known message destination ids for the remote endpoint, or use a random one if none exists.
+
+Start the receive ack timer.
+Send the first pdu of the message, and wait for the outcome. Ignore any send errors.
+
+##### sent pdu callback invoked
+
+if callback aftermath was not cancelled, then generate a random delay using preconfigured min/max backoff delays.
+
+schedule repeat sending message of pdu at current index after delay.
+
+##### retry backoff timer elapses
+
+repeat sending message of pdu at current index, and waiting for outcome.
+
+##### header ack received
+
+assert that current pdu is the first one, and ignore if otherwise.
+
+assert that there is no error code, and abort send transfer if there is an error code.
+
+The exception to aborting is if error code indicates 
+
+  1. invalid message destination id. Save the message source id of the ack as the new message destination id to use for subsequent sends. Also resend once the first pdu with the message destination id just changed. Lastly save the message destination id for use with the remote endpoint to speed up future message sends to that remote endpoint.
+  2. data size too large. if pdu size used is 512, abort. Else reduce to 512, and refragment message. Also resend once the first pdu with the data size just changed.
+
+If there is no error code, then cancel any scheduled retry, and cancel send pdu callback aftermath. Reset the receive ack timer.
+
+Move the current pdu index to the next one. If all pdus have been sent, then message send has been successful. Invoke the message send callback.
+
+Else send the next pdu of the message, and wait for the outcome. Ignore any send errors.
+
+##### data ack received
+
+assert that current pdu is not the first one, and ignore if otherwise.
+
+assert that the sequence number of the ack equals the sequence number of the current pdu, and ignore if otherwise.
+
+assert that there is no error code, and abort send transfer if there is an error code.
+
+If there is no error code, then cancel any scheduled retry, and cancel send pdu callback aftermath. Reset the receive ack timer.
+
+Move the current pdu index to the next one. If all pdus have been sent, then message send has been successful. Invoke the message send callback.
+
+Else send the next pdu of the message, and wait for the outcome. Ignore any send errors.
+
+##### receive ack timer elapses, reset
+
+abort send transfer by cancelling retry backoff timer, current pdu send callback aftermath and receive ack timer. Invoke message send callback.
+
+Send back a pdu with same fields as current pdu but with empty data to trigger an early abort at receiver. Don't wait for outcome.
+
+##### expiration timer elapses for known message destination id association
+
+Eject association for remote endpoint
