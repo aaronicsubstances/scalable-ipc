@@ -123,5 +123,10 @@ namespace ScalableIPC.Core.ProtocolOperation
         {
             return _backingDatastore.Keys.Count;
         }
+
+        public void Clear()
+        {
+            _backingDatastore.Clear();
+        }
     }
 }

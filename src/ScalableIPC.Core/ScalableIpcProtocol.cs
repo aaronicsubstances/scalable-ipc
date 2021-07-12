@@ -20,6 +20,7 @@ namespace ScalableIPC.Core
         private readonly EndpointStructuredDatastore<IncomingTransfer> incomingTransfers;
         private readonly EndpointStructuredDatastore<OutgoingTransfer> outgoingTransfers;
         private readonly Dictionary<GenericNetworkIdentifier, EndpointOwnerIdInfo> knownMessageDestinationIds;
+        private string endpointOwnerId;
         private object lastEndpointOwnerResetTimeoutId;
 
         public ScalableIpcProtocol()
@@ -29,7 +30,6 @@ namespace ScalableIPC.Core
             knownMessageDestinationIds = new Dictionary<GenericNetworkIdentifier, EndpointOwnerIdInfo>();
         }
 
-        public string EndpointOwnerId { get; private set; }
         public int EndpointOwnerIdResetPeriod { get; set; }
         public int MaximumPduDataSize { get; set; }
         public int MaximumReceivableMessageLength { get; set; }
@@ -298,7 +298,7 @@ namespace ScalableIPC.Core
         private void ProcessPduReceiveRequest(GenericNetworkIdentifier remoteEndpoint,
             ProtocolDatagram pdu)
         {
-            if (EndpointOwnerId == null)
+            if (endpointOwnerId == null)
             {
                 ResetEndpointOwnerId();
             }
@@ -339,7 +339,7 @@ namespace ScalableIPC.Core
                     {
                         RemoteEndpoint = remoteEndpoint,
                         MessageId = pdu.MessageId,
-                        MessageSrcId = EndpointOwnerId,
+                        MessageSrcId = endpointOwnerId,
                         ReceiveBuffer = new MemoryStream()
                     };
                 }
@@ -563,6 +563,7 @@ namespace ScalableIPC.Core
                             causeOfReset);
                     }
                 }
+                outgoingTransfers.Clear();
 
                 // cancel all receives
                 endpoints = incomingTransfers.GetEndpoints();
@@ -573,6 +574,7 @@ namespace ScalableIPC.Core
                         AbortReceiveTransfer(transfer, ProtocolOperationException.ErrorCodeAbortedFromReceiver);
                     }
                 }
+                incomingTransfers.Clear();
 
                 // clear endpoint ownership information
                 foreach (var entry in knownMessageDestinationIds.Values)
@@ -581,17 +583,19 @@ namespace ScalableIPC.Core
                 }
                 knownMessageDestinationIds.Clear();
 
-                // reset for message source ids
-                ResetEndpointOwnerId();
+                // cancel, but don't reset endpoint owner id
+                endpointOwnerId = null;
+                EventLoop.CancelTimeout(lastEndpointOwnerResetTimeoutId);
+                lastEndpointOwnerResetTimeoutId = null;
             });
         }
 
         private void ResetEndpointOwnerId()
         {
+            endpointOwnerId = ByteUtils.GenerateUuid();
             EventLoop.CancelTimeout(lastEndpointOwnerResetTimeoutId);
             lastEndpointOwnerResetTimeoutId = EventLoop.ScheduleTimeout(EndpointOwnerIdResetPeriod,
                 () => ResetEndpointOwnerId());
-            EndpointOwnerId = ByteUtils.GenerateUuid();
 
             // eject all processed receives
             var endpoints = incomingTransfers.GetEndpoints();
@@ -605,7 +609,7 @@ namespace ScalableIPC.Core
                     }
                 }
             }
-            InternalsReporter?.OnEndpointReset(EndpointOwnerId);
+            InternalsReporter?.OnEndpointOwnerIdReset(endpointOwnerId);
         }
     }
 }
