@@ -89,13 +89,12 @@ DATA_ACK members
 
 #### State
 
-  1. receive buffer 
-  2. filled length
+  1. receive buffer
   1. is processed
   2. message source id
   1. expected seq nr
   2. last ack sent
-  3. receive data handler
+  3. receive message handler
 
 #### Events
 
@@ -103,7 +102,6 @@ DATA_ACK members
   2. data pdu received
   1. receive data timer elapses
   2. reset
-  1. reset endpoint owner id timer elapses 
 
 #### Details
 
@@ -113,41 +111,39 @@ NB:
 
 ##### header pdu received
 
-assert that message id is NOT already processed. ignore if otherwise, except  in the case where the expected seq nr is 0 AND message destination id matches msg src id. in that case send back the last ack sent (or construct one for aborted cases).
+assert in any order that
 
-assert that message id doesn't exist. ignore if otherwise, except in the case where expected seq nr is 1. in that case send back the last ack sent.
+  * message id doesn't exist or expected seq nr is 0. ignore if otherwise, except in the case where expected seq nr is 1. in that case send back the last ack sent.
+  * message length is within maximum. 0 is allowed. reply with error code if otherwise.
+  * if pdu isn't the last pdu of message, then the data size is at least 512. ignore if otherwise.
+  * pdu data size is within maximum. reply with error code if otherwise.
+  * message destination id matches endpoint owner id. reply with error code if otherwise.
 
-assert that message length is within maximum. 0 is allowed. reply with error code if otherwise.
+if message id is already processed, then send back the last ack sent (or construct one for aborted cases).
 
-assert that if pdu isn't the last pdu of message, then the data size is at least 512. ignore if otherwise.
-
-assert that pdu data size is within maximum. reply with error code if otherwise.
-
-last assert before success is that message destination id matches endpoint owner id. reply with invalid msg dest id error code is otherwise.
-
-create receive buffer of length the full message length. fill receive buffer with pdu data, and reply with ack. don't wait for ack send outcome.
+create receive buffer of length the full message length. add pdu data to receive buffer, and reply with ack. don't wait for ack send outcome. set expected seq nr to 0.
 
 save endpoint owner id as message source id, just in case a future endpoint owner reset changes it.
 
-if receive buffer is full, notify receive data handler with message id and receive buffer contents, and mark message id as processed.
+if receive buffer is full, notify receive message handler with message id and receive buffer contents, and mark message id as processed.
 
 else set expected seq nr to 1 and set receive data timer.
 
 ##### data pdu received
 
-assert that message id is NOT already processed. ignore if otherwise, except  in the case where the expected seq nr is same as data pdu's seq nr AND message destination id matches msg src id. in that case send back the last ack sent (or construct one for aborted cases).
-
 assert that message id exists. ignore if otherwise.
 
-assert that pdu seq nr matches expected seq nr. ignore, except except in the case where expected seq nr is 1 more than pdu seq nr. in that case send back the last ack sent.
+assert in any order that
 
-assert that pdu data size is within maximum. reply with error code if otherwise.
+  * pdu seq nr matches expected seq nr. ignore, except except in the case where expected seq nr is 1 more than pdu seq nr. in that case send back the last ack sent.
+  * pdu data size is within maximum. reply with error code if otherwise.
+  * message destination id matches msg src id. reply with invalid msg dest id error code is otherwise.
 
-last assert before success is that message destination id matches msg src id. reply with invalid msg dest id error code is otherwise.
+if message id is already processed, then send back the last ack sent (or construct one for aborted cases).
 
-if pdu isn't the last pdu of message, and data size is less than 512, interpret that as intention by sender to abort transfer, and abort receive.
+if pdu isn't the last pdu of message, and data size is less than 512, interpret that as intention by sender to abort transfer, and abort receive and mark message id as processed.
 
-fill receive buffer with pdu data, and reply with ack. don't wait for ack send outcome.
+add pdu data to receive buffer, and reply with ack. don't wait for ack send outcome.
 
 if receive buffer is full, notify receive data handler with message id and receive buffer contents, and mark message id as processed.
 
@@ -155,11 +151,7 @@ else increment expected seq nr by 1 and reset receive data timer.
 
 ##### receive data timer elapses, reset
 
-abort receive transfer by cancelling receive data timer.
-
-##### reset endpoint owner id timer elapses
-
-Eject all processed received message ids. Change endpoint owner id.
+abort receive transfer. mark message id as processed.
 
 ### Send Operation
 
@@ -170,7 +162,7 @@ Eject all processed received message ids. Change endpoint owner id.
   1. send request callback
   2. fragmented message
   1. message destination id
-  2. index of sent pdu whose ack is pending
+  2. current index (i.e. of sent pdu in fragmented message whose ack is pending)
 
 #### Events
   
@@ -181,7 +173,6 @@ Eject all processed received message ids. Change endpoint owner id.
   1. retry backoff timer elapses
   2. receive ack timer elapses
   1. reset
-  2. expiration timer elapses for known message destination id association
 
 #### Details
 
@@ -210,14 +201,14 @@ repeat sending message of pdu at current index, and waiting for outcome.
 
 ##### header ack received
 
-assert that current pdu is the first one, and ignore if otherwise.
+assert that current index is 0, and ignore if otherwise.
 
 assert that there is no error code, and abort send transfer if there is an error code.
 
 The exception to aborting is if error code indicates 
 
-  1. invalid message destination id. Save the message source id of the ack as the new message destination id to use for subsequent sends. Also resend once the first pdu with the message destination id just changed. Lastly save the message destination id for use with the remote endpoint to speed up future message sends to that remote endpoint.
-  2. data size too large. if pdu size used is 512, abort. Else reduce to 512, and refragment message. Also resend once the first pdu with the data size just changed.
+  1. invalid message destination id. Save the message source id of the ack as the new message destination id to use for subsequent sends. Also save the message destination id for use with the remote endpoint to speed up future message sends to that remote endpoint.
+  2. data size too large. if pdu size used is 512, abort. Else reduce to 512, and refragment message for subsequent sends.
 
 If there is no error code, then cancel any scheduled retry, and cancel send pdu callback aftermath. Reset the receive ack timer.
 
@@ -227,7 +218,7 @@ Else send the next pdu of the message, and wait for the outcome. Ignore any send
 
 ##### data ack received
 
-assert that current pdu is not the first one, and ignore if otherwise.
+assert that current index is greater than 0, and ignore if otherwise.
 
 assert that the sequence number of the ack equals the sequence number of the current pdu, and ignore if otherwise.
 
@@ -241,10 +232,6 @@ Else send the next pdu of the message, and wait for the outcome. Ignore any send
 
 ##### receive ack timer elapses, reset
 
-abort send transfer by cancelling retry backoff timer, current pdu send callback aftermath and receive ack timer. Invoke message send callback.
+abort send transfer. Invoke message send callback.
 
 Send back a pdu with same fields as current pdu but with empty data to trigger an early abort at receiver. Don't wait for outcome.
-
-##### expiration timer elapses for known message destination id association
-
-Eject association for remote endpoint
