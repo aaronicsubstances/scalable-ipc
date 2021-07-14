@@ -12,7 +12,7 @@ namespace ScalableIPC.Core.ProtocolOperation
         public byte[] Data { get; set; }
         public int StartOffset { get; set; }
         public int EndOffset { get; set; }
-        public Action<ProtocolException> SendCallback { get; set; }
+        public Action<ProtocolException> MessageSendCallback { get; set; }
         public object RetryBackoffTimeoutId { get; set; }
         public object ReceiveAckTimeoutId { get; set; }
         public CancellationHandle SendCancellationHandle { get; set; }

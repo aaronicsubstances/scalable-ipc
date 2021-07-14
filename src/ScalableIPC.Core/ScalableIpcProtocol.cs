@@ -31,14 +31,13 @@ namespace ScalableIPC.Core
             knownMessageDestinationIds = new Dictionary<GenericNetworkIdentifier, EndpointOwnerIdInfo>();
         }
 
-        public int EndpointOwnerIdResetPeriod { get; set; }
+        public int ReceiveTimeout { get; set; } // absolutely required.
+        public int EndpointOwnerIdResetPeriod { get; set; } // defaults to receive timeout.
         public int MaximumPduDataSize { get; set; } // defaults to 512
-        public int MaximumReceivableMessageLength { get; set; } // defaults to no maximum.
-        public int MinRetryBackoffPeriod { get; set; }
+        public int MaximumReceivableMessageLength { get; set; } // defaults to 65,536.
+        public int MinRetryBackoffPeriod { get; set; } // defaults to fraction of receive timeout.
         public int MaxRetryBackoffPeriod { get; set; } // defaults to min retry
-        public int DefaultReceiveAckTimeout { get; set; }
-        public int DataReceiveTimeout { get; set; }
-        public int KnownMessageDestinationLifeTime { get; set; }
+        public int KnownMessageDestinationLifeTime { get; set; } // defaults to no saving of known msg dest ids.
         public ScalableIpcProtocolListener EventListener { get; set; }
         public TransportApi UnderlyingTransport { get; set; }
         public EventLoopApi EventLoop { get; set; }
@@ -69,8 +68,8 @@ namespace ScalableIPC.Core
                 Data = msg.Data,
                 StartOffset = msg.Offset,
                 EndOffset = msg.Offset + msg.Length,
-                SendCallback = cb,
-                ReceiveAckTimeout = DefaultReceiveAckTimeout
+                MessageSendCallback = cb,
+                ReceiveAckTimeout = ReceiveTimeout
             };
             if (options != null && options.Timeout > 0)
             {
@@ -108,15 +107,15 @@ namespace ScalableIPC.Core
             transfer.SendCancellationHandle.Cancel();
             EventLoop.CancelTimeout(transfer.RetryBackoffTimeoutId);
             EventLoop.CancelTimeout(transfer.ReceiveAckTimeoutId);
-            if (transfer.SendCallback != null)
+            if (transfer.MessageSendCallback != null)
             {
                 if (abortCode == ProtocolErrorCode.Success)
                 {
-                    transfer.SendCallback(null);
+                    transfer.MessageSendCallback(null);
                 }
                 else
                 {
-                    transfer.SendCallback(ex ?? new ProtocolException(abortCode));
+                    transfer.MessageSendCallback(ex ?? new ProtocolException(abortCode));
                 }
             }
             if (ex != null || abortCode == ProtocolErrorCode.SendTimeout)
@@ -164,9 +163,15 @@ namespace ScalableIPC.Core
             if (cancellationHandle.Cancelled) return;
 
             int retryBackoffPeriod = MinRetryBackoffPeriod;
-            if (MaxRetryBackoffPeriod > MinRetryBackoffPeriod)
+            if (retryBackoffPeriod < 1)
             {
-                retryBackoffPeriod += MathUtils.GetRandomInt(MaxRetryBackoffPeriod - MinRetryBackoffPeriod);
+                // arbitrarily set default backoff period to be a tenth of receive timeout.
+                retryBackoffPeriod = Math.Max(ReceiveTimeout / 10, 1);
+            }
+
+            if (MaxRetryBackoffPeriod > retryBackoffPeriod)
+            {
+                retryBackoffPeriod += MathUtils.GetRandomInt(MaxRetryBackoffPeriod - retryBackoffPeriod);
             }
             transfer.RetryBackoffTimeoutId = EventLoop.ScheduleTimeout(retryBackoffPeriod,
                 () => SendPendingPdu(transfer, true));
@@ -318,6 +323,10 @@ namespace ScalableIPC.Core
             }
             else
             {
+                // skip saving of known msg destination ids unless
+                // there's a period set for ejecting them.
+                if (KnownMessageDestinationLifeTime < 1) return;
+
                 var newEntry = new EndpointOwnerIdInfo
                 {
                     Id = messageSourceId
@@ -386,8 +395,9 @@ namespace ScalableIPC.Core
             }
 
             // assert message length.
-            if (pdu.MessageLength > UnconfiguredMaximumMessageLength &&
-                pdu.MessageLength > MaximumReceivableMessageLength)
+            int effectiveMaxMsgLength = Math.Max(MaximumReceivableMessageLength,
+                UnconfiguredMaximumMessageLength);
+            if (pdu.MessageLength > effectiveMaxMsgLength)
             {
                 SendReplyAck(remoteEndpoint, pdu.MessageId,
                     endpointOwnerId, 0, ProtocolErrorCode.MessageTooLarge);
@@ -444,7 +454,7 @@ namespace ScalableIPC.Core
             incomingTransfers.Add(remoteEndpoint, pdu.MessageId, transfer);
 
             // transfer data from pdu to buffer
-            int dataLengthToUse = Math.Min(pdu.DataLength, transfer.BytesRemaining);
+            int dataLengthToUse = Math.Min(transfer.BytesRemaining, pdu.DataLength);
             transfer.ReceiveBuffer.Write(pdu.Data, pdu.DataOffset, dataLengthToUse);
             transfer.BytesRemaining -= dataLengthToUse;
 
@@ -524,7 +534,7 @@ namespace ScalableIPC.Core
 
             // all is well.
 
-            int dataLengthToUse = Math.Min(pdu.DataLength, transfer.BytesRemaining);
+            int dataLengthToUse = Math.Min(transfer.BytesRemaining, pdu.DataLength);
             transfer.ReceiveBuffer.Write(pdu.Data, pdu.DataOffset, dataLengthToUse);
             transfer.BytesRemaining -= dataLengthToUse;
 
@@ -564,7 +574,7 @@ namespace ScalableIPC.Core
         private void PostponeReceiveDataTimeout(IncomingTransfer transfer)
         {
             EventLoop.CancelTimeout(transfer.ReceiveDataTimeoutId);
-            transfer.ReceiveDataTimeoutId = EventLoop.ScheduleTimeout(DataReceiveTimeout,
+            transfer.ReceiveDataTimeoutId = EventLoop.ScheduleTimeout(ReceiveTimeout,
                 () => AbortReceiveTransfer(transfer, ProtocolErrorCode.ReceiveTimeout));
         }
 
@@ -645,19 +655,28 @@ namespace ScalableIPC.Core
         private void ResetEndpointOwnerId()
         {
             endpointOwnerId = ByteUtils.GenerateUuid();
+
+            int resetPeriod = EndpointOwnerIdResetPeriod;
+            if (resetPeriod < 1) resetPeriod = ReceiveTimeout;
+
             EventLoop.CancelTimeout(lastEndpointOwnerResetTimeoutId);
-            lastEndpointOwnerResetTimeoutId = EventLoop.ScheduleTimeout(EndpointOwnerIdResetPeriod,
-                () => ResetEndpointOwnerId());
+            lastEndpointOwnerResetTimeoutId = EventLoop.ScheduleTimeout(
+                resetPeriod, () => ResetEndpointOwnerId());
 
             // eject all receives which have been in processed state for at
             // least receive timeout
+            var minTimeToWait = TimeSpan.FromMilliseconds(ReceiveTimeout);
             var endpoints = incomingTransfers.GetEndpoints();
             foreach (var endpoint in endpoints)
             {
                 foreach (var transfer in incomingTransfers.GetValues(endpoint))
                 {
-                    if (transfer.Processed && (DateTime.UtcNow - transfer.ProcessedAt) >= TimeSpan.FromMilliseconds(
-                        DataReceiveTimeout))
+                    if (!transfer.Processed)
+                    {
+                        continue;
+                    }
+                    var timeSpent = DateTime.UtcNow - transfer.ProcessedAt;
+                    if (timeSpent > minTimeToWait)
                     {
                         incomingTransfers.Remove(endpoint, transfer.MessageId);
                     }
