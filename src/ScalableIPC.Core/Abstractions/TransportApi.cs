@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ScalableIPC.Core.ErrorHandling;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -19,6 +20,6 @@ namespace ScalableIPC.Core.Abstractions
         GenericNetworkIdentifier LocalEndpoint { get; set; }
         TransportApiCallbacks Callbacks { get; set; }
         void BeginSend(GenericNetworkIdentifier remoteEndpoint,
-            ProtocolDatagram pdu, Action<ProtocolOperationException> cb);
+            ProtocolDatagram pdu, Action<ProtocolException> cb);
     }
 }

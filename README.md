@@ -5,13 +5,13 @@ Specifies an OS-independent network protocol for efficient inter-process communi
    1. Co-exist on the same host  machine (using UDP).
    2. Separately exist on different hosts on the Internet (using TCP/TLS).
 
-The initial motivation for this protocol came from deliberations on IPC efficiency between microservice-based HTTP-based applications.
+The initial motivation for this protocol came from deliberations on IPC efficiency between web applications built with microservice architectures.
 
 ## Convenient Features
 
   * Leverages existing network protocols used on the Internet.
   * Supports both client/server and peer-to-peer modes.
-  * Preservation of message boundaries, making it directly useful for protocol use cases characterised by request-response exchanges and single-message data transfers.
+  * Preservation of message boundaries, making it directly useful for protocol use cases characterised by request-response exchanges in which each request and each response is a single message.
   * Connectionless, in the sense that the end user can assume the communication endpoints are always available, and that errors arising from any underlying transport's connections are transient.
   * Completely takes care of connection management in underlying transport for end users.
   * Reliable delivery, even if underlying transport doesn't offer reliability.
@@ -107,7 +107,8 @@ DATA_ACK members
 
 NB:
   1. if a header or data pdu is received such that its addition will cause the message length to be exceeded, then receiver must pick the prefix of the pdu required to satisfy the message length.
-
+  2. eventually discard all traces of processed received message ids anytime endpoint owner id is changed.
+  1. never bother about failures resulting from sending ack pdus. in fact, don't even wait for the outcome if sending asynchronously.
 
 ##### header pdu received
 
@@ -115,7 +116,7 @@ assert in any order that
 
   * message id doesn't exist or expected seq nr is 0. ignore if otherwise, except in the case where expected seq nr is 1. in that case send back the last ack sent.
   * message length is within maximum. 0 is allowed. reply with error code if otherwise.
-  * if pdu isn't the last pdu of message, then the data size is at least 512. ignore if otherwise.
+  * if pdu isn't the last pdu of message, then the data size is at least 512. reply with error code if otherwise.
   * pdu data size is within maximum. reply with error code if otherwise.
   * message destination id matches endpoint owner id. reply with error code if otherwise.
 
@@ -176,6 +177,9 @@ abort receive transfer. mark message id as processed.
 
 #### Details
 
+NB:
+  1. never bother about failures resulting from sending data pdus.
+
 ##### message send request received
 
 if message send request is received for a remote endpoint, save any send request callback supplied.
@@ -184,7 +188,7 @@ Generate an id for the message.
 
 Fragment the message into pdus into array of 1 header pdu and 0 or more data pdus. Ensure no pdu's data exceed preconfigured maximum limit.
 
-Determine message destination id to use from known message destination ids for the remote endpoint, or use a random one if none exists.
+Determine message destination id to use from known message destination ids for the remote endpoint, or use a random one if none exists. It is highly recommended to use previously obtained message source ids from an endpoint for use as the initial message destination id, in order to minimize the number of pdu exchanges per message.
 
 Start the receive ack timer.
 Send the first pdu of the message, and wait for the outcome. Ignore any send errors.
@@ -207,8 +211,8 @@ assert that there is no error code, and abort send transfer if there is an error
 
 The exception to aborting is if error code indicates 
 
-  1. invalid message destination id. Save the message source id of the ack as the new message destination id to use for subsequent sends. Also save the message destination id for use with the remote endpoint to speed up future message sends to that remote endpoint.
-  2. data size too large. if pdu size used is 512, abort. Else reduce to 512, and refragment message for subsequent sends.
+  1. invalid message destination id. Save the message source id of the ack as the new message destination id to use for subsequent sends. Also it is highly recommended to save the message destination id for use with the remote endpoint, in order to speed up future message sends to that remote endpoint.
+  2. data size too large. reduce to 512, and refragment message for subsequent sends.
 
 If there is no error code, then cancel any scheduled retry, and cancel send pdu callback aftermath. Reset the receive ack timer.
 

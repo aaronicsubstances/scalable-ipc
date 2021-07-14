@@ -1,5 +1,6 @@
 ﻿using ScalableIPC.Core.Abstractions;
 using ScalableIPC.Core.Concurrency;
+using ScalableIPC.Core.ErrorHandling;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -17,7 +18,7 @@ namespace ScalableIPC.Core.Transports
         public class SendConfig
         {
             public int SendDelay { get; set; }
-            public ProtocolOperationException SendError { get; set; }
+            public ProtocolException SendError { get; set; }
             public int[] DuplicateTransmissionDelays { get; set; }
         }
 
@@ -33,7 +34,7 @@ namespace ScalableIPC.Core.Transports
         internal EventLoopApi EventLoop { get; set; }
 
         public void BeginSend(GenericNetworkIdentifier remoteEndpoint,
-            ProtocolDatagram pdu, Action<ProtocolOperationException> cb)
+            ProtocolDatagram pdu, Action<ProtocolException> cb)
         {
             // ensure connected transport for target endpoint.
             var remoteConnection = Connections[remoteEndpoint];

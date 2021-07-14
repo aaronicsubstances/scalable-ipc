@@ -17,5 +17,22 @@ namespace ScalableIPC.Core.ProtocolOperation
         public MemoryStream ReceiveBuffer { get; set; }
         public int ExpectedSequenceNumber { get; set; }
         public ProtocolDatagram LastAckSent { get; set; }
+
+        public void EnsureLastAckSentExists()
+        {
+            if (LastAckSent == null)
+            {
+                LastAckSent = new ProtocolDatagram
+                {
+                    OpCode = ExpectedSequenceNumber == 0 ? ProtocolDatagram.OpCodeHeaderAck :
+                        ProtocolDatagram.OpCodeDataAck,
+                    Version = ProtocolDatagram.ProtocolVersion1_0,
+                    MessageId = MessageId,
+                    MessageSourceId = MessageSrcId,
+                    SequenceNumber = ExpectedSequenceNumber,
+                    ErrorCode = ProcessingErrorCode,
+                };
+            }
+        }
     }
 }

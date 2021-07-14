@@ -1,4 +1,5 @@
 ﻿using ScalableIPC.Core.Concurrency;
+using ScalableIPC.Core.ErrorHandling;
 using ScalableIPC.Core.Transports;
 using System;
 using System.Collections.Generic;
@@ -48,7 +49,8 @@ namespace ScalableIPC.Core.UnitTests.Transports
                     return new IntraProcessTransport.SendConfig
                     {
                         SendDelay = 7,
-                        SendError = new ProtocolOperationException(0, "error c6cf2870-6c61-4b96-ac69-636fec271321", null)
+                        SendError = new ProtocolException(ProtocolErrorCode.Success,
+                            "error c6cf2870-6c61-4b96-ac69-636fec271321", null)
                     };
                 }
             });
@@ -107,7 +109,7 @@ namespace ScalableIPC.Core.UnitTests.Transports
             var eventLoop = new FakeEventLoopApi();
             var actual = new List<string>();
             var msgBytes = Encoding.UTF8.GetBytes(messageToSend);
-            Action<ProtocolOperationException> cb = null;
+            Action<ProtocolException> cb = null;
             if (supplyCb)
             {
                 cb = ex =>
@@ -179,7 +181,7 @@ namespace ScalableIPC.Core.UnitTests.Transports
                     new IntraProcessTransport.SendConfig
                     {
                         SendDelay = 12,
-                        SendError = new ProtocolOperationException(0, "error tx", null)
+                        SendError = new ProtocolException(ProtocolErrorCode.Success, "error tx", null)
                     }, 
                     true,
                     new List<string>
