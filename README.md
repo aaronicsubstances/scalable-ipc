@@ -107,7 +107,7 @@ DATA_ACK members
 
 NB:
   1. if a header or data pdu is received such that its addition will cause the message length to be exceeded, then receiver must pick the prefix of the pdu required to satisfy the message length.
-  2. eventually discard all traces of processed received message ids anytime endpoint owner id is changed.
+  2. eventually discard all traces of processed received message ids anytime endpoint owner id is changed, AND processed received message id has spent as much time as the receive timeout period in processed state.
   1. never bother about failures resulting from sending ack pdus. in fact, don't even wait for the outcome if sending asynchronously.
 
 ##### header pdu received
