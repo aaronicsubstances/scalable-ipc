@@ -22,7 +22,7 @@ namespace ScalableIPC.Core
         private readonly EndpointStructuredDatastore<OutgoingTransfer> outgoingTransfers;
         private readonly Dictionary<GenericNetworkIdentifier, EndpointOwnerIdInfo> knownMessageDestinationIds;
         private string endpointOwnerId;
-        private object lastEndpointOwnerResetTimeoutId;
+        private CancellationHandle lastEndpointOwnerResetTimeoutId;
 
         public ScalableIpcProtocol()
         {
@@ -47,6 +47,10 @@ namespace ScalableIPC.Core
             MessageSendOptions options, Action<ProtocolException> cb)
         {
             // validate transfer
+            if (remoteEndpoint == null)
+            {
+                throw new ArgumentNullException(nameof(remoteEndpoint));
+            }
             if (msg.Offset < 0)
             {
                 throw new Exception("negative start offset");
@@ -74,7 +78,7 @@ namespace ScalableIPC.Core
             {
                 transfer.ReceiveAckTimeout = options.Timeout;
             }
-            EventLoop.PostCallback(() =>
+            PostCallbackSafely(() =>
             {
                 ProcessMessageSendRequest(transfer);
             });
@@ -105,9 +109,9 @@ namespace ScalableIPC.Core
                 // ignore
                 return;
             }
-            transfer.SendCancellationHandle.Cancel();
-            EventLoop.CancelTimeout(transfer.RetryBackoffTimeoutId);
-            EventLoop.CancelTimeout(transfer.ReceiveAckTimeoutId);
+            transfer.SendCancellationHandle?.Cancel();
+            transfer.RetryBackoffTimeoutId?.Cancel();
+            transfer.ReceiveAckTimeoutId?.Cancel();
             if (transfer.MessageSendCallback != null)
             {
                 if (abortCode == ProtocolErrorCode.Success)
@@ -148,11 +152,11 @@ namespace ScalableIPC.Core
             if (scheduleRetry)
             {
                 // disregard success or failure result. just interested in waiting.
-                var cancellationHandle = new CancellationHandle();
+                var cancellationHandle = new CancellationHandle(null);
                 transfer.SendCancellationHandle = cancellationHandle;
                 sendCb = _ =>
                 {
-                    EventLoop.PostCallback(() => ProcessSendPduOutcome(
+                    PostCallbackSafely(() => ProcessSendPduOutcome(
                         transfer, cancellationHandle));
                 };
             }
@@ -174,7 +178,7 @@ namespace ScalableIPC.Core
             {
                 retryBackoffPeriod += MathUtils.GetRandomInt(MaxRetryBackoffPeriod - retryBackoffPeriod);
             }
-            transfer.RetryBackoffTimeoutId = EventLoop.ScheduleTimeout(retryBackoffPeriod,
+            transfer.RetryBackoffTimeoutId = ScheduleTimeoutSafely(retryBackoffPeriod,
                 () => SendPendingPdu(transfer, true));
         }
         private void ProcessReceiveHeaderAckRequest(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram ack)
@@ -283,8 +287,8 @@ namespace ScalableIPC.Core
             else
             {
                 // not done.
-                transfer.SendCancellationHandle.Cancel();
-                EventLoop.CancelTimeout(transfer.RetryBackoffTimeoutId);
+                transfer.SendCancellationHandle?.Cancel();
+                transfer.RetryBackoffTimeoutId?.Cancel();
 
                 // reset ack timeout
                 PostponeSendDataTimeout(transfer);
@@ -299,8 +303,8 @@ namespace ScalableIPC.Core
 
         private void PostponeSendDataTimeout(OutgoingTransfer transfer)
         {
-            EventLoop.CancelTimeout(transfer.ReceiveAckTimeoutId);
-            transfer.ReceiveAckTimeoutId = EventLoop.ScheduleTimeout(transfer.ReceiveAckTimeout,
+            transfer.ReceiveAckTimeoutId?.Cancel();
+            transfer.ReceiveAckTimeoutId = ScheduleTimeoutSafely(transfer.ReceiveAckTimeout,
                 () => AbortSendTransfer(transfer, ProtocolErrorCode.SendTimeout));
         }
 
@@ -336,17 +340,26 @@ namespace ScalableIPC.Core
                     // arbitrarily set default eviction time period to be a thousand times receive timeout.
                     evictionTime = 1_000 * ReceiveTimeout;
                 }
-                newEntry.TimeoutId = EventLoop.ScheduleTimeout(evictionTime, () =>
+                newEntry.TimeoutId = ScheduleTimeoutSafely(evictionTime, () =>
                 {
                     knownMessageDestinationIds.Remove(remoteEndpoint);
                     MonitoringAgent?.OnKnownMessageDestinatonInfoAbandoned(remoteEndpoint);
                 });
             }
+            MonitoringAgent?.OnKnownMessageDestinationInfoUpdated(remoteEndpoint, messageSourceId);
         }
 
         public void BeginReceive(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram pdu)
         {
-            EventLoop.PostCallback(() =>
+            if (remoteEndpoint == null)
+            {
+                throw new ArgumentNullException(nameof(remoteEndpoint));
+            }
+            if (pdu == null)
+            {
+                throw new ArgumentNullException(nameof(pdu));
+            }
+            PostCallbackSafely(() =>
             {
                 pdu.Validate();
                 ProcessPduReceiveRequest(remoteEndpoint, pdu);
@@ -577,8 +590,8 @@ namespace ScalableIPC.Core
 
         private void PostponeReceiveDataTimeout(IncomingTransfer transfer)
         {
-            EventLoop.CancelTimeout(transfer.ReceiveDataTimeoutId);
-            transfer.ReceiveDataTimeoutId = EventLoop.ScheduleTimeout(ReceiveTimeout,
+            transfer.ReceiveDataTimeoutId?.Cancel();
+            transfer.ReceiveDataTimeoutId = ScheduleTimeoutSafely(ReceiveTimeout,
                 () => AbortReceiveTransfer(transfer, ProtocolErrorCode.ReceiveTimeout));
         }
 
@@ -599,7 +612,7 @@ namespace ScalableIPC.Core
             else {
                 transfer.ProcessingErrorCode = abortCode.Value;
             }
-            EventLoop.CancelTimeout(transfer.ReceiveDataTimeoutId);
+            transfer.ReceiveDataTimeoutId?.Cancel();
             if (abortCode == ProtocolErrorCode.Success && EventListener != null)
             {
                 // success. inform event listener.
@@ -618,7 +631,11 @@ namespace ScalableIPC.Core
 
         public void Reset(ProtocolException causeOfReset)
         {
-            EventLoop.PostCallback(() =>
+            if (causeOfReset == null)
+            {
+                throw new ArgumentNullException(nameof(causeOfReset));
+            }
+            PostCallbackSafely(() =>
             {
                 // cancel all outgoing transfers.
                 var endpoints = outgoingTransfers.GetEndpoints();
@@ -645,13 +662,13 @@ namespace ScalableIPC.Core
                 // clear endpoint ownership information
                 foreach (var entry in knownMessageDestinationIds.Values)
                 {
-                    EventLoop.CancelTimeout(entry.TimeoutId);
+                    entry.TimeoutId?.Cancel();
                 }
                 knownMessageDestinationIds.Clear();
 
                 // cancel, but don't reset endpoint owner id
                 endpointOwnerId = null;
-                EventLoop.CancelTimeout(lastEndpointOwnerResetTimeoutId);
+                lastEndpointOwnerResetTimeoutId?.Cancel();
                 lastEndpointOwnerResetTimeoutId = null;
             });
         }
@@ -663,8 +680,8 @@ namespace ScalableIPC.Core
             int resetPeriod = EndpointOwnerIdResetPeriod;
             if (resetPeriod < 1) resetPeriod = ReceiveTimeout;
 
-            EventLoop.CancelTimeout(lastEndpointOwnerResetTimeoutId);
-            lastEndpointOwnerResetTimeoutId = EventLoop.ScheduleTimeout(
+            lastEndpointOwnerResetTimeoutId?.Cancel();
+            lastEndpointOwnerResetTimeoutId = ScheduleTimeoutSafely(
                 resetPeriod, () => ResetEndpointOwnerId());
 
             // eject all receives which have been in processed state for at
@@ -688,6 +705,61 @@ namespace ScalableIPC.Core
                 }
             }
             MonitoringAgent?.OnEndpointOwnerIdReset(endpointOwnerId);
+        }
+
+        private void PostCallbackSafely(Action cb)
+        {
+            try
+            {
+                EventLoop.PostCallback(() =>
+                {
+                    try
+                    {
+                        cb.Invoke();
+                    }
+                    catch (Exception ex)
+                    {
+                        EventListener?.OnProcessingError("142ada19-cf8a-4f03-803c-d66a65bbf79c: " +
+                            "error from executing unscheduled callback", ex);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                EventListener?.OnProcessingError("50dbcfba-1148-41b0-838a-c255970880a6: " +
+                    "error from submitting callback", ex);
+            }
+        }
+
+        private CancellationHandle ScheduleTimeoutSafely(int millis, Action cb)
+        {
+            // unlike post callback, let error due to scheduling timeout
+            // bubble up to caller.
+            object timeoutId = EventLoop.ScheduleTimeout(millis, () =>
+            {
+                try
+                {
+                    cb.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    EventListener?.OnProcessingError("903a2d64-b374-45c7-9c00-4b9bfb1433f2: " +
+                        "error from executing scheduled callback", ex);
+                }
+            });
+            var cancellationHandle = new CancellationHandle(() =>
+            {
+                try
+                {
+                    EventLoop.CancelTimeout(timeoutId);
+                }
+                catch (Exception ex)
+                {
+                    EventListener?.OnProcessingError("d30d0f3b-b0fd-4897-b3cd-3d3eaf6f35c3: " +
+                        "error from cancelling scheduled callback", ex);
+                }
+            });
+            return cancellationHandle;
         }
     }
 }

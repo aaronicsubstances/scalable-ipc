@@ -7,6 +7,6 @@ namespace ScalableIPC.Core.ProtocolOperation
     public class EndpointOwnerIdInfo
     {
         public string Id { get; set; }
-        public object TimeoutId { get; set; }
+        public CancellationHandle TimeoutId { get; set; }
     }
 }
