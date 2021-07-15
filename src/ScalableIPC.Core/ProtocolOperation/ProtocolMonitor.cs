@@ -15,5 +15,6 @@ namespace ScalableIPC.Core.ProtocolOperation
         void OnReceivedDataEvicted(IncomingTransfer transfer);
         void OnSendDataAdded(OutgoingTransfer transfer);
         void OnSendDataAborted(OutgoingTransfer transfer, ProtocolErrorCode abortCode);
+        void OnReset(ProtocolException causeOfReset);
     }
 }

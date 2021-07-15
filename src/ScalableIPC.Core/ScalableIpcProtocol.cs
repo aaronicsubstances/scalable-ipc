@@ -101,8 +101,7 @@ namespace ScalableIPC.Core
             SendPendingPdu(transfer, true);
         }
 
-        private void AbortSendTransfer(OutgoingTransfer transfer, ProtocolErrorCode abortCode,
-            ProtocolException ex = null)
+        private void AbortSendTransfer(OutgoingTransfer transfer, ProtocolErrorCode abortCode)
         {
             if (!outgoingTransfers.Remove(transfer.RemoteEndpoint, transfer.MessageId))
             {
@@ -120,10 +119,10 @@ namespace ScalableIPC.Core
                 }
                 else
                 {
-                    transfer.MessageSendCallback(ex ?? new ProtocolException(abortCode));
+                    transfer.MessageSendCallback(new ProtocolException(abortCode));
                 }
             }
-            if (ex != null || abortCode == ProtocolErrorCode.SendTimeout)
+            if (abortCode == ProtocolErrorCode.SendTimeout)
             {
                 // send pending pdu with empty data to trigger early abort in receiver
                 // before waiting for full timeout.
@@ -643,7 +642,10 @@ namespace ScalableIPC.Core
                 {
                     foreach (var transfer in outgoingTransfers.GetValues(endpoint))
                     {
-                        AbortSendTransfer(transfer, causeOfReset.ErrorCode, causeOfReset);
+                        transfer.SendCancellationHandle?.Cancel();
+                        transfer.RetryBackoffTimeoutId?.Cancel();
+                        transfer.ReceiveAckTimeoutId?.Cancel();
+                        transfer.MessageSendCallback?.Invoke(causeOfReset);
                     }
                 }
                 outgoingTransfers.Clear();
@@ -654,7 +656,8 @@ namespace ScalableIPC.Core
                 {
                     foreach (var transfer in incomingTransfers.GetValues(endpoint))
                     {
-                        AbortReceiveTransfer(transfer, causeOfReset.ErrorCode);
+                        transfer.ReceiveDataTimeoutId?.Cancel();
+                        transfer.ReceiveBuffer.Dispose();
                     }
                 }
                 incomingTransfers.Clear();
@@ -670,6 +673,8 @@ namespace ScalableIPC.Core
                 endpointOwnerId = null;
                 lastEndpointOwnerResetTimeoutId?.Cancel();
                 lastEndpointOwnerResetTimeoutId = null;
+
+                MonitoringAgent?.OnReset(causeOfReset);
             });
         }
 
