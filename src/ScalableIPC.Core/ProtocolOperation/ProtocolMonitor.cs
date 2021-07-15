@@ -5,11 +5,14 @@ using System.Text;
 
 namespace ScalableIPC.Core.ProtocolOperation
 {
-    internal interface ProtocolInternalsReporter
+    internal interface ProtocolMonitor
     {
         void OnEndpointOwnerIdReset(string endpointOwnerId);
         void OnKnownMessageDestinatonInfoAbandoned(GenericNetworkIdentifier remoteEndpoint);
+        void OnReceiveDataAdded(IncomingTransfer transfer);
         void OnReceiveDataAborted(IncomingTransfer transfer, ProtocolErrorCode abortCode);
+        void OnReceivedDataEvicted(IncomingTransfer transfer);
+        void OnSendDataAdded(OutgoingTransfer transfer);
         void OnSendDataAborted(OutgoingTransfer transfer, ProtocolErrorCode abortCode);
     }
 }

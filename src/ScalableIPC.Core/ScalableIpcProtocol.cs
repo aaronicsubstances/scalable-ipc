@@ -37,12 +37,11 @@ namespace ScalableIPC.Core
         public int MaximumReceivableMessageLength { get; set; } // defaults to 65,536.
         public int MinRetryBackoffPeriod { get; set; } // defaults to fraction of receive timeout.
         public int MaxRetryBackoffPeriod { get; set; } // defaults to min retry
-        public int KnownMessageDestinationLifeTime { get; set; } // defaults to no saving of known msg dest ids.
+        public int KnownMessageDestinationLifeTime { get; set; } // defaults to multiple of receive timeout
         public ScalableIpcProtocolListener EventListener { get; set; }
         public TransportApi UnderlyingTransport { get; set; }
         public EventLoopApi EventLoop { get; set; }
-        
-        internal ProtocolInternalsReporter InternalsReporter { get; set; }
+        internal ProtocolMonitor MonitoringAgent { get; set; }
 
         public void BeginSend(GenericNetworkIdentifier remoteEndpoint, ProtocolMessage msg,
             MessageSendOptions options, Action<ProtocolException> cb)
@@ -50,15 +49,15 @@ namespace ScalableIPC.Core
             // validate transfer
             if (msg.Offset < 0)
             {
-                throw new Exception();
+                throw new Exception("negative start offset");
             }
             if (msg.Length < 0)
             {
-                throw new Exception();
+                throw new Exception("negative length");
             }
             if (msg.Offset + msg.Length > msg.Data.Length)
             {
-                throw new Exception();
+                throw new Exception("invalid end offset");
             }
             msg.Id = ByteUtils.GenerateUuid();
             var transfer = new OutgoingTransfer
@@ -84,13 +83,15 @@ namespace ScalableIPC.Core
         private void ProcessMessageSendRequest(OutgoingTransfer transfer)
         {
             outgoingTransfers.Add(transfer.RemoteEndpoint, transfer.MessageId, transfer);
+            MonitoringAgent?.OnSendDataAdded(transfer);
+
             transfer.MessageDestinationId = GetKnownMessageDestinationId(transfer.RemoteEndpoint) ??
                 ByteUtils.GenerateUuid();
             transfer.PduDataSize = Math.Max(MaximumPduDataSize, MinimumNonTerminatingPduDataSize);
 
             // start ack timeout
             PostponeSendDataTimeout(transfer);
-
+            // kickstart sending
             transfer.PendingDataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset,
                 transfer.PduDataSize);
             SendPendingPdu(transfer, true);
@@ -125,7 +126,7 @@ namespace ScalableIPC.Core
                 transfer.PendingDataLengthToSend = 0;
                 SendPendingPdu(transfer, false);
             }
-            InternalsReporter?.OnSendDataAborted(transfer, abortCode);
+            MonitoringAgent?.OnSendDataAborted(transfer, abortCode);
         }
 
         private void SendPendingPdu(OutgoingTransfer transfer, bool scheduleRetry)
@@ -323,20 +324,22 @@ namespace ScalableIPC.Core
             }
             else
             {
-                // skip saving of known msg destination ids unless
-                // there's a period set for ejecting them.
-                if (KnownMessageDestinationLifeTime < 1) return;
-
                 var newEntry = new EndpointOwnerIdInfo
                 {
                     Id = messageSourceId
                 };
                 knownMessageDestinationIds.Add(remoteEndpoint, newEntry);
                 // use absolute expiration to limit size of dictionary.
-                newEntry.TimeoutId = EventLoop.ScheduleTimeout(KnownMessageDestinationLifeTime, () =>
+                var evictionTime = KnownMessageDestinationLifeTime;
+                if (evictionTime < 1)
+                {
+                    // arbitrarily set default eviction time period to be a thousand times receive timeout.
+                    evictionTime = 1_000 * ReceiveTimeout;
+                }
+                newEntry.TimeoutId = EventLoop.ScheduleTimeout(evictionTime, () =>
                 {
                     knownMessageDestinationIds.Remove(remoteEndpoint);
-                    InternalsReporter?.OnKnownMessageDestinatonInfoAbandoned(remoteEndpoint);
+                    MonitoringAgent?.OnKnownMessageDestinatonInfoAbandoned(remoteEndpoint);
                 });
             }
         }
@@ -452,6 +455,7 @@ namespace ScalableIPC.Core
                 ExpectedSequenceNumber = 0
             };
             incomingTransfers.Add(remoteEndpoint, pdu.MessageId, transfer);
+            MonitoringAgent?.OnReceiveDataAdded(transfer);
 
             // transfer data from pdu to buffer
             int dataLengthToUse = Math.Min(transfer.BytesRemaining, pdu.DataLength);
@@ -609,7 +613,7 @@ namespace ScalableIPC.Core
                 EventListener.OnMessageReceived(transfer.RemoteEndpoint, message);
             }
             transfer.ReceiveBuffer.Dispose();
-            InternalsReporter?.OnReceiveDataAborted(transfer, abortCode);
+            MonitoringAgent?.OnReceiveDataAborted(transfer, abortCode);
         }
 
         public void Reset(ProtocolException causeOfReset)
@@ -679,10 +683,11 @@ namespace ScalableIPC.Core
                     if (timeSpent > minTimeToWait)
                     {
                         incomingTransfers.Remove(endpoint, transfer.MessageId);
+                        MonitoringAgent?.OnReceivedDataEvicted(transfer);
                     }
                 }
             }
-            InternalsReporter?.OnEndpointOwnerIdReset(endpointOwnerId);
+            MonitoringAgent?.OnEndpointOwnerIdReset(endpointOwnerId);
         }
     }
 }
