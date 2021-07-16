@@ -1,9 +1,9 @@
 ﻿using ScalableIPC.Core.Abstractions;
+using ScalableIPC.Core.Concurrency;
 using ScalableIPC.Core.ErrorHandling;
 using ScalableIPC.Core.Helpers;
 using ScalableIPC.Core.ProtocolOperation;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -20,7 +20,6 @@ namespace ScalableIPC.Core
 
         private readonly EndpointStructuredDatastore<IncomingTransfer> incomingTransfers;
         private readonly EndpointStructuredDatastore<OutgoingTransfer> outgoingTransfers;
-        private readonly Dictionary<GenericNetworkIdentifier, EndpointOwnerIdInfo> knownMessageDestinationIds;
         private string endpointOwnerId;
         private CancellationHandle lastEndpointOwnerResetTimeoutId;
 
@@ -28,7 +27,8 @@ namespace ScalableIPC.Core
         {
             incomingTransfers = new EndpointStructuredDatastore<IncomingTransfer>();
             outgoingTransfers = new EndpointStructuredDatastore<OutgoingTransfer>();
-            knownMessageDestinationIds = new Dictionary<GenericNetworkIdentifier, EndpointOwnerIdInfo>();
+            EndpointInfoDatastore = new DefaultEndpointInfoDatastore(-1);
+            EventLoop = new DefaultEventLoopApi();
         }
 
         public int ReceiveTimeout { get; set; } // absolutely required.
@@ -37,11 +37,11 @@ namespace ScalableIPC.Core
         public int MaximumReceivableMessageLength { get; set; } // defaults to 65,536.
         public int MinRetryBackoffPeriod { get; set; } // defaults to fraction of receive timeout.
         public int MaxRetryBackoffPeriod { get; set; } // defaults to min retry
-        public int KnownMessageDestinationLifeTime { get; set; } // defaults to multiple of receive timeout
-        public ScalableIpcProtocolListener EventListener { get; set; }
-        public TransportApi UnderlyingTransport { get; set; }
-        public EventLoopApi EventLoop { get; set; }
-        internal ProtocolMonitor MonitoringAgent { get; set; }
+        public ScalableIpcProtocolListener EventListener { get; set; } // recommended but not required.
+        internal ProtocolMonitor MonitoringAgent { get; set; } // used for testing only
+        public TransportApi UnderlyingTransport { get; set; } // absolutely required
+        public EventLoopApi EventLoop { get; set; } // absolutely required
+        public IEndpointInfoDatastore EndpointInfoDatastore { get; set; } // recommended but not required.
 
         public void BeginSend(GenericNetworkIdentifier remoteEndpoint, ProtocolMessage msg,
             MessageSendOptions options, Action<ProtocolException> cb)
@@ -89,7 +89,7 @@ namespace ScalableIPC.Core
             outgoingTransfers.Add(transfer.RemoteEndpoint, transfer.MessageId, transfer);
             MonitoringAgent?.OnSendDataAdded(transfer);
 
-            transfer.MessageDestinationId = GetKnownMessageDestinationId(transfer.RemoteEndpoint) ??
+            transfer.MessageDestinationId = EndpointInfoDatastore?.Get(transfer.RemoteEndpoint) ??
                 ByteUtils.GenerateUuid();
             transfer.PduDataSize = Math.Max(MaximumPduDataSize, MinimumNonTerminatingPduDataSize);
 
@@ -206,7 +206,7 @@ namespace ScalableIPC.Core
                         transfer.MessageDestinationId = ack.MessageSourceId;
 
                         // save for future use.
-                        UpdateKnownMessageDestinationIds(remoteEndpoint, ack.MessageSourceId);
+                        EndpointInfoDatastore?.Update(remoteEndpoint, ack.MessageSourceId);
 
                         // instead of waiting for retry backoff timer, send updated pdu
                         // once.
@@ -305,47 +305,6 @@ namespace ScalableIPC.Core
             transfer.ReceiveAckTimeoutId?.Cancel();
             transfer.ReceiveAckTimeoutId = ScheduleTimeoutSafely(transfer.ReceiveAckTimeout,
                 () => AbortSendTransfer(transfer, ProtocolErrorCode.SendTimeout));
-        }
-
-        private string GetKnownMessageDestinationId(GenericNetworkIdentifier remoteEndpoint)
-        {
-            if (knownMessageDestinationIds.ContainsKey(remoteEndpoint))
-            {
-                return knownMessageDestinationIds[remoteEndpoint].Id;
-            }
-            else
-            {
-                return null;
-            }
-        }
-
-        private void UpdateKnownMessageDestinationIds(GenericNetworkIdentifier remoteEndpoint, string messageSourceId)
-        {
-            if (knownMessageDestinationIds.ContainsKey(remoteEndpoint))
-            {
-                knownMessageDestinationIds[remoteEndpoint].Id = messageSourceId;
-            }
-            else
-            {
-                var newEntry = new EndpointOwnerIdInfo
-                {
-                    Id = messageSourceId
-                };
-                knownMessageDestinationIds.Add(remoteEndpoint, newEntry);
-                // use absolute expiration to limit size of dictionary.
-                var evictionTime = KnownMessageDestinationLifeTime;
-                if (evictionTime < 1)
-                {
-                    // arbitrarily set default eviction time period to be a thousand times receive timeout.
-                    evictionTime = 1_000 * ReceiveTimeout;
-                }
-                newEntry.TimeoutId = ScheduleTimeoutSafely(evictionTime, () =>
-                {
-                    knownMessageDestinationIds.Remove(remoteEndpoint);
-                    MonitoringAgent?.OnKnownMessageDestinatonInfoAbandoned(remoteEndpoint);
-                });
-            }
-            MonitoringAgent?.OnKnownMessageDestinationInfoUpdated(remoteEndpoint, messageSourceId);
         }
 
         public void BeginReceive(GenericNetworkIdentifier remoteEndpoint, ProtocolDatagram pdu)
@@ -663,11 +622,7 @@ namespace ScalableIPC.Core
                 incomingTransfers.Clear();
 
                 // clear endpoint ownership information
-                foreach (var entry in knownMessageDestinationIds.Values)
-                {
-                    entry.TimeoutId?.Cancel();
-                }
-                knownMessageDestinationIds.Clear();
+                EndpointInfoDatastore?.Clear();
 
                 // cancel, but don't reset endpoint owner id
                 endpointOwnerId = null;

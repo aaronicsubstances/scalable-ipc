@@ -1,0 +1,27 @@
+testing plan
+
+unit test scalableipc for correct data transfer and correct timing
+
+test receive for a given msg id
+-call beginreceive severally
+-note the time diff between successful ack seq nr transitions and the final ack.
+-specify timeline of input events interspersed with expected output events, and match with actual output events and timeline.
+-input events are time advances, and beginreceive calls.
+-output events are owner id reset, receive data addition, send ack, abort, event listener msg receive, event listener error, receive data eviction
+
+test send for a given msg
+-call beginsend, and then beginreceive severally
+-note the time diff between pdu send seq nr transitions and the optional final empty pdu send.
+-determine the expected range of number of retransmissions
+-specify timeline of input events interspersed with expected output events, and match with actual events and timeline.
+-input events are time advances, beginsend and beginreceive calls.
+-output events are outgoing transfer addition, send pdu, abort, send msg callback invocation, event listener error
+
+test reset
+
+do integration test of InProcessTransport and ScalableIpc for multiplexing and correct data transfer
+-set up random send config for perfect, near perfect, very bad, non-existent network
+-note the time diff at sender and receiver and use it to determine what should happen: success or failures.
+-determine at sender whether transfer succeeds or fails
+-determine at receiver whether transfer succeeds or fails
+-assert that successful transfer maintains integrity of data and doesn't create duplicates
