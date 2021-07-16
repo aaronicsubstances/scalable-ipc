@@ -14,8 +14,8 @@ namespace ScalableIPC.Core
 {
     public class ScalableIpcProtocol : TransportApiCallbacks
     {
-        public const int UnconfiguredMaximumMessageLength = 65_536;
-        public const int MinimumNonTerminatingPduDataSize = 512;
+        public const int DefaultMaximumMessageLength = 65_536;
+        public const int DefaultMaximumPduDataSize = 512;
 
         private readonly EndpointStructuredDatastore<IncomingTransfer> incomingTransfers;
         private readonly EndpointStructuredDatastore<OutgoingTransfer> outgoingTransfers;
@@ -90,7 +90,7 @@ namespace ScalableIPC.Core
 
             transfer.MessageDestinationId = EndpointInfoDatastore?.Get(transfer.RemoteEndpoint) ??
                 ByteUtils.GenerateUuid();
-            transfer.PduDataSize = MaximumPduDataSize < 1 ? MinimumNonTerminatingPduDataSize : MaximumPduDataSize;
+            transfer.PduDataSize = MaximumPduDataSize < 1 ? DefaultMaximumPduDataSize : MaximumPduDataSize;
 
             // start ack timeout
             PostponeSendDataTimeout(transfer);
@@ -209,29 +209,6 @@ namespace ScalableIPC.Core
 
                         // save for future use.
                         EndpointInfoDatastore?.Update(remoteEndpoint, transfer.MessageDestinationId);
-
-                        // instead of waiting for retry backoff timer, send updated pdu
-                        // once.
-                        SendPendingPdu(transfer, false);
-                    }
-                    return;
-                }
-                if (ack.ErrorCode == ProtocolErrorCode.PduTooLarge.Value)
-                {
-                    int expectedMaxPduDataSize = ByteUtils.DeserializeInt32BigEndian(ack.Data,
-                        ack.DataOffset);
-                    // ensure expected max is at least 512.
-                    if (expectedMaxPduDataSize > MinimumNonTerminatingPduDataSize)
-                    {
-                        expectedMaxPduDataSize = MinimumNonTerminatingPduDataSize;
-                    }
-                    if (transfer.PduDataSize > expectedMaxPduDataSize)
-                    {
-                        transfer.PduDataSize = expectedMaxPduDataSize;
-
-                        // refragment.
-                        transfer.PendingDataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset,
-                            transfer.PduDataSize);
 
                         // instead of waiting for retry backoff timer, send updated pdu
                         // once.
@@ -379,22 +356,11 @@ namespace ScalableIPC.Core
 
             // assert message length.
             int effectiveMaxMsgLength = MaximumReceivableMessageLength < 1 ?
-                UnconfiguredMaximumMessageLength : MaximumReceivableMessageLength;
+                DefaultMaximumMessageLength : MaximumReceivableMessageLength;
             if (pdu.MessageLength > effectiveMaxMsgLength)
             {
                 SendReplyAck(remoteEndpoint, pdu.MessageId, 0,
                     ProtocolErrorCode.MessageTooLarge, null);
-                return;
-            }
-
-            // ensure pdu data size does not exceed max.
-            int effectiveMaxPduSize = MaximumPduDataSize < 1 ? MinimumNonTerminatingPduDataSize :
-                MaximumPduDataSize;
-            if (pdu.DataLength > effectiveMaxPduSize)
-            {
-                SendReplyAck(remoteEndpoint, pdu.MessageId, 0,
-                    ProtocolErrorCode.PduTooLarge,
-                    ByteUtils.SerializeInt32BigEndian(effectiveMaxPduSize));
                 return;
             }
 
@@ -430,8 +396,7 @@ namespace ScalableIPC.Core
                 MessageSrcId = endpointOwnerId,
                 ReceiveBuffer = new MemoryStream(),
                 BytesRemaining = pdu.MessageLength,
-                ExpectedSequenceNumber = 0,
-                MaxPduDataSize = effectiveMaxPduSize
+                ExpectedSequenceNumber = 0
             };
             incomingTransfers.Add(remoteEndpoint, pdu.MessageId, transfer);
             MonitoringAgent?.OnReceiveDataAdded(transfer);
@@ -475,15 +440,6 @@ namespace ScalableIPC.Core
                 {
                     UnderlyingTransport.BeginSend(remoteEndpoint, transfer.LastAckSent, null);
                 }
-                return;
-            }
-
-            // ensure pdu data size does not exceed max.
-            if (pdu.DataLength > transfer.MaxPduDataSize)
-            {
-                SendReplyAck(remoteEndpoint, pdu.MessageId, pdu.SequenceNumber,
-                    ProtocolErrorCode.PduTooLarge,
-                    ByteUtils.SerializeInt32BigEndian(transfer.MaxPduDataSize));
                 return;
             }
 

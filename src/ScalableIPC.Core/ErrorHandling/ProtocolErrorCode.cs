@@ -13,7 +13,6 @@ namespace ScalableIPC.Core.ErrorHandling
         public static readonly ProtocolErrorCode InvalidDestinationEndpointId = new ProtocolErrorCode(2, "invalid message destination id");
         public static readonly ProtocolErrorCode MessageTooLarge = new ProtocolErrorCode(3, "max message length exceeded");
         public static readonly ProtocolErrorCode ReceiveTimeout = new ProtocolErrorCode(4, "receive timeout");
-        public static readonly ProtocolErrorCode PduTooLarge = new ProtocolErrorCode(5, "max pdu data size exceeded");
 
         // The following error codes are not meant to be used for network
         // communications. As such they are negative.
