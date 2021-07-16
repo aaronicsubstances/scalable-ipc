@@ -216,11 +216,18 @@ namespace ScalableIPC.Core
                     }
                     return;
                 }
-                if (ack.ErrorCode == ProtocolErrorCode.InvalidPduDataSizeExceeded.Value)
+                if (ack.ErrorCode == ProtocolErrorCode.PduTooLarge.Value)
                 {
-                    if (transfer.PduDataSize > MinimumNonTerminatingPduDataSize)
+                    int expectedMaxPduDataSize = ByteUtils.DeserializeInt32BigEndian(ack.Data,
+                        ack.DataOffset);
+                    // ensure expected max is at least 512.
+                    if (expectedMaxPduDataSize > MinimumNonTerminatingPduDataSize)
                     {
-                        transfer.PduDataSize = MinimumNonTerminatingPduDataSize;
+                        expectedMaxPduDataSize = MinimumNonTerminatingPduDataSize;
+                    }
+                    if (transfer.PduDataSize > expectedMaxPduDataSize)
+                    {
+                        transfer.PduDataSize = expectedMaxPduDataSize;
 
                         // refragment.
                         transfer.PendingDataLengthToSend = Math.Min(transfer.EndOffset - transfer.StartOffset,
@@ -380,17 +387,14 @@ namespace ScalableIPC.Core
                 return;
             }
 
-            // assert pdu data size.
-            bool dataSizeValid = pdu.DataLength <= MaximumPduDataSize;
-            // if pdu isn't the last pdu of message, also assert that the data size is at least 512.
-            if (pdu.DataLength < transfer.BytesRemaining)
-            {
-                dataSizeValid = dataSizeValid && pdu.DataLength >= MinimumNonTerminatingPduDataSize;
-            }
-            if (!dataSizeValid)
+            // ensure pdu data size does not exceed max.
+            int effectiveMaxPduSize = MaximumPduDataSize < 1 ? MinimumNonTerminatingPduDataSize :
+                MaximumPduDataSize;
+            if (pdu.DataLength > effectiveMaxPduSize)
             {
                 SendReplyAck(remoteEndpoint, pdu.MessageId, 0,
-                    ProtocolErrorCode.InvalidPduDataSizeExceeded, null);
+                    ProtocolErrorCode.PduTooLarge,
+                    ByteUtils.SerializeInt32BigEndian(effectiveMaxPduSize));
                 return;
             }
 
@@ -398,7 +402,8 @@ namespace ScalableIPC.Core
             if (pdu.MessageDestinationId != endpointOwnerId)
             {
                 SendReplyAck(remoteEndpoint, pdu.MessageId, 0,
-                    ProtocolErrorCode.InvalidDestinationEndpointId, ByteUtils.ConvertHexToBytes(endpointOwnerId));
+                    ProtocolErrorCode.InvalidDestinationEndpointId,
+                    ByteUtils.ConvertHexToBytes(endpointOwnerId));
                 return;
             }
 
@@ -425,7 +430,8 @@ namespace ScalableIPC.Core
                 MessageSrcId = endpointOwnerId,
                 ReceiveBuffer = new MemoryStream(),
                 BytesRemaining = pdu.MessageLength,
-                ExpectedSequenceNumber = 0
+                ExpectedSequenceNumber = 0,
+                MaxPduDataSize = effectiveMaxPduSize
             };
             incomingTransfers.Add(remoteEndpoint, pdu.MessageId, transfer);
             MonitoringAgent?.OnReceiveDataAdded(transfer);
@@ -472,12 +478,12 @@ namespace ScalableIPC.Core
                 return;
             }
 
-            // assert pdu data size.
-            bool dataSizeValid = pdu.DataLength <= MaximumPduDataSize;
-            if (!dataSizeValid)
+            // ensure pdu data size does not exceed max.
+            if (pdu.DataLength > transfer.MaxPduDataSize)
             {
-                SendReplyAck(remoteEndpoint, pdu.MessageId, pdu.SequenceNumber, 
-                    ProtocolErrorCode.InvalidPduDataSizeExceeded, null);
+                SendReplyAck(remoteEndpoint, pdu.MessageId, pdu.SequenceNumber,
+                    ProtocolErrorCode.PduTooLarge,
+                    ByteUtils.SerializeInt32BigEndian(transfer.MaxPduDataSize));
                 return;
             }
 
@@ -499,11 +505,11 @@ namespace ScalableIPC.Core
                 return;
             }
 
-            // if pdu isn't the last pdu of message, and data size is less than 512, 
+            // if pdu isn't the last pdu of message, and data size is empty, 
             // interpret that as intention by sender to abort transfer.
             if (pdu.DataLength < transfer.BytesRemaining)
             {
-                if (pdu.DataLength < MinimumNonTerminatingPduDataSize)
+                if (pdu.DataLength  == 0)
                 {
                     AbortReceiveTransfer(transfer, ProtocolErrorCode.AbortedFromSender);
                     return;

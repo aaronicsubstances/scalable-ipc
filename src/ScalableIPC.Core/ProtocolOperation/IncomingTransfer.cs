@@ -18,6 +18,7 @@ namespace ScalableIPC.Core.ProtocolOperation
         public MemoryStream ReceiveBuffer { get; set; }
         public int ExpectedSequenceNumber { get; set; }
         public ProtocolDatagram LastAckSent { get; set; }
+        public int MaxPduDataSize { get; set; }
 
         public void EnsureLastAckSentExists()
         {

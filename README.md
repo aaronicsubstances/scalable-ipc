@@ -87,6 +87,8 @@ DATA_ACK members
    - error code - 2 bytes
    - (payload, can be empty)
 
+NB: implementations may choose to discard ack pdus with a total size exceeding 512. *This makes 512 the de facto maximum size of data_ack and header_ack pdus.*
+
 ### Receive Operation
 
 #### State
@@ -118,8 +120,7 @@ assert in any order that
 
   * message id doesn't exist or expected seq nr is 0. ignore if otherwise, except in the case where expected seq nr is 1. in that case send back the last ack sent.
   * message length is within maximum. 0 is allowed. reply with error code if otherwise.
-  * if pdu isn't the last pdu of message, then the data size is at least 512. reply with error code if otherwise.
-  * pdu data size is within maximum. reply with error code if otherwise.
+  * pdu data size is within maximum. reply with error code AND max pdu data size as the ack payload if otherwise.
   * message destination id matches endpoint owner id. reply with error code AND endpoint owner id as ack payload if otherwise.
 
 if message id is already processed, then send back the last ack sent (or construct one for aborted cases).
@@ -127,6 +128,8 @@ if message id is already processed, then send back the last ack sent (or constru
 create receive buffer of length the full message length. add pdu data to receive buffer, and reply with ack. don't wait for ack send outcome. set expected seq nr to 0.
 
 save endpoint owner id as message source id, just in case a future endpoint owner reset changes it.
+
+also save the pdu data size just in case it is changed in application.
 
 if receive buffer is full, notify receive message handler with message id and receive buffer contents, and mark message id as processed.
 
@@ -139,12 +142,12 @@ assert that message id exists. ignore if otherwise.
 assert in any order that
 
   * pdu seq nr matches expected seq nr. ignore, except except in the case where expected seq nr is 1 more than pdu seq nr. in that case send back the last ack sent.
-  * pdu data size is within maximum. reply with error code if otherwise.
+  * pdu data size is within maximum. reply with error code AND saved max pdu data size as ack payload if otherwise.
   * message destination id matches msg src id. reply with invalid msg dest id error code AND msg src id as ack payload if otherwise.
 
 if message id is already processed, then send back the last ack sent (or construct one for aborted cases).
 
-if pdu isn't the last pdu of message, and data size is less than 512, interpret that as intention by sender to abort transfer, and abort receive and mark message id as processed.
+if pdu isn't the last pdu of message, and data size is 0, interpret that as intention by sender to abort transfer, and abort receive and mark message id as processed.
 
 add pdu data to receive buffer, and reply with ack. don't wait for ack send outcome.
 
@@ -214,7 +217,7 @@ assert that there is no error code, and abort send transfer if there is an error
 The exception to aborting is if error code indicates 
 
   1. invalid message destination id. Save the message source id of the ack as the new message destination id to use for subsequent sends. Also it is highly recommended to save the message destination id for use with the remote endpoint, in order to speed up future message sends to that remote endpoint.
-  2. data size too large. reduce to 512, and refragment message for subsequent sends.
+  2. data size too large. save the indicated pdu size received, and use it to refragment message for subsequent sends.
 
 If there is no error code, then cancel any scheduled retry, and cancel send pdu callback aftermath. Reset the receive ack timer.
 
