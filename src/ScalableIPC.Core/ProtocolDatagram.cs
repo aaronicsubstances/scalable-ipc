@@ -1,7 +1,7 @@
 ﻿using ScalableIPC.Core.Helpers;
 using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ScalableIPC.Core
 {
@@ -14,13 +14,16 @@ namespace ScalableIPC.Core
 
         public const byte ProtocolVersion1_0 = 0x10;
 
-        public const int MinDatagramSize = 38;
+        public const int MinDatagramSize = 22;
+        public const int MsgIdStrLength = 32;
+
+        private static readonly Regex MsgIdRegex = new Regex($"^[a-fA-F0-9]{{{MsgIdStrLength}}}$");
+        private static readonly string NullMsgId = "0".PadRight(MsgIdStrLength, '0');
 
         public byte OpCode { get; set; }
         public byte Version { get; set; }
         public int Reserved { get; set; }
         public string MessageId { get; set; }
-        public string MessageSourceId { get; set; }
         public string MessageDestinationId { get; set; }
         public int MessageLength { get; set; }
         public int SequenceNumber { get; set; }
@@ -96,14 +99,41 @@ namespace ScalableIPC.Core
             }
             offset = newOffset;
 
-            if (parsedDatagram.OpCode == OpCodeData || parsedDatagram.OpCode == OpCodeHeader)
-            {
-                parsedDatagram.Data = rawBytes;
-                parsedDatagram.DataOffset = offset;
-                parsedDatagram.DataLength = endOffset - offset;
-            }
+            parsedDatagram.Data = rawBytes;
+            parsedDatagram.DataOffset = offset;
+            parsedDatagram.DataLength = endOffset - offset;
 
-            parsedDatagram.Validate();
+            // perform shallow validation
+            if (parsedDatagram.Version == 0)
+            {
+                throw new Exception("5c0e154c-0691-4ece-adc9-32437ba6d4d4: " +
+                    "missing protocol version");
+            }
+            if (parsedDatagram.MessageId == NullMsgId)
+            {
+                throw new Exception("96bfdc57-2baa-4b4e-9c84-6843b72bb871: " +
+                    "message id cannot consist of only zeros");
+            }
+            if (parsedDatagram.MessageDestinationId == NullMsgId)
+            {
+                throw new Exception("f3701b60-524d-4f10-acb6-2ab0f56c99fc: " +
+                    "message dest id cannot consist of only zeros");
+            }
+            if (parsedDatagram.SequenceNumber < 0)
+            {
+                throw new Exception("72ffa748-14a3-41ca-baf1-a1d9b0e771b2: " +
+                    "sequence number cannot be negative");
+            }
+            if (parsedDatagram.ErrorCode < 0)
+            {
+                throw new Exception("2c302ccd-62fb-404f-8db9-0d112dfa35ee: " +
+                    "error code cannot be negative");
+            }
+            if (parsedDatagram.MessageLength < 0)
+            {
+                throw new Exception("aa0b494d-0467-4abf-baa3-b1661e597873: " +
+                    "message length cannot be negative");
+            }
 
             return parsedDatagram;
         }
@@ -131,8 +161,6 @@ namespace ScalableIPC.Core
         {
             if (parsedDatagram.OpCode == OpCodeHeaderAck)
             {
-                parsedDatagram.MessageSourceId = ByteUtils.ConvertBytesToHex(rawBytes, offset, 16);
-                offset += 16;
                 if (endOffset - offset < 2)
                 {
                     throw new Exception("60713574-6f3f-4cd3-9f5c-7f175ea4e87f: " +
@@ -167,8 +195,6 @@ namespace ScalableIPC.Core
         {
             if (parsedDatagram.OpCode == OpCodeDataAck)
             {
-                parsedDatagram.MessageSourceId = ByteUtils.ConvertBytesToHex(rawBytes, offset, 16);
-                offset += 16;
                 if (endOffset - offset < 4+2)
                 {
                     throw new Exception("2643d9ea-c82f-4f21-90ea-576b591fd294: " +
@@ -184,51 +210,88 @@ namespace ScalableIPC.Core
 
         public void Validate()
         {
+            if (OpCode != OpCodeHeader && OpCode != OpCodeHeaderAck &&
+                OpCode != OpCodeData && OpCode != OpCodeDataAck)
+            {
+                throw new Exception("6f66dbe8-0c15-48b6-8c6a-856762cdf3e9: Unexpected opcode: " +
+                    OpCode);
+            }
             if (Version == 0)
             {
-                throw new Exception();
+                throw new Exception("477bdefc-adf1-4b3f-b377-e6ea0e1fe9dd: " +
+                    "protocol version must be set");
             }
-            if (MessageId.Trim('0').Length == 0)
+            if (MessageId == null)
             {
-                throw new Exception();
+                throw new Exception("b96df8fa-212b-4914-862a-8e82ed5d25e1: " +
+                    "message id is required");
             }
-            if (MessageDestinationId != null && MessageDestinationId.Trim('0').Length == 0)
+            if (!MsgIdRegex.Match(MessageId).Success)
             {
-                throw new Exception();
+                throw new Exception("e47fc3b1-f391-4f1a-aa82-814c01be6bea: " +
+                    "invalid message id");
             }
-            if (MessageSourceId != null && MessageSourceId.Trim('0').Length == 0)
+            if (MessageId == NullMsgId)
             {
-                throw new Exception();
+                throw new Exception("9d32a707-7f52-4a7c-a444-ca08ac104d2f: " +
+                    "message id cannot consist of only zeros");
             }
-            if (MessageLength < 0)
+            if (MessageDestinationId == null)
             {
-                throw new Exception();
+                if (OpCode == OpCodeHeader || OpCode == OpCodeData)
+                {
+                    throw new Exception("f3701b60-524d-4f10-acb6-2ab0f56c99fc: " +
+                        "message dest id is required");
+                }
             }
-            if (SequenceNumber < 0)
+            if (SequenceNumber <= 0)
             {
-                throw new Exception();
+                if (OpCode == OpCodeData || OpCode == OpCodeDataAck)
+                {
+                    throw new Exception("0903ddcc-d0bb-4772-a1fc-c2530e00a423: " +
+                        "sequence number must be positive");
+                }
             }
             if (ErrorCode < 0)
             {
-                throw new Exception();
-            }
-        }
-
-        public byte[] Serialize()
-        {
-            // validate fields.
-            if (MessageId == null || MessageId.Length != 32)
-            {
-                throw new Exception("e47fc3b1-f391-4f1a-aa82-814c01be6bea: " +
-                    "message id must consist of 32 hexadecimal characters");
-            }
-            if (OpCode == OpCodeData || OpCode == OpCodeHeader)
-            {
-                if (Data == null)
+                if (OpCode == OpCodeHeaderAck || OpCode == OpCodeDataAck)
                 {
-                    throw new Exception("f414e24d-d8bb-44dc-afb4-d34773d28e9a: " +
-                        "data must be set");
+                    throw new Exception("fb2c83ee-9b2f-4ec9-8b01-519cd5cb38dc: " +
+                        "error code cannot be negative");
                 }
+            }
+            if (MessageLength < 0)
+            {
+                if (OpCode == OpCodeHeader)
+                {
+                    throw new Exception("6e989cb8-6944-4e26-be87-f6717e7dbb56: " +
+                        "message length cannot be negative");
+                }
+            }
+
+            if (Data == null)
+            {
+                if (OpCode == OpCodeHeader || OpCode == OpCodeData)
+                {
+                    throw new Exception("7bb539e7-7670-4faf-ac75-fb7c824025c9: " +
+                        "data is required");
+                }
+            }
+            if (MessageDestinationId != null)
+            {
+                if (!MsgIdRegex.Match(MessageDestinationId).Success)
+                {
+                    throw new Exception("938436a3-56aa-45f8-97ef-9715dea14cc4: " +
+                        "invalid message destination id");
+                }
+                if (MessageDestinationId == NullMsgId)
+                {
+                    throw new Exception("6cc83541-ac56-4398-9ffe-65e041419712: " +
+                        "message destination id cannot consist of only zeros");
+                }
+            }
+            if (Data != null)
+            {
                 if (DataLength < 0)
                 {
                     throw new Exception("9039a1e3-c4a1-4eff-b53f-059a7316b97d: " +
@@ -245,25 +308,30 @@ namespace ScalableIPC.Core
                         "data offset and length combination exceeds data size");
                 }
             }
+        }
 
-            byte[] rawBytes = SerializeAsHeaderPdu();
-            if (rawBytes == null)
-            {
-                rawBytes = SerializeAsHeaderAckPdu();
-            }
-            if (rawBytes == null)
-            {
-                rawBytes = SerializeAsDataPdu();
-            }
-            if (rawBytes == null)
-            {
-                rawBytes = SerializeAsDataAckPdu();
-            }
+        public byte[] Serialize()
+        {
+            // perform full validation.
+            Validate();
 
-            if (rawBytes == null)
+            byte[] rawBytes;
+            switch (OpCode)
             {
-                throw new Exception("6f66dbe8-0c15-48b6-8c6a-856762cdf3e9: Unexpected opcode: " +
-                    OpCode);
+                case OpCodeHeader:
+                    rawBytes = SerializeAsHeaderPdu();
+                    break;
+                case OpCodeHeaderAck:
+                    rawBytes = SerializeAsHeaderAckPdu();
+                    break;
+                case OpCodeData:
+                    rawBytes = SerializeAsDataPdu();
+                    break;
+                case OpCodeDataAck:
+                    rawBytes = SerializeAsDataAckPdu();
+                    break;
+                default:
+                    throw new Exception("Unknown opcode: " + OpCode);
             }
             return rawBytes;
         }
@@ -284,110 +352,74 @@ namespace ScalableIPC.Core
 
         private byte[] SerializeAsHeaderPdu()
         {
-            if (OpCode != OpCodeHeader)
-            {
-                return null;
-            }
-
-            if (MessageDestinationId == null || MessageDestinationId.Length != 32)
-            {
-                throw new Exception("39d799a9-98ee-4477-bd28-f126b38212ac: " +
-                    "message destination id must consist of 32 hexadecimal characters");
-            }
-
-            byte[] rawBytes = new byte[MinDatagramSize + 4 + DataLength];
+            byte[] rawBytes = new byte[MinDatagramSize + 4 + Data.Length];
             int offset = SerializeBeginningMembers(rawBytes);
             ByteUtils.ConvertHexToBytes(MessageDestinationId, rawBytes, offset);
             offset += 16;
             ByteUtils.SerializeInt32BigEndian(MessageLength, rawBytes, offset);
             offset += 4;
-            Array.Copy(Data, DataOffset, rawBytes, offset, DataLength);
-            offset += DataLength;
+            Array.Copy(Data, DataOffset, rawBytes, offset, Data.Length);
+            offset += Data.Length;
             if (offset != rawBytes.Length)
             {
-                throw new Exception("serialization failure");
+                throw new Exception("header serialization failure");
             }
             return rawBytes;
         }
 
         private byte[] SerializeAsHeaderAckPdu()
         {
-            if (OpCode != OpCodeHeaderAck)
-            {
-                return null;
-            }
-
-            if (MessageSourceId == null || MessageSourceId.Length != 32)
-            {
-                throw new Exception("25b04616-6aff-4f55-b0c9-1b06922b1c44: " +
-                    "message source id must consist of 32 hexadecimal characters");
-            }
-
-            byte[] rawBytes = new byte[MinDatagramSize + 2];
+            int dataLengthToUse = Data != null ? DataLength : 0;
+            byte[] rawBytes = new byte[MinDatagramSize + 2 + dataLengthToUse];
             int offset = SerializeBeginningMembers(rawBytes);
-            ByteUtils.ConvertHexToBytes(MessageSourceId, rawBytes, offset);
-            offset += 16;
             ByteUtils.SerializeInt16BigEndian(ErrorCode, rawBytes, offset);
             offset += 2;
+            if (Data != null)
+            {
+                Array.Copy(Data, DataOffset, rawBytes, offset, dataLengthToUse);
+                offset += dataLengthToUse;
+            }
             if (offset != rawBytes.Length)
             {
-                throw new Exception("serialization failure");
+                throw new Exception("header ack serialization failure");
             }
             return rawBytes;
         }
 
         private byte[] SerializeAsDataPdu()
         {
-            if (OpCode != OpCodeData)
-            {
-                return null;
-            }
-
-            if (MessageDestinationId == null || MessageDestinationId.Length != 32)
-            {
-                throw new Exception("938436a3-56aa-45f8-97ef-9715dea14cc4: " +
-                    "message destination id must consist of 32 hexadecimal characters");
-            }
-
-            byte[] rawBytes = new byte[MinDatagramSize + 4 + DataLength];
+            byte[] rawBytes = new byte[MinDatagramSize + 4 + Data.Length];
             int offset = SerializeBeginningMembers(rawBytes);
             ByteUtils.ConvertHexToBytes(MessageDestinationId, rawBytes, offset);
             offset += 16;
             ByteUtils.SerializeInt32BigEndian(SequenceNumber, rawBytes, offset);
             offset += 4;
-            Array.Copy(Data, DataOffset, rawBytes, offset, DataLength);
-            offset += DataLength;
+            Array.Copy(Data, DataOffset, rawBytes, offset, Data.Length);
+            offset += Data.Length;
             if (offset != rawBytes.Length)
             {
-                throw new Exception("serialization failure");
+                throw new Exception("data serialization failure");
             }
             return rawBytes;
         }
 
         private byte[] SerializeAsDataAckPdu()
         {
-            if (OpCode != OpCodeDataAck)
-            {
-                return null;
-            }
-
-            if (MessageSourceId == null || MessageSourceId.Length != 32)
-            {
-                throw new Exception("3fd5c735-c487-4cef-976d-f8a0c52a06a3: " +
-                    "message source id must consist of 32 hexadecimal characters");
-            }
-
-            byte[] rawBytes = new byte[MinDatagramSize + 4 + 2];
+            int dataLengthToUse = Data != null ? DataLength : 0;
+            byte[] rawBytes = new byte[MinDatagramSize + 4 + 2 + dataLengthToUse];
             int offset = SerializeBeginningMembers(rawBytes);
-            ByteUtils.ConvertHexToBytes(MessageSourceId, rawBytes, offset);
-            offset += 16;
             ByteUtils.SerializeInt32BigEndian(SequenceNumber, rawBytes, offset);
             offset += 4;
             ByteUtils.SerializeInt16BigEndian(ErrorCode, rawBytes, offset);
             offset += 2;
+            if (Data != null)
+            {
+                Array.Copy(Data, DataOffset, rawBytes, offset, dataLengthToUse);
+                offset += dataLengthToUse;
+            }
             if (offset != rawBytes.Length)
             {
-                throw new Exception("serialization failure");
+                throw new Exception("data ack serialization failure");
             }
             return rawBytes;
         }
@@ -399,7 +431,6 @@ namespace ScalableIPC.Core
                    Version == datagram.Version &&
                    Reserved == datagram.Reserved &&
                    MessageId == datagram.MessageId &&
-                   MessageSourceId == datagram.MessageSourceId &&
                    MessageDestinationId == datagram.MessageDestinationId &&
                    MessageLength == datagram.MessageLength &&
                    SequenceNumber == datagram.SequenceNumber &&
@@ -416,7 +447,6 @@ namespace ScalableIPC.Core
             hashCode = hashCode * -1521134295 + Version.GetHashCode();
             hashCode = hashCode * -1521134295 + Reserved.GetHashCode();
             hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(MessageId);
-            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(MessageSourceId);
             hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(MessageDestinationId);
             hashCode = hashCode * -1521134295 + MessageLength.GetHashCode();
             hashCode = hashCode * -1521134295 + SequenceNumber.GetHashCode();

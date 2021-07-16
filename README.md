@@ -48,9 +48,11 @@ The initial motivation for this protocol came from deliberations on IPC efficien
 In the case of UDP, the datagram length indicates the length of the PDU.
 In the case of TCP/TLS, the PDU must be wrapped in a TLV format.
 
+opcode, reserved, payload are byte blobs.
+
 message length, sequence number are signed 32-bit big endian integers. error code is signed 16-bit big endian integer.
 
-sequence number, protocol version, opcode, message ids, message source and destination ids, cannot be all zeros.
+sequence number, protocol version, opcode, message ids, message destination id, cannot be all zeros.
 
 all strings are utf8-encoded.
 
@@ -72,8 +74,8 @@ HEADER members
    - (payload, can be empty)
 
 HEADER_ACK members
-   - message source id - 16 bytes (uuid)
    - error code - 2 bytes
+   - (payload, can be empty)
 
 DATA members
    - message destination id - 16 bytes (uuid)
@@ -81,9 +83,9 @@ DATA members
    - (payload, can be empty)
 
 DATA_ACK members
-   - message source id - 16 bytes (uuid)
    - sequence number - 4 bytes
    - error code - 2 bytes
+   - (payload, can be empty)
 
 ### Receive Operation
 
@@ -118,7 +120,7 @@ assert in any order that
   * message length is within maximum. 0 is allowed. reply with error code if otherwise.
   * if pdu isn't the last pdu of message, then the data size is at least 512. reply with error code if otherwise.
   * pdu data size is within maximum. reply with error code if otherwise.
-  * message destination id matches endpoint owner id. reply with error code if otherwise.
+  * message destination id matches endpoint owner id. reply with error code AND endpoint owner id as ack payload if otherwise.
 
 if message id is already processed, then send back the last ack sent (or construct one for aborted cases).
 
@@ -138,7 +140,7 @@ assert in any order that
 
   * pdu seq nr matches expected seq nr. ignore, except except in the case where expected seq nr is 1 more than pdu seq nr. in that case send back the last ack sent.
   * pdu data size is within maximum. reply with error code if otherwise.
-  * message destination id matches msg src id. reply with invalid msg dest id error code is otherwise.
+  * message destination id matches msg src id. reply with invalid msg dest id error code AND msg src id as ack payload if otherwise.
 
 if message id is already processed, then send back the last ack sent (or construct one for aborted cases).
 

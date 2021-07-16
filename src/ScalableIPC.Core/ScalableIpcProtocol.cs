@@ -6,7 +6,6 @@ using ScalableIPC.Core.ProtocolOperation;
 using System;
 using System.IO;
 using System.Runtime.CompilerServices;
-using System.Text;
 
 [assembly: InternalsVisibleTo("ScalableIPC.Core.UnitTests")]
 [assembly: InternalsVisibleTo("ScalableIPC.IntegrationTests")]
@@ -91,7 +90,7 @@ namespace ScalableIPC.Core
 
             transfer.MessageDestinationId = EndpointInfoDatastore?.Get(transfer.RemoteEndpoint) ??
                 ByteUtils.GenerateUuid();
-            transfer.PduDataSize = Math.Max(MaximumPduDataSize, MinimumNonTerminatingPduDataSize);
+            transfer.PduDataSize = MaximumPduDataSize < 1 ? MinimumNonTerminatingPduDataSize : MaximumPduDataSize;
 
             // start ack timeout
             PostponeSendDataTimeout(transfer);
@@ -201,12 +200,15 @@ namespace ScalableIPC.Core
             {
                 if (ack.ErrorCode == ProtocolErrorCode.InvalidDestinationEndpointId.Value)
                 {
-                    if (transfer.MessageDestinationId != ack.MessageSourceId)
+                    string expectedMsgDestId = ByteUtils.ConvertBytesToHex(ack.Data, ack.DataOffset,
+                        ack.DataLength);
+                    if (expectedMsgDestId.Length == ProtocolDatagram.MsgIdStrLength &&
+                        transfer.MessageDestinationId != expectedMsgDestId)
                     {
-                        transfer.MessageDestinationId = ack.MessageSourceId;
+                        transfer.MessageDestinationId = expectedMsgDestId;
 
                         // save for future use.
-                        EndpointInfoDatastore?.Update(remoteEndpoint, ack.MessageSourceId);
+                        EndpointInfoDatastore?.Update(remoteEndpoint, transfer.MessageDestinationId);
 
                         // instead of waiting for retry backoff timer, send updated pdu
                         // once.
@@ -369,12 +371,12 @@ namespace ScalableIPC.Core
             }
 
             // assert message length.
-            int effectiveMaxMsgLength = Math.Max(MaximumReceivableMessageLength,
-                UnconfiguredMaximumMessageLength);
+            int effectiveMaxMsgLength = MaximumReceivableMessageLength < 1 ?
+                UnconfiguredMaximumMessageLength : MaximumReceivableMessageLength;
             if (pdu.MessageLength > effectiveMaxMsgLength)
             {
-                SendReplyAck(remoteEndpoint, pdu.MessageId,
-                    endpointOwnerId, 0, ProtocolErrorCode.MessageTooLarge);
+                SendReplyAck(remoteEndpoint, pdu.MessageId, 0,
+                    ProtocolErrorCode.MessageTooLarge, null);
                 return;
             }
 
@@ -387,16 +389,16 @@ namespace ScalableIPC.Core
             }
             if (!dataSizeValid)
             {
-                SendReplyAck(remoteEndpoint, pdu.MessageId, endpointOwnerId, 0,
-                    ProtocolErrorCode.InvalidPduDataSizeExceeded);
+                SendReplyAck(remoteEndpoint, pdu.MessageId, 0,
+                    ProtocolErrorCode.InvalidPduDataSizeExceeded, null);
                 return;
             }
 
             // assert that message destination id matches endpoint owner id.
             if (pdu.MessageDestinationId != endpointOwnerId)
             {
-                SendReplyAck(remoteEndpoint, pdu.MessageId, endpointOwnerId, 0,
-                    ProtocolErrorCode.InvalidDestinationEndpointId);
+                SendReplyAck(remoteEndpoint, pdu.MessageId, 0,
+                    ProtocolErrorCode.InvalidDestinationEndpointId, ByteUtils.ConvertHexToBytes(endpointOwnerId));
                 return;
             }
 
@@ -445,7 +447,7 @@ namespace ScalableIPC.Core
             }
             // in any case send back ack
             transfer.LastAckSent = SendReplyAck(transfer.RemoteEndpoint,
-                transfer.MessageId, transfer.MessageSrcId, 0, null);
+                transfer.MessageId, 0, null, null);
         }
 
         private void ProcessReceiveDataRequest(GenericNetworkIdentifier remoteEndpoint,
@@ -474,16 +476,17 @@ namespace ScalableIPC.Core
             bool dataSizeValid = pdu.DataLength <= MaximumPduDataSize;
             if (!dataSizeValid)
             {
-                SendReplyAck(remoteEndpoint, pdu.MessageId, transfer.MessageSrcId,
-                    pdu.SequenceNumber, ProtocolErrorCode.InvalidPduDataSizeExceeded);
+                SendReplyAck(remoteEndpoint, pdu.MessageId, pdu.SequenceNumber, 
+                    ProtocolErrorCode.InvalidPduDataSizeExceeded, null);
                 return;
             }
 
             // assert that message destination id matches endpoint owner id.
             if (pdu.MessageDestinationId != endpointOwnerId)
             {
-                SendReplyAck(remoteEndpoint, pdu.MessageId, transfer.MessageSrcId,
-                    pdu.SequenceNumber, ProtocolErrorCode.InvalidDestinationEndpointId);
+                SendReplyAck(remoteEndpoint, pdu.MessageId, pdu.SequenceNumber,
+                    ProtocolErrorCode.InvalidDestinationEndpointId,
+                    ByteUtils.ConvertHexToBytes(transfer.MessageSrcId));
                 return;
             }
 
@@ -526,11 +529,11 @@ namespace ScalableIPC.Core
             }
             // in any case send back ack
             transfer.LastAckSent = SendReplyAck(transfer.RemoteEndpoint,
-                transfer.MessageId, transfer.MessageSrcId, pdu.SequenceNumber, null);
+                transfer.MessageId, pdu.SequenceNumber, null, null);
         }
 
         private ProtocolDatagram SendReplyAck(GenericNetworkIdentifier remoteEndpoint, string messageId,
-            string messageSrcId, int seqNr, ProtocolErrorCode errorCode)
+            int seqNr, ProtocolErrorCode errorCode, byte[] data)
         {
             var ack = new ProtocolDatagram
             {
@@ -538,9 +541,10 @@ namespace ScalableIPC.Core
                     ProtocolDatagram.OpCodeDataAck,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
                 MessageId = messageId,
-                MessageSourceId = messageSrcId,
                 SequenceNumber = seqNr,
-                ErrorCode = errorCode?.Value ?? 0
+                ErrorCode = errorCode?.Value ?? 0,
+                Data = data,
+                DataLength = data?.Length ?? 0
             };
             UnderlyingTransport.BeginSend(remoteEndpoint, ack, null);
             return ack;

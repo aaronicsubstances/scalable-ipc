@@ -29,7 +29,6 @@ namespace ScalableIPC.Core.ProtocolOperation
                         ProtocolDatagram.OpCodeDataAck,
                     Version = ProtocolDatagram.ProtocolVersion1_0,
                     MessageId = MessageId,
-                    MessageSourceId = MessageSrcId,
                     SequenceNumber = ExpectedSequenceNumber,
                     ErrorCode = ProcessingErrorCode,
                 };

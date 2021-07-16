@@ -19,6 +19,7 @@ namespace ScalableIPC.Core.UnitTests
         {
             var testData = new List<object[]>();
 
+            // test data opcode
             var msgId = "".PadRight(32, '1');
             var endpointId = "".PadRight(32, '5');
             var instance = new ProtocolDatagram
@@ -82,17 +83,24 @@ namespace ScalableIPC.Core.UnitTests
             };
             testData.Add(new object[] { instance, expected });
 
+            // test data ack opcode
             msgId = "e4c871c91e364267ac38e1bc87af091a";
-            endpointId = "0ee491726ac14d7a92121560946602a1";
             instance = new ProtocolDatagram
             {
                 OpCode = ProtocolDatagram.OpCodeDataAck,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
                 Reserved = 0,
                 MessageId = msgId,
-                MessageSourceId = endpointId,
                 SequenceNumber = 2,
-                ErrorCode = 1
+                ErrorCode = 1,
+                Data = new byte[]
+                {
+                    0x0e, 0xe4, 0x91, 0x72,
+                    0x6a, 0xc1, 0x4d, 0x7a,
+                    0x92, 0x12, 0x15, 0x60,
+                    0x94, 0x66, 0x02, 0xa1 
+                },
+                DataLength = 16
             };
             expected = new byte[]
             {
@@ -101,16 +109,40 @@ namespace ScalableIPC.Core.UnitTests
                 0xe4, 0xc8, 0x71, 0xc9, // message id
                 0x1e, 0x36, 0x42, 0x67,
                 0xac, 0x38, 0xe1, 0xbc,
-                0x87, 0xaf, 0x09, 0x1a,
-                0x0e, 0xe4, 0x91, 0x72, // message src id
+                0x87, 0xaf, 0x09, 0x1a,                
+                0x00, 0x00, 0x00, 0x02, // sequence number
+                0x00, 0x01, // error code
+                0x0e, 0xe4, 0x91, 0x72, // data
                 0x6a, 0xc1, 0x4d, 0x7a,
                 0x92, 0x12, 0x15, 0x60,
                 0x94, 0x66, 0x02, 0xa1,
+            };
+            testData.Add(new object[] { instance, expected });
+
+            msgId = "a71e5f598d5144c3b0805293663d63cc";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeDataAck,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                Reserved = 0,
+                MessageId = msgId,
+                SequenceNumber = 2,
+                ErrorCode = 1
+            };
+            expected = new byte[]
+            {
+                0x02, 0x10,  // opcode and version
+                0x00, 0x00, 0x00, 0x00, // reserved
+                0xa7, 0x1e, 0x5f, 0x59, // message id
+                0x8d, 0x51, 0x44, 0xc3,
+                0xb0, 0x80, 0x52, 0x93,
+                0x66, 0x3d, 0x63, 0xcc,
                 0x00, 0x00, 0x00, 0x02, // sequence number
                 0x00, 0x01, // error code
             };
             testData.Add(new object[] { instance, expected });
 
+            // test header opcode
             msgId = "be1778d1cc2a4f54ada8ec05392fcb86";
             endpointId = "9bd0cc9e6e574079b5509555923df72e";
             instance = new ProtocolDatagram
@@ -174,15 +206,14 @@ namespace ScalableIPC.Core.UnitTests
             };
             testData.Add(new object[] { instance, expected });
 
+            // test header ack opcode
             msgId = "4344294800114444b5ce60df6bfec4cd";
-            endpointId = "53354bf8bdf941f7801132dcb3730c30";
             instance = new ProtocolDatagram
             {
                 OpCode = ProtocolDatagram.OpCodeHeaderAck,
                 Version = ProtocolDatagram.ProtocolVersion1_0,
                 Reserved = 0,
                 MessageId = msgId,
-                MessageSourceId = endpointId,
                 ErrorCode = 20
             };
             expected = new byte[]
@@ -193,11 +224,32 @@ namespace ScalableIPC.Core.UnitTests
                 0x00, 0x11, 0x44, 0x44,
                 0xb5, 0xce, 0x60, 0xdf,
                 0x6b, 0xfe, 0xc4, 0xcd,
-                0x53, 0x35, 0x4b, 0xf8, // message src id
-                0xbd, 0xf9, 0x41, 0xf7,
-                0x80, 0x11, 0x32, 0xdc,
-                0xb3, 0x73, 0x0c, 0x30,
                 0x00, 0x14, // error code
+            };
+            testData.Add(new object[] { instance, expected });
+
+            msgId = "b6d8d0c8-2d3e-45dc-bd0f-0400d88035b8";
+            instance = new ProtocolDatagram
+            {
+                OpCode = ProtocolDatagram.OpCodeHeaderAck,
+                Version = ProtocolDatagram.ProtocolVersion1_0,
+                Reserved = 0,
+                MessageId = msgId,
+                ErrorCode = 20,
+                Data = new byte[]{ 0x41, 0x42, 0x30, 0x67 },
+                DataOffset = 3,
+                DataLength = 1
+            };
+            expected = new byte[]
+            {
+                0x04, 0x10,  // opcode and version
+                0x00, 0x00, 0x00, 0x00, // reserved
+                0xb6, 0xd8, 0xd0, 0xc8, // message id
+                0x2d, 0x3e, 0x45, 0xdc,
+                0xbd, 0x0f, 0x04, 0x00,
+                0xd8, 0x80, 0x35, 0xb8,
+                0x00, 0x14, // error code
+                0x67 // data
             };
             testData.Add(new object[] { instance, expected });
 
