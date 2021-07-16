@@ -603,7 +603,7 @@ namespace ScalableIPC.Core
             }
             // mark as processed.
             transfer.Processed = true;
-            transfer.ProcessedAt = DateTime.UtcNow;
+            transfer.ProcessedAt = EventLoop.CurrentTimestamp;
             if (abortCode.Value < 0)
             {
                 transfer.ProcessingErrorCode = ProtocolErrorCode.ProcessingError.Value;
@@ -691,18 +691,13 @@ namespace ScalableIPC.Core
 
             // eject all receives which have been in processed state for at
             // least receive timeout
-            var minTimeToWait = TimeSpan.FromMilliseconds(ReceiveTimeout);
             var endpoints = incomingTransfers.GetEndpoints();
             foreach (var endpoint in endpoints)
             {
                 foreach (var transfer in incomingTransfers.GetValues(endpoint))
                 {
-                    if (!transfer.Processed)
-                    {
-                        continue;
-                    }
-                    var timeSpent = DateTime.UtcNow - transfer.ProcessedAt;
-                    if (timeSpent > minTimeToWait)
+                    var timeSpent = EventLoop.CurrentTimestamp - transfer.ProcessedAt;
+                    if (transfer.Processed && timeSpent >= ReceiveTimeout)
                     {
                         incomingTransfers.Remove(endpoint, transfer.MessageId);
                         MonitoringAgent?.OnReceivedDataEvicted(transfer);
